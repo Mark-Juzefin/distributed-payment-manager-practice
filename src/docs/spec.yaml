@@ -1,0 +1,215 @@
+openapi: 3.0.0
+info:
+  title: Payment Orders API
+  version: 1.0.0
+description: >-
+  API for handling order webhooks from the JustPay! payment system, storing data in a database, and providing endpoints for retrieving orders and their events.
+
+paths:
+  /webhooks/payments/orders:
+    post:
+      summary: Handle order webhooks from JustPay!
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                event_id:
+                  type: string
+                  description: Unique identifier for the event.
+                order_id:
+                  type: string
+                  description: Unique identifier for the order.
+                user_id:
+                  type: string
+                  description: Identifier for the user associated with the order.
+                status:
+                  type: string
+                  enum: [created, updated, failed, success]
+                  description: Lifecycle status of the order.
+                updated_at:
+                  type: string
+                  format: date-time
+                  description: Timestamp when the order was last updated.
+                created_at:
+                  type: string
+                  format: date-time
+                  description: Timestamp when the order was created.
+                meta:
+                  type: object
+                  description: Metadata associated with the order.
+      responses:
+        '201':
+          description: Webhook processed successfully.
+        '409':
+          description: Conflict - Duplicate event_id.
+        '422':
+          description: Unprocessable Content - Invalid status transition or final status already received.
+
+  /orders:
+    get:
+      summary: Retrieve a list of orders.
+      parameters:
+        - name: status
+          in: query
+          schema:
+            type: string
+            description: Filter by order status (comma-separated values).
+        - name: user_id
+          in: query
+          schema:
+            type: string
+            description: Filter by user ID.
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 10
+            description: Number of orders to return.
+        - name: offset
+          in: query
+          schema:
+            type: integer
+            default: 0
+            description: Number of orders to skip.
+        - name: sort_by
+          in: query
+          schema:
+            type: string
+            default: created_at
+            enum: [created_at, updated_at]
+            description: Field to sort by.
+        - name: sort_order
+          in: query
+          schema:
+            type: string
+            default: desc
+            enum: [asc, desc]
+            description: Sort order (ascending or descending).
+      responses:
+        '200':
+          description: List of orders.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    order_id:
+                      type: string
+                    user_id:
+                      type: string
+                    status:
+                      type: string
+                    created_at:
+                      type: string
+                      format: date-time
+                    updated_at:
+                      type: string
+                      format: date-time
+
+  /orders/{order_id}:
+    get:
+      summary: Retrieve details of a specific order.
+      parameters:
+        - name: order_id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Order details.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  order_id:
+                    type: string
+                  user_id:
+                    type: string
+                  status:
+                    type: string
+                  created_at:
+                    type: string
+                    format: date-time
+                  updated_at:
+                    type: string
+                    format: date-time
+        '404':
+          description: Order not found.
+
+  /orders/{order_id}/events:
+    get:
+      summary: Retrieve events for a specific order.
+      parameters:
+        - name: order_id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: List of events for the order.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    event_id:
+                      type: string
+                    order_id:
+                      type: string
+                    user_id:
+                      type: string
+                    status:
+                      type: string
+                    created_at:
+                      type: string
+                      format: date-time
+                    updated_at:
+                      type: string
+                      format: date-time
+        '404':
+          description: Order not found.
+
+components:
+  schemas:
+    Order:
+      type: object
+      properties:
+        order_id:
+          type: string
+        user_id:
+          type: string
+        status:
+          type: string
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+    Event:
+      type: object
+      properties:
+        event_id:
+          type: string
+        order_id:
+          type: string
+        user_id:
+          type: string
+        status:
+          type: string
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time

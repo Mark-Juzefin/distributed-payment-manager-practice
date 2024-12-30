@@ -10,7 +10,7 @@ type Router struct {
 }
 
 func (r *Router) SetUp(engine *gin.Engine) {
-	engine.GET("/orders", r.order.GetAll)
+	//engine.GET("/orders", r.order.GetAll)
 	engine.GET("/orders/:order_id", r.order.Get)
 }
 

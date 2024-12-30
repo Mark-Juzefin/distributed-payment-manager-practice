@@ -5,6 +5,11 @@ info:
 description: >-
   API for handling order webhooks from the JustPay! payment system, storing data in a database, and providing endpoints for retrieving orders and their events.
 
+servers:
+  - url: http://localhost:3000
+    description: Local development server
+
+
 paths:
   /webhooks/payments/orders:
     post:

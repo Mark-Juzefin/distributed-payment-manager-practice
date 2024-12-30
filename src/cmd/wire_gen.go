@@ -10,16 +10,28 @@ import (
 	"TestTaskJustPay/src/api"
 	"TestTaskJustPay/src/api/handlers"
 	"TestTaskJustPay/src/app"
-	"TestTaskJustPay/src/service"
+	"TestTaskJustPay/src/config"
+	"TestTaskJustPay/src/pkg/db"
+	"TestTaskJustPay/src/repo/order"
+	"TestTaskJustPay/src/service/order"
 )
 
 // Injectors from wire.go:
 
-func InitServer() *app.Server {
+func InitServer() (*app.Server, error) {
 	engine := app.NewGinEngine()
-	iOrderService := service.NewOrderService()
+	configConfig, err := config.New()
+	if err != nil {
+		return nil, err
+	}
+	pool, err := db.New(configConfig)
+	if err != nil {
+		return nil, err
+	}
+	repo := order_repo.NewRepo(pool)
+	iOrderService := order.NewOrderService(repo)
 	orderHandler := handlers.NewOrderHandler(iOrderService)
 	router := api.NewRouter(orderHandler)
-	server := app.NewServer(engine, router)
-	return server
+	server := app.NewServer(engine, router, configConfig)
+	return server, nil
 }

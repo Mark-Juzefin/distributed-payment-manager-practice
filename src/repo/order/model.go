@@ -2,19 +2,16 @@ package order_repo
 
 import (
 	"TestTaskJustPay/src/domain"
-	"errors"
-	"fmt"
 	"github.com/google/uuid"
-	"github.com/jackc/pgx/v5"
 	"time"
 )
 
 type Order struct {
-	OrderID   string    `pg:"id"`
-	UserID    uuid.UUID `pg:"user_id"`
-	Status    string    `pg:"status"`
-	CreatedAt time.Time `pg:"created_at"`
-	UpdatedAt time.Time `pg:"updated_at"`
+	OrderID   string
+	UserID    uuid.UUID
+	Status    string
+	CreatedAt time.Time
+	UpdatedAt time.Time
 }
 
 func (m Order) toDomain() (domain.Order, error) {
@@ -24,27 +21,6 @@ func (m Order) toDomain() (domain.Order, error) {
 		m.Status,
 		m.CreatedAt,
 		m.UpdatedAt)
-}
-
-func newOrderFromRow(row pgx.Row) (domain.Order, error) {
-	var order Order
-
-	err := row.Scan(&order.OrderID,
-		&order.UserID,
-		&order.Status,
-		&order.CreatedAt,
-		&order.UpdatedAt)
-	if err != nil {
-		return domain.Order{}, err
-	}
-
-	fmt.Println("[]", order)
-
-	if errors.Is(err, pgx.ErrNoRows) {
-		return domain.Order{}, fmt.Errorf("order not found: %w", err)
-	}
-
-	return order.toDomain()
 }
 
 type Orders []Order
@@ -66,24 +42,4 @@ func (m Orders) toDomain() ([]domain.Order, error) {
 	}
 
 	return res, nil
-}
-
-func newOrdersFromRows(rows pgx.Rows) ([]domain.Order, error) {
-	defer rows.Close()
-
-	var orders []domain.Order
-
-	for rows.Next() {
-		order, err := newOrderFromRow(rows)
-		if err != nil {
-			return nil, err
-		}
-		orders = append(orders, order)
-	}
-
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-
-	return orders, nil
 }

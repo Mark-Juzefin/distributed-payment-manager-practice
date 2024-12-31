@@ -18,6 +18,6 @@ func (s *orderService) Get(ctx context.Context, id string) (domain.Order, error)
 	return s.orderRepo.FindById(ctx, id)
 }
 
-//func (s *orderService) GetAll(ctx context.Context) ([]domain.Order, error) {
-//	return s.orderRepo.FindAll(ctx)
-//}
+func (s *orderService) Filter(ctx context.Context, filter domain.Filter) ([]domain.Order, error) {
+	return s.orderRepo.FindByFilter(ctx, filter)
+}

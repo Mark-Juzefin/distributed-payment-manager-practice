@@ -17,14 +17,14 @@ func NewRepo(conn *pgxpool.Pool) *Repo {
 func (r *Repo) FindById(ctx context.Context, id string) (domain.Order, error) {
 	row := r.conn.QueryRow(ctx, "SELECT id, user_id, status, created_at, updated_at FROM orders WHERE id = $1", id)
 
-	return newOrderFromRow(row)
+	return parseRow(row)
 }
 
-//func (r *Repo) FindAll(ctx context.Context) ([]domain.Order, error) {
-//	var data ModelArr
-//	err := r.conn.QueryRow(ctx, "SELECT * FROM orders").Scan(&data)
-//	if err != nil {
-//		return []domain.Order{}, nil
-//	}
-//	return data.toDomain()
-//}
+func (r *Repo) FindByFilter(ctx context.Context, filter domain.Filter) ([]domain.Order, error) {
+	rows, err := r.conn.Query(ctx, filterOrdersQuery(filter), filterOrdersArgs(filter))
+	if err != nil {
+		return nil, err
+	}
+
+	return parseRows(rows)
+}

@@ -16,7 +16,7 @@ type Order struct {
 }
 
 func NewOrder(orderId string, userId uuid.UUID, rawStatus string, createdAt time.Time, updatedAt time.Time) (Order, error) {
-	status, err := convertToStatus(rawStatus)
+	status, err := NewOrderStatus(rawStatus)
 	if err != nil {
 		return Order{}, err
 	}
@@ -32,11 +32,43 @@ func NewOrder(orderId string, userId uuid.UUID, rawStatus string, createdAt time
 
 type OrderStatus string
 
-var AvailableStatuses = []OrderStatus{"created", "updated", "created", "success"}
+var AvailableStatuses = []OrderStatus{"created", "updated", "failed", "success"}
 
-func convertToStatus(raw string) (OrderStatus, error) {
+func NewOrderStatus(raw string) (OrderStatus, error) {
 	if slices.Contains(AvailableStatuses, OrderStatus(raw)) {
 		return OrderStatus(raw), nil
 	}
-	return "", errors.New("invalid order")
+	return "", errors.New("invalid order status")
+}
+
+type Filter struct {
+	Status    []OrderStatus
+	UserID    uuid.UUID
+	Limit     int
+	Offset    int
+	SortBy    SortBy
+	SortOrder SortOrder
+}
+
+type SortBy string
+
+// TODO: use it
+var SortByCreatedAt SortBy = "created_at"
+var SortByUpdatedAt SortBy = "updated_at"
+
+type SortOrder string
+
+// TODO: use it
+var SortOrderDesc SortOrder = "desc"
+var SortOrderAsc SortOrder = "asc"
+
+func NewFilter(status []OrderStatus, userID uuid.UUID, limit, offset int, sortBy, sortOrder string) Filter {
+	return Filter{
+		Status:    status,
+		UserID:    userID,
+		Limit:     limit,
+		Offset:    offset,
+		SortBy:    SortBy(sortBy),
+		SortOrder: SortOrder(sortOrder),
+	}
 }

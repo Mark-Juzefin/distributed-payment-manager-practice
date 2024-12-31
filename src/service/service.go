@@ -7,5 +7,5 @@ import (
 
 type IOrderService interface {
 	Get(ctx context.Context, id string) (domain.Order, error)
-	//GetAll(ctx context.Context) ([]domain.Order, error)
+	Filter(ctx context.Context, filter domain.Filter) ([]domain.Order, error)
 }

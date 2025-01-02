@@ -19,7 +19,11 @@ func (s *orderService) Get(ctx context.Context, id string) (domain.Order, error)
 }
 
 func (s *orderService) Filter(ctx context.Context, filter domain.Filter) ([]domain.Order, error) {
-	return s.orderRepo.FindByFilter(ctx, filter)
+	found, err := s.orderRepo.FindByFilter(ctx, filter)
+	if found == nil {
+		found = []domain.Order{}
+	}
+	return found, err
 }
 
 func (s *orderService) ProcessEvent(ctx context.Context, event domain.Event) error {

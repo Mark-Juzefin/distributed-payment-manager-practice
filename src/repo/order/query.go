@@ -33,7 +33,7 @@ func filterOrdersQuery(filter domain.Filter) string {
 	query := fmt.Sprintf(`
 SELECT 
 	id, user_id, status, created_at, updated_at 
-FROM order
+FROM "order"
 WHERE
 	user_id = @user_id
 	AND status IN ( %v )

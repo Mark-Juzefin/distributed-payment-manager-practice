@@ -25,9 +25,6 @@ func filterOrdersArgs(filter domain.Filter) pgx.NamedArgs {
 		}
 	}
 
-	fmt.Println("[args start]")
-	fmt.Println(args)
-	fmt.Println("[args end]")
 	return args
 }
 
@@ -36,7 +33,7 @@ func filterOrdersQuery(filter domain.Filter) string {
 	query := fmt.Sprintf(`
 SELECT 
 	id, user_id, status, created_at, updated_at 
-FROM orders
+FROM order
 WHERE
 	user_id = @user_id
 	AND status IN ( %v )
@@ -44,9 +41,6 @@ WHERE
 LIMIT @limit OFFSET @offset;
 `, strings.Join(genIndexes(filter.Status, "@status"), ","),
 		orderStr)
-	fmt.Println("[query start]")
-	fmt.Println(query)
-	fmt.Println("[query end]")
 
 	return query
 }

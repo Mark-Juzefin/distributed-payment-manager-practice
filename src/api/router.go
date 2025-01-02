@@ -12,6 +12,7 @@ type Router struct {
 func (r *Router) SetUp(engine *gin.Engine) {
 	engine.GET("/orders", r.order.Filter)
 	engine.GET("/orders/:order_id", r.order.Get)
+	engine.POST("/webhooks/payments/orders", r.order.Webhook)
 }
 
 func NewRouter(order handlers.OrderHandler) *Router {

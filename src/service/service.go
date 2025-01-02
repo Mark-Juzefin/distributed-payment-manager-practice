@@ -8,4 +8,5 @@ import (
 type IOrderService interface {
 	Get(ctx context.Context, id string) (domain.Order, error)
 	Filter(ctx context.Context, filter domain.Filter) ([]domain.Order, error)
+	ProcessEvent(ctx context.Context, event domain.Event) error
 }

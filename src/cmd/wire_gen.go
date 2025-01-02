@@ -11,7 +11,7 @@ import (
 	"TestTaskJustPay/src/api/handlers"
 	"TestTaskJustPay/src/app"
 	"TestTaskJustPay/src/config"
-	"TestTaskJustPay/src/pkg/db"
+	"TestTaskJustPay/src/pkg"
 	"TestTaskJustPay/src/repo/order"
 	"TestTaskJustPay/src/service/order"
 )
@@ -24,7 +24,7 @@ func InitServer() (*app.Server, error) {
 	if err != nil {
 		return nil, err
 	}
-	pool, err := db.New(configConfig)
+	pool, err := pkg.NewPgPool(configConfig)
 	if err != nil {
 		return nil, err
 	}

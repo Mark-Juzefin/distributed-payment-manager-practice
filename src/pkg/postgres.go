@@ -1,4 +1,4 @@
-package db
+package pkg
 
 import (
 	"TestTaskJustPay/src/config"
@@ -8,7 +8,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
-func New(cfg config.Config) (*pgxpool.Pool, error) {
+func NewPgPool(cfg config.Config) (*pgxpool.Pool, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
 	defer cancel()
 

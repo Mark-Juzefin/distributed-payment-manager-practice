@@ -2,6 +2,7 @@ package domain
 
 import (
 	"errors"
+	"fmt"
 	"github.com/google/uuid"
 	"slices"
 	"time"
@@ -32,8 +33,27 @@ func NewOrder(orderId string, userId uuid.UUID, rawStatus string, createdAt time
 
 type OrderStatus string
 
-var AvailableStatuses = []OrderStatus{"created", "updated", "failed", "success"}
+const (
+	StatusCreated OrderStatus = "created"
+	StatusUpdated OrderStatus = "updated"
+	StatusFailed  OrderStatus = "failed"
+	StatusSuccess OrderStatus = "success"
+)
 
+var AvailableStatuses = []OrderStatus{StatusCreated, StatusUpdated, StatusFailed, StatusSuccess}
+
+func (s OrderStatus) CanBeUpdatedTo(newStatus OrderStatus) bool {
+	switch s {
+	case StatusCreated:
+		return slices.Contains([]OrderStatus{StatusUpdated, StatusFailed, StatusSuccess}, newStatus)
+	case StatusUpdated:
+		return slices.Contains([]OrderStatus{StatusFailed, StatusSuccess}, newStatus)
+	case StatusFailed, StatusSuccess:
+		return false
+	default:
+		return false
+	}
+}
 func NewOrderStatus(raw string) (OrderStatus, error) {
 	if slices.Contains(AvailableStatuses, OrderStatus(raw)) {
 		return OrderStatus(raw), nil

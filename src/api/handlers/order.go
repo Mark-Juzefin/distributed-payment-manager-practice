@@ -1,8 +1,10 @@
 package handlers
 
 import (
+	"TestTaskJustPay/src/api/apperror"
 	"TestTaskJustPay/src/domain"
 	"TestTaskJustPay/src/service"
+	"errors"
 	"fmt"
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
@@ -16,6 +18,29 @@ type OrderHandler struct {
 
 func NewOrderHandler(s service.IOrderService) OrderHandler {
 	return OrderHandler{service: s}
+}
+
+func (h *OrderHandler) Webhook(c *gin.Context) {
+	var event domain.Event
+	if err := c.ShouldBindJSON(&event); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"message": "Missing order_id"})
+	}
+
+	err := h.service.ProcessEvent(c, event)
+	if err != nil {
+		if errors.Is(err, apperror.UnappropriatedStatus) {
+			c.JSON(http.StatusUnprocessableEntity, gin.H{"message": err.Error()})
+		} else if errors.Is(err, apperror.OrderNotFound) {
+			c.JSON(http.StatusNotFound, gin.H{"message": err.Error()})
+		} else if errors.Is(err, apperror.EventAlreadyStored) {
+			c.JSON(http.StatusConflict, gin.H{"message": err.Error()})
+		} else {
+			c.JSON(http.StatusInternalServerError, gin.H{"message": err.Error()})
+		}
+		return
+	}
+
+	c.Status(http.StatusCreated)
 }
 
 func (h *OrderHandler) Get(c *gin.Context) {
@@ -33,15 +58,6 @@ func (h *OrderHandler) Get(c *gin.Context) {
 	c.JSON(http.StatusOK, res)
 }
 
-type FilterParams struct {
-	StatusArr string `form:"status" binding:"required"`
-	UserID    string `form:"user_id" binding:"required"`
-	Limit     int    `form:"limit" binding:"omitempty,min=0" default:"10"`
-	Offset    int    `form:"offset" binding:"omitempty,min=0" default:"0"`
-	SortBy    string `form:"sort_by" binding:"omitempty,oneof=created_at updated_at" default:"created_at"`
-	SortOrder string `form:"sort_order" binding:"omitempty,oneof=asc desc" default:"desc"`
-}
-
 func (h *OrderHandler) Filter(c *gin.Context) {
 	filter, err := h.createFilter(c)
 	if err != nil {
@@ -56,6 +72,15 @@ func (h *OrderHandler) Filter(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, res)
+}
+
+type FilterParams struct {
+	StatusArr string `form:"status" binding:"required"`
+	UserID    string `form:"user_id" binding:"required"`
+	Limit     int    `form:"limit" binding:"omitempty,min=0" default:"10"`
+	Offset    int    `form:"offset" binding:"omitempty,min=0" default:"0"`
+	SortBy    string `form:"sort_by" binding:"omitempty,oneof=created_at updated_at" default:"created_at"`
+	SortOrder string `form:"sort_order" binding:"omitempty,oneof=asc desc" default:"desc"`
 }
 
 func (h *OrderHandler) createFilter(c *gin.Context) (domain.Filter, error) {

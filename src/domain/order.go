@@ -46,7 +46,7 @@ func (s OrderStatus) CanBeUpdatedTo(newStatus OrderStatus) bool {
 	case StatusCreated:
 		return slices.Contains([]OrderStatus{StatusUpdated, StatusFailed, StatusSuccess}, newStatus)
 	case StatusUpdated:
-		return slices.Contains([]OrderStatus{StatusFailed, StatusSuccess}, newStatus)
+		return slices.Contains([]OrderStatus{StatusUpdated, StatusFailed, StatusSuccess}, newStatus)
 	case StatusFailed, StatusSuccess:
 		return false
 	default:

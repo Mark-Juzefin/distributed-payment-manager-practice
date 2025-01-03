@@ -20,9 +20,13 @@ func NewRepo(conn *pgxpool.Pool) *Repo {
 }
 
 func (r *Repo) FindById(ctx context.Context, id string) (domain.Order, error) {
-	row := r.conn.QueryRow(ctx, `SELECT id, user_id, status, created_at, updated_at FROM order WHERE id = $1`, id)
+	row := r.conn.QueryRow(ctx, `SELECT id, user_id, status, created_at, updated_at FROM "order" WHERE id = $1`, id)
 
-	return parseOrderRow(row)
+	order, err := parseOrderRow(row)
+	if err != nil && errors.Is(err, pgx.ErrNoRows) {
+		return domain.Order{}, apperror.OrderNotFound
+	}
+	return order, err
 }
 
 func (r *Repo) FindByFilter(ctx context.Context, filter domain.Filter) ([]domain.Order, error) {

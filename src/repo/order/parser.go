@@ -19,10 +19,6 @@ func parseOrderRow(row pgx.Row) (domain.Order, error) {
 		return domain.Order{}, err
 	}
 
-	if errors.Is(err, pgx.ErrNoRows) {
-		return domain.Order{}, fmt.Errorf("order not found: %w", err)
-	}
-
 	return order.toDomain()
 }
 

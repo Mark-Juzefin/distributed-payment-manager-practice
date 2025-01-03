@@ -52,6 +52,10 @@ func (h *OrderHandler) Get(c *gin.Context) {
 	fmt.Println("get orderID:", orderID)
 	res, err := h.service.Get(c, orderID)
 	if err != nil {
+		if errors.Is(err, apperror.OrderNotFound) {
+			c.JSON(http.StatusNotFound, gin.H{"message": err.Error()})
+			return
+		}
 		c.JSON(http.StatusInternalServerError, gin.H{"message": err.Error()})
 	}
 

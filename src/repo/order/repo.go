@@ -22,7 +22,7 @@ func NewRepo(conn *pgxpool.Pool) *Repo {
 func (r *Repo) FindById(ctx context.Context, id string) (domain.Order, error) {
 	row := r.conn.QueryRow(ctx, `SELECT id, user_id, status, created_at, updated_at FROM order WHERE id = $1`, id)
 
-	return parseRow(row)
+	return parseOrderRow(row)
 }
 
 func (r *Repo) FindByFilter(ctx context.Context, filter domain.Filter) ([]domain.Order, error) {
@@ -31,7 +31,16 @@ func (r *Repo) FindByFilter(ctx context.Context, filter domain.Filter) ([]domain
 		return nil, err
 	}
 
-	return parseRows(rows)
+	return parseOrderRows(rows)
+}
+
+func (r *Repo) GetEventsByOrderId(ctx context.Context, id string) ([]domain.EventBase, error) {
+	rows, err := r.conn.Query(ctx, getEventsQuery, id)
+	if err != nil {
+		return nil, err
+	}
+
+	return parseEventRows(rows)
 }
 
 // todo: create object UpdateOrderAndSaveEventTransaction

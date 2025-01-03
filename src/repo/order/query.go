@@ -8,6 +8,13 @@ import (
 	"strings"
 )
 
+const getEventsQuery = `
+SELECT id, order_id, user_id, status, created_at, updated_at
+FROM event 
+WHERE order_id = $1
+ORDER BY received_at ASC
+`
+
 func filterOrdersArgs(filter domain.Filter) pgx.NamedArgs {
 	status := pie.Map(filter.Status, func(v domain.OrderStatus) string { return string(v) })
 	args := pgx.NamedArgs{

@@ -29,3 +29,11 @@ func (s *orderService) Filter(ctx context.Context, filter domain.Filter) ([]doma
 func (s *orderService) ProcessEvent(ctx context.Context, event domain.Event) error {
 	return s.orderRepo.UpdateOrderAndSaveEvent(ctx, event)
 }
+
+func (s *orderService) GetEvents(ctx context.Context, orderID string) ([]domain.EventBase, error) {
+	found, err := s.orderRepo.GetEventsByOrderId(ctx, orderID)
+	if found == nil {
+		found = []domain.EventBase{}
+	}
+	return found, err
+}

@@ -1,1 +1,1 @@
-# TODO
+use ./redeploy.sh to run it

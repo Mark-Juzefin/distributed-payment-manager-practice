@@ -1,19 +1,16 @@
 services:
   just_pay:
-    image: just_pay:dev
-    container_name: just_pay
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: prod
+    image: just_pay:prod
+    container_name: just_pay_prod
     networks:
       - backend
     depends_on:
       - db
-    build:
-      target: dev
-      context: .
-      dockerfile: Dockerfile
-    command: sleep infinity
     env_file: .env
-    volumes:
-      - .:/app
     ports:
       - "3000:3000"
 

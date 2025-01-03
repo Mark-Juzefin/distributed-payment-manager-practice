@@ -1,1 +1,1 @@
-docker compose exec -it just_pay /bin/bash
+docker compose exec -it just_pay_dev /bin/bash

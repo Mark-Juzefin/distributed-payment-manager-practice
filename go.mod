@@ -1,16 +1,20 @@
 module TestTaskJustPay
 
-go 1.23.4
+go 1.24.5
+
+tool (
+	github.com/pressly/goose/v3/cmd/goose
+)
 
 require (
 	github.com/elliotchance/pie/v2 v2.9.1
 	github.com/gin-gonic/gin v1.10.0
 	github.com/google/uuid v1.6.0
-	github.com/google/wire v0.6.0
 	github.com/jackc/pgx/v5 v5.7.2
 	github.com/kelseyhightower/envconfig v1.4.0
 	github.com/lib/pq v1.10.9
 	github.com/pressly/goose/v3 v3.24.0
+	github.com/rs/zerolog v1.34.0
 )
 
 require (
@@ -31,6 +35,7 @@ require (
 	github.com/klauspost/cpuid/v2 v2.2.7 // indirect
 	github.com/kr/text v0.2.0 // indirect
 	github.com/leodido/go-urn v1.4.0 // indirect
+	github.com/mattn/go-colorable v0.1.13 // indirect
 	github.com/mattn/go-isatty v0.0.20 // indirect
 	github.com/mfridman/interpolate v0.0.2 // indirect
 	github.com/modern-go/concurrent v0.0.0-20180306012644-bacd9c7ef1dd // indirect

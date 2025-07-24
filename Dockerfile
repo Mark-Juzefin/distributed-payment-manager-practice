@@ -1,16 +1,14 @@
-FROM golang:1.23.4-bookworm as dev
+FROM golang:1.24.5-bookworm AS dev
 WORKDIR /app
 COPY go.mod .
 COPY go.sum .
-COPY install_tools.sh .
-
-RUN /app/install_tools.sh
 
 COPY . .
 
 RUN go env -w CGO_ENABLED=0
-RUN /app/build.sh
-CMD ["/app/run.sh"]
+RUN go mod tidy
+RUN go build -C ./cmd -o /go/bin/app
+CMD ["/go/bin/app"]
 
 
 FROM alpine AS prod

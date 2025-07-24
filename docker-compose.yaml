@@ -1,0 +1,41 @@
+services:
+  payment-app:
+    image: payment-app
+    container_name: payment-app
+    profiles:
+      - prod
+    networks:
+      - backend
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: prod
+    depends_on:
+      - db
+    env_file: .env
+    ports:
+      - "3000:3000"
+
+  db:
+    image: postgres:13
+    restart: always
+    profiles:
+      - prod
+      - infra
+    networks:
+      - backend
+    environment:
+      POSTGRES_DB: payments
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: secret
+      PGDATA: /var/lib/postgresql/data/
+    ports:
+      - '5432:5432'
+    volumes:
+      - db-data:/var/lib/postgresql/data/
+
+volumes:
+  db-data:
+
+networks:
+  backend:

@@ -1,0 +1,19 @@
+version: "2"
+linters:
+  default: none
+  enable:
+    - errcheck
+    - godox
+    - govet
+    - ineffassign
+    - staticcheck
+    - unused
+    - exhaustive
+
+  settings:
+    exhaustive:
+      check:
+        - switch
+
+issues:
+  max-same-issues: 0

@@ -2,37 +2,35 @@ package handlers
 
 import (
 	"TestTaskJustPay/internal/controller/apperror"
-	domain2 "TestTaskJustPay/internal/domain"
-	"TestTaskJustPay/internal/service"
+	"TestTaskJustPay/internal/domain/order"
 	"errors"
 	"fmt"
 	"github.com/gin-gonic/gin"
-	"github.com/google/uuid"
 	"net/http"
 	"strings"
 )
 
 type OrderHandler struct {
-	service service.IOrderService
+	service *order.OrderService
 }
 
-func NewOrderHandler(s service.IOrderService) OrderHandler {
+func NewOrderHandler(s *order.OrderService) OrderHandler {
 	return OrderHandler{service: s}
 }
 
 func (h *OrderHandler) Webhook(c *gin.Context) {
-	var event domain2.Event
+	var event order.Event
 	if err := c.ShouldBindJSON(&event); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"message": "Missing order_id"})
 	}
 
 	err := h.service.ProcessEvent(c, event)
 	if err != nil {
-		if errors.Is(err, apperror.UnappropriatedStatus) {
+		if errors.Is(err, apperror.ErrUnappropriatedStatus) {
 			c.JSON(http.StatusUnprocessableEntity, gin.H{"message": err.Error()})
-		} else if errors.Is(err, apperror.OrderNotFound) {
+		} else if errors.Is(err, apperror.ErrOrderNotFound) {
 			c.JSON(http.StatusNotFound, gin.H{"message": err.Error()})
-		} else if errors.Is(err, apperror.EventAlreadyStored) {
+		} else if errors.Is(err, apperror.ErrEventAlreadyStored) {
 			c.JSON(http.StatusConflict, gin.H{"message": err.Error()})
 		} else {
 			c.JSON(http.StatusInternalServerError, gin.H{"message": err.Error()})
@@ -52,7 +50,7 @@ func (h *OrderHandler) Get(c *gin.Context) {
 	fmt.Println("get orderID:", orderID)
 	res, err := h.service.Get(c, orderID)
 	if err != nil {
-		if errors.Is(err, apperror.OrderNotFound) {
+		if errors.Is(err, apperror.ErrOrderNotFound) {
 			c.JSON(http.StatusNotFound, gin.H{"message": err.Error()})
 			return
 		}
@@ -83,7 +81,7 @@ func (h *OrderHandler) Filter(c *gin.Context) {
 		return
 	}
 
-	res, err := h.service.Filter(c, filter)
+	res, err := h.service.Filter(c, *filter)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
@@ -93,41 +91,35 @@ func (h *OrderHandler) Filter(c *gin.Context) {
 }
 
 type FilterParams struct {
-	StatusArr string `form:"status" binding:"required"`
-	UserID    string `form:"user_id" binding:"required"`
-	Limit     int    `form:"limit" binding:"omitempty,min=0" default:"10"`
-	Offset    int    `form:"offset" binding:"omitempty,min=0" default:"0"`
-	SortBy    string `form:"sort_by" binding:"omitempty,oneof=created_at updated_at" default:"created_at"`
-	SortOrder string `form:"sort_order" binding:"omitempty,oneof=asc desc" default:"desc"`
+	StatusArr  string `form:"status" binding:"required"`
+	UserID     string `form:"user_id" binding:"required"`
+	PageSize   int    `form:"limit" binding:"omitempty,min=0" default:"10"`
+	PageNumber int    `form:"offset" binding:"omitempty,min=0" default:"0"`
+	SortBy     string `form:"sort_by" binding:"omitempty,oneof=created_at updated_at" default:"created_at"`
+	SortOrder  string `form:"sort_order" binding:"omitempty,oneof=asc desc" default:"desc"`
 }
 
-func (h *OrderHandler) createFilter(c *gin.Context) (domain2.Filter, error) {
+func (h *OrderHandler) createFilter(c *gin.Context) (*order.OrdersQuery, error) {
 	var params FilterParams
 
 	if err := c.ShouldBindQuery(&params); err != nil {
-		return domain2.Filter{}, err
+		return nil, err
 	}
 
 	statusArr := strings.Split(params.StatusArr, ",")
 
-	fmt.Println("statusArr", statusArr)
-	status := make([]domain2.OrderStatus, len(statusArr))
+	statuses := make([]order.Status, len(statusArr))
 	for i, v := range statusArr {
-		s, err := domain2.NewOrderStatus(v)
+		s, err := order.NewStatus(v)
 		if err != nil {
-			return domain2.Filter{}, err
+			return nil, err
 		}
 
-		status[i] = s
+		statuses[i] = s
 	}
 
-	userID, err := uuid.Parse(params.UserID)
-	if err != nil {
-		return domain2.Filter{}, err
-	}
-
-	if params.Limit == 0 {
-		params.Limit = 10
+	if params.PageSize == 0 {
+		params.PageSize = 10
 	}
 	if params.SortBy == "" {
 		params.SortBy = "created_at"
@@ -136,5 +128,15 @@ func (h *OrderHandler) createFilter(c *gin.Context) (domain2.Filter, error) {
 		params.SortOrder = "desc"
 	}
 
-	return domain2.NewFilter(status, userID, params.Limit, params.Offset, params.SortBy, params.SortOrder), nil
+	query, err := order.NewOrdersQueryBuilder().
+		WithStatuses(statuses...).
+		WithUserIDs(params.UserID).WithPagination(order.Pagination{
+		PageSize:   params.PageSize,
+		PageNumber: params.PageNumber,
+	}).WithSort(params.SortBy, params.SortOrder).Build()
+	if err != nil {
+		return nil, fmt.Errorf("invalid filter params: %w", err)
+	}
+
+	return query, nil
 }

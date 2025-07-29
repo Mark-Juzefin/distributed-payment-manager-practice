@@ -2,143 +2,261 @@ package order_repo
 
 import (
 	"TestTaskJustPay/internal/controller/apperror"
-	domain2 "TestTaskJustPay/internal/domain"
-	"TestTaskJustPay/pkg"
+	"TestTaskJustPay/internal/domain/order"
+	"TestTaskJustPay/pkg/postgres"
 	"context"
 	"errors"
 	"fmt"
+
+	"github.com/Masterminds/squirrel"
 	"github.com/jackc/pgx/v5"
-	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/jackc/pgx/v5/pgconn"
 )
 
-type Repo struct {
-	conn *pgxpool.Pool
+// DBExecutor interface abstracts pgxpool.Pool and pgx.Tx
+type DBExecutor interface {
+	Query(ctx context.Context, sql string, args ...interface{}) (pgx.Rows, error)
+	Exec(ctx context.Context, sql string, args ...interface{}) (pgconn.CommandTag, error)
 }
 
-func NewRepo(conn *pgxpool.Pool) *Repo {
-	return &Repo{conn: conn}
+// PgOrderRepo is the main repository
+type PgOrderRepo struct {
+	pg *postgres.Postgres
+	repo
 }
 
-func (r *Repo) FindById(ctx context.Context, id string) (domain2.Order, error) {
-	row := r.conn.QueryRow(ctx, `SELECT id, user_id, status, created_at, updated_at FROM "order" WHERE id = $1`, id)
-
-	order, err := parseOrderRow(row)
-	if err != nil && errors.Is(err, pgx.ErrNoRows) {
-		return domain2.Order{}, apperror.OrderNotFound
+func NewPgOrderRepo(pg *postgres.Postgres) order.OrderRepo {
+	return &PgOrderRepo{
+		pg:   pg,
+		repo: repo{pg.Pool, pg},
 	}
-	return order, err
 }
 
-func (r *Repo) FindByFilter(ctx context.Context, filter domain2.Filter) ([]domain2.Order, error) {
-	rows, err := r.conn.Query(ctx, filterOrdersQuery(filter), filterOrdersArgs(filter))
+func (r *PgOrderRepo) InTransaction(ctx context.Context, fn func(repo order.TxOrderRepo) error) (err error) {
+	tx, err := r.pg.Pool.BeginTx(ctx, pgx.TxOptions{
+		IsoLevel: pgx.Serializable,
+	})
 	if err != nil {
-		return nil, err
+		return fmt.Errorf("start transaction: %w", err)
 	}
+
+	defer func() {
+		if err != nil {
+			if rbErr := tx.Rollback(ctx); rbErr != nil {
+				fmt.Printf("failed to rollback, got error: %v", rbErr) //todo: use logger
+			}
+		}
+	}()
+
+	txRepo := &repo{db: tx, pg: r.pg}
+	if err = fn(txRepo); err != nil {
+		return err
+	}
+
+	if err = tx.Commit(ctx); err != nil {
+		return fmt.Errorf("failed to commit the transaction: %w", err)
+	}
+	return nil
+}
+
+type repo struct {
+	db DBExecutor
+	pg *postgres.Postgres
+}
+
+func (r *repo) GetOrders(ctx context.Context, query *order.OrdersQuery) ([]order.Order, error) {
+	sql, args := r.buildOrdersQuery(query)
+	rows, err := r.db.Query(ctx, sql, args...)
+	if err != nil {
+		return nil, fmt.Errorf("query orders: %w", err)
+	}
+	defer rows.Close()
 
 	return parseOrderRows(rows)
 }
 
-func (r *Repo) GetEventsByOrderId(ctx context.Context, id string) ([]domain2.EventBase, error) {
-	rows, err := r.conn.Query(ctx, getEventsQuery, id)
+func (r *repo) GetEvents(ctx context.Context, query *order.EventQuery) ([]order.EventBase, error) {
+	sql, args := r.buildEventsQuery(query)
+	rows, err := r.db.Query(ctx, sql, args...)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("query events: %w", err)
 	}
+	defer rows.Close()
 
 	return parseEventRows(rows)
 }
 
-// todo: create object UpdateOrderAndSaveEventTransaction
-func (r *Repo) UpdateOrderAndSaveEvent(ctx context.Context, event domain2.Event) error {
-	tx, err := r.conn.Begin(ctx)
+func (r *repo) UpdateOrder(ctx context.Context, event order.Event) error {
+	query, args, err := r.pg.Builder.Update("order").
+		Set("status", event.Status).
+		Set("updated_at", event.UpdatedAt).
+		Where(squirrel.Eq{"id": event.OrderId}).
+		ToSql()
 	if err != nil {
-		return err
+		return fmt.Errorf("build update query: %w", err)
 	}
 
-	defer tx.Rollback(ctx)
+	_, err = r.db.Exec(ctx, query, args...)
+	if err != nil {
+		return fmt.Errorf("update order: %w", err)
+	}
+	return nil
+}
 
-	if event.Status == domain2.StatusCreated {
-		err = r.txCreateOrderByEvent(ctx, tx, event)
+func (r *repo) CreateEvent(ctx context.Context, event order.Event) error {
+	query, args, err := r.pg.Builder.Insert("event").
+		Columns("id", "order_id", "user_id", "status", "created_at", "updated_at", "meta").
+		Values(event.EventId, event.OrderId, event.UserId, event.Status, event.CreatedAt, event.UpdatedAt, event.Meta).
+		ToSql()
+	if err != nil {
+		return fmt.Errorf("build insert query: %w", err)
+	}
+
+	_, err = r.db.Exec(ctx, query, args...)
+	if isPgErrorUniqueViolation(err) {
+		return apperror.ErrEventAlreadyStored
+	}
+	if err != nil {
+		return fmt.Errorf("create event: %w", err)
+	}
+	return nil
+}
+
+func (r *repo) CreateOrderByEvent(ctx context.Context, event order.Event) error {
+	query, args, err := r.pg.Builder.Insert("order").
+		Columns("id", "user_id", "status", "created_at", "updated_at").
+		Values(event.OrderId, event.UserId, event.Status, event.CreatedAt, event.UpdatedAt).
+		ToSql()
+	if err != nil {
+		return fmt.Errorf("build insert query: %w", err)
+	}
+
+	_, err = r.db.Exec(ctx, query, args...)
+	if err != nil {
+		return fmt.Errorf("create order by event: %w", err)
+	}
+	return nil
+}
+
+func (r *repo) buildOrdersQuery(q *order.OrdersQuery) (string, []interface{}) {
+	query := r.pg.Builder.Select("id", "user_id", "status", "created_at", "updated_at").
+		From("order")
+
+	// Add WHERE conditions
+	if len(q.IDs) > 0 {
+		query = query.Where(squirrel.Eq{"id": q.IDs})
+	}
+
+	if len(q.UserIDs) > 0 {
+		query = query.Where(squirrel.Eq{"user_id": q.UserIDs})
+	}
+
+	if len(q.Statuses) > 0 {
+		query = query.Where(squirrel.Eq{"status": q.Statuses})
+	}
+
+	// Add sorting
+	if q.SortBy != nil && q.SortOrder != nil {
+		query = query.OrderBy(fmt.Sprintf("%s %s", *q.SortBy, *q.SortOrder))
+	}
+
+	// Add pagination
+	if q.Pagination != nil {
+		offset := (q.Pagination.PageNumber - 1) * q.Pagination.PageSize
+		query = query.Limit(uint64(q.Pagination.PageSize)).Offset(uint64(offset))
+	}
+
+	sql, args, err := query.ToSql()
+	if err != nil {
+		return "", nil
+	}
+
+	return sql, args
+}
+
+func (r *repo) buildEventsQuery(q *order.EventQuery) (string, []interface{}) {
+	query := r.pg.Builder.Select("id", "order_id", "user_id", "status", "created_at", "updated_at").
+		From("event").
+		OrderBy("created_at DESC")
+
+	// Add WHERE conditions
+	if len(q.OrderIDs) > 0 {
+		query = query.Where(squirrel.Eq{"order_id": q.OrderIDs})
+	}
+
+	if len(q.UserIDs) > 0 {
+		query = query.Where(squirrel.Eq{"user_id": q.UserIDs})
+	}
+
+	if len(q.Statuses) > 0 {
+		query = query.Where(squirrel.Eq{"status": q.Statuses})
+	}
+
+	sql, args, err := query.ToSql()
+	if err != nil {
+		return "", nil
+	}
+
+	return sql, args
+}
+
+// Helper functions
+func parseOrderRows(rows pgx.Rows) ([]order.Order, error) {
+	var orders []order.Order
+	for rows.Next() {
+		var o order.Order
+		var rawStatus string
+		err := rows.Scan(&o.OrderId, &o.UserId, &rawStatus, &o.CreatedAt, &o.UpdatedAt)
 		if err != nil {
-			fmt.Println("ERROR(txCreateOrderByEvent): ", err.Error())
-			return err
+			return nil, fmt.Errorf("scan order row: %w", err)
 		}
 
-	} else {
-		err = r.txUpdateOrder(ctx, tx, event)
+		status, err := order.NewStatus(rawStatus)
 		if err != nil {
-			fmt.Println("ERROR(txUpdateOrder): ", err.Error())
-			return err
+			return nil, fmt.Errorf("invalid status in database: %w", err)
 		}
+		o.Status = status
+
+		orders = append(orders, o)
 	}
 
-	err = r.txCreateEvent(ctx, tx, event)
-	if err != nil {
-		fmt.Println("ERROR(txCreateEvent): ", err.Error())
-		return err
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("iterate order rows: %w", err)
 	}
 
-	return tx.Commit(ctx)
-
+	return orders, nil
 }
 
-func (r *Repo) txUpdateOrder(ctx context.Context, tx pgx.Tx, event domain2.Event) error {
-	currStatus, err := r.txGetStatus(ctx, tx, event)
-	if err != nil {
-		if errors.Is(err, pgx.ErrNoRows) {
-			return apperror.OrderNotFound
+func parseEventRows(rows pgx.Rows) ([]order.EventBase, error) {
+	var events []order.EventBase
+	for rows.Next() {
+		var e order.EventBase
+		var rawStatus string
+		err := rows.Scan(&e.EventId, &e.OrderId, &e.UserId, &rawStatus, &e.CreatedAt, &e.UpdatedAt)
+		if err != nil {
+			return nil, fmt.Errorf("scan event row: %w", err)
 		}
-		return err
+
+		status, err := order.NewStatus(rawStatus)
+		if err != nil {
+			return nil, fmt.Errorf("invalid status in database: %w", err)
+		}
+		e.Status = status
+
+		events = append(events, e)
 	}
 
-	if !currStatus.CanBeUpdatedTo(event.Status) {
-		return apperror.UnappropriatedStatus
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("iterate event rows: %w", err)
 	}
 
-	_, err = tx.Exec(ctx, `UPDATE "order" SET status = $1, updated_at = now() WHERE id = $2`, event.Status, event.OrderId)
-	return err
-
+	return events, nil
 }
 
-func (r *Repo) txCreateEvent(ctx context.Context, tx pgx.Tx, event domain2.Event) error {
-	query := `
-	INSERT INTO "event" (id, order_id, user_id, status, created_at, updated_at, meta)
-	VALUES ($1, $2, $3, $4, $5, $6, $7)`
-
-	_, err := tx.Exec(ctx, query,
-		event.EventId,
-		event.OrderId,
-		event.UserId,
-		event.Status,
-		event.CreatedAt,
-		event.UpdatedAt,
-		event.Meta,
-	)
-	if pkg.IsPgErrorUniqueViolation(err) {
-		return apperror.EventAlreadyStored
+func isPgErrorUniqueViolation(err error) bool {
+	var pgErr *pgconn.PgError
+	if errors.As(err, &pgErr) {
+		return pgErr.Code == "23505"
 	}
-	return err
-}
-func (r *Repo) txCreateOrderByEvent(ctx context.Context, tx pgx.Tx, event domain2.Event) error {
-	query := `
-	INSERT INTO "order" (id, user_id, status, created_at, updated_at)
-	VALUES ($1, $2, $3, $4, $5)`
-
-	_, err := tx.Exec(ctx, query,
-		event.OrderId,
-		event.UserId,
-		event.Status,
-		event.CreatedAt,
-		event.UpdatedAt,
-	)
-	return err
-}
-
-func (r *Repo) txGetStatus(ctx context.Context, tx pgx.Tx, event domain2.Event) (domain2.OrderStatus, error) {
-	var rawStatus string
-	err := tx.QueryRow(ctx, `SELECT status FROM "order" WHERE id = $1`, event.OrderId).Scan(&rawStatus)
-	if err != nil {
-		return "", err
-	}
-
-	return domain2.NewOrderStatus(rawStatus)
+	return false
 }

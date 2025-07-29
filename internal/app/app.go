@@ -4,34 +4,27 @@ import (
 	"TestTaskJustPay/config"
 	"TestTaskJustPay/internal/controller/http"
 	"TestTaskJustPay/internal/controller/http/handlers"
+	"TestTaskJustPay/internal/domain/order"
 	order_repo "TestTaskJustPay/internal/repo/order"
-	"TestTaskJustPay/internal/service/order"
-	"TestTaskJustPay/pkg"
 	"TestTaskJustPay/pkg/logger"
+	"TestTaskJustPay/pkg/postgres"
 	"embed"
 	"fmt"
-	"github.com/gin-gonic/gin"
 )
 
 //go:embed migration/*.sql
 var MIGRATION_FS embed.FS
-
-type Server struct {
-	engine    *gin.Engine
-	apiRouter *http.Router
-	config    config.Config
-}
 
 func Run(cfg *config.Config) {
 	l := logger.New(cfg.Log.Level)
 
 	engine := NewGinEngine()
 
-	pool, err := pkg.NewPgPool(cfg.DB.String)
+	pool, err := postgres.New(cfg.PG.String, postgres.MaxPoolSize(cfg.PG.PoolMax))
 	if err != nil {
 		l.Fatal(fmt.Errorf("app - Run - postgres.NewPgPool: %w", err))
 	}
-	repo := order_repo.NewRepo(pool)
+	repo := order_repo.NewPgOrderRepo(pool)
 	iOrderService := order.NewOrderService(repo)
 	orderHandler := handlers.NewOrderHandler(iOrderService)
 	router := http.NewRouter(orderHandler)

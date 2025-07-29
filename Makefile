@@ -3,8 +3,6 @@ export
 
 MIGRATION_DIR=src/app/migration
 
-.PHONY: run run_dev start_containers stop_containers migrate
-
 run:
 	docker compose --profile prod up --build
 
@@ -16,6 +14,12 @@ start_containers:
 
 stop_containers:
 	docker compose --profile infra --profile prod down --remove-orphans
+
+lint:
+	golangci-lint run
+
+test:
+	go test  ./...
 
 migrate:
 ifndef name

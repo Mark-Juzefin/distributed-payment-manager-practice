@@ -8,8 +8,9 @@ type Config struct {
 	App struct {
 		Port int `env:"PORT" envDefault:"3000"`
 	}
-	DB struct {
-		String string `env:"DB_STRING"`
+	PG struct {
+		String  string `env:"PG_URL"`
+		PoolMax string `env:"PG_POOL_MAX" envDefault:"10"`
 	}
 	Log struct {
 		Level string `env:"LOG_LEVEL" envDefault:"info"`

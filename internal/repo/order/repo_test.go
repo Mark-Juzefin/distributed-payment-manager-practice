@@ -30,7 +30,7 @@ func (r *testPgOrderRepo) InTransaction(ctx context.Context, fn func(repo order.
 		return fmt.Errorf("begin transaction: %w", err)
 	}
 
-	txRepo := &repo{db: tx, pg: r.pg}
+	txRepo := &repo{db: tx, builder: r.pg.Builder}
 
 	if err := fn(txRepo); err != nil {
 		tx.Rollback(ctx)
@@ -49,10 +49,7 @@ func TestGetOrders(t *testing.T) {
 	require.NoError(t, err)
 	defer mock.Close()
 
-	pg := &postgres.Postgres{
-		Builder: squirrel.StatementBuilder.PlaceholderFormat(squirrel.Dollar),
-	}
-	repo := &repo{db: mock, pg: pg}
+	repo := &repo{db: mock, builder: squirrel.StatementBuilder.PlaceholderFormat(squirrel.Dollar)}
 	ctx := context.Background()
 
 	t.Run("should return orders with basic query", func(t *testing.T) {
@@ -87,10 +84,7 @@ func TestGetEvents(t *testing.T) {
 	require.NoError(t, err)
 	defer mock.Close()
 
-	pg := &postgres.Postgres{
-		Builder: squirrel.StatementBuilder.PlaceholderFormat(squirrel.Dollar),
-	}
-	repo := &repo{db: mock, pg: pg}
+	repo := &repo{db: mock, builder: squirrel.StatementBuilder.PlaceholderFormat(squirrel.Dollar)}
 	ctx := context.Background()
 
 	t.Run("should return events with filters", func(t *testing.T) {
@@ -156,10 +150,7 @@ func TestUpdateOrder(t *testing.T) {
 	require.NoError(t, err)
 	defer mock.Close()
 
-	pg := &postgres.Postgres{
-		Builder: squirrel.StatementBuilder.PlaceholderFormat(squirrel.Dollar),
-	}
-	repo := &repo{db: mock, pg: pg}
+	repo := &repo{db: mock, builder: squirrel.StatementBuilder.PlaceholderFormat(squirrel.Dollar)}
 	ctx := context.Background()
 
 	t.Run("should update order successfully", func(t *testing.T) {
@@ -210,10 +201,7 @@ func TestCreateEvent(t *testing.T) {
 	require.NoError(t, err)
 	defer mock.Close()
 
-	pg := &postgres.Postgres{
-		Builder: squirrel.StatementBuilder.PlaceholderFormat(squirrel.Dollar),
-	}
-	repo := &repo{db: mock, pg: pg}
+	repo := &repo{db: mock, builder: squirrel.StatementBuilder.PlaceholderFormat(squirrel.Dollar)}
 	ctx := context.Background()
 
 	t.Run("should create event successfully", func(t *testing.T) {
@@ -302,10 +290,7 @@ func TestCreateOrderByEvent(t *testing.T) {
 	require.NoError(t, err)
 	defer mock.Close()
 
-	pg := &postgres.Postgres{
-		Builder: squirrel.StatementBuilder.PlaceholderFormat(squirrel.Dollar),
-	}
-	repo := &repo{db: mock, pg: pg}
+	repo := &repo{db: mock, builder: squirrel.StatementBuilder.PlaceholderFormat(squirrel.Dollar)}
 	ctx := context.Background()
 
 	t.Run("should create order successfully", func(t *testing.T) {
@@ -363,7 +348,7 @@ func TestInTransaction(t *testing.T) {
 	}
 	// Create a test repository using the mock
 	pgRepo := &testPgOrderRepo{
-		repo: repo{db: mock, pg: pg},
+		repo: repo{db: mock, builder: squirrel.StatementBuilder.PlaceholderFormat(squirrel.Dollar)},
 		pool: mock,
 		pg:   pg,
 	}

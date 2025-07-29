@@ -13,12 +13,6 @@ import (
 	"github.com/jackc/pgx/v5/pgconn"
 )
 
-// DBExecutor interface abstracts pgxpool.Pool and pgx.Tx
-type DBExecutor interface {
-	Query(ctx context.Context, sql string, args ...interface{}) (pgx.Rows, error)
-	Exec(ctx context.Context, sql string, args ...interface{}) (pgconn.CommandTag, error)
-}
-
 // PgOrderRepo is the main repository
 type PgOrderRepo struct {
 	pg *postgres.Postgres
@@ -32,35 +26,15 @@ func NewPgOrderRepo(pg *postgres.Postgres) order.OrderRepo {
 	}
 }
 
-func (r *PgOrderRepo) InTransaction(ctx context.Context, fn func(repo order.TxOrderRepo) error) (err error) {
-	tx, err := r.pg.Pool.BeginTx(ctx, pgx.TxOptions{
-		IsoLevel: pgx.Serializable,
+func (r *PgOrderRepo) InTransaction(ctx context.Context, fn func(repo order.TxOrderRepo) error) error {
+	return r.pg.InTransaction(ctx, func(tx postgres.Executor) error {
+		txRepo := &repo{db: tx, pg: r.pg}
+		return fn(txRepo)
 	})
-	if err != nil {
-		return fmt.Errorf("start transaction: %w", err)
-	}
-
-	defer func() {
-		if err != nil {
-			if rbErr := tx.Rollback(ctx); rbErr != nil {
-				fmt.Printf("failed to rollback, got error: %v", rbErr) //todo: use logger
-			}
-		}
-	}()
-
-	txRepo := &repo{db: tx, pg: r.pg}
-	if err = fn(txRepo); err != nil {
-		return err
-	}
-
-	if err = tx.Commit(ctx); err != nil {
-		return fmt.Errorf("failed to commit the transaction: %w", err)
-	}
-	return nil
 }
 
 type repo struct {
-	db DBExecutor
+	db postgres.Executor
 	pg *postgres.Postgres
 }
 

@@ -10,7 +10,7 @@ type Config struct {
 	}
 	PG struct {
 		String  string `env:"PG_URL"`
-		PoolMax string `env:"PG_POOL_MAX" envDefault:"10"`
+		PoolMax int    `env:"PG_POOL_MAX" envDefault:"10"`
 	}
 	Log struct {
 		Level string `env:"LOG_LEVEL" envDefault:"info"`

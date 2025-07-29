@@ -31,7 +31,7 @@ func Run(cfg *config.Config) {
 
 	router.SetUp(engine)
 
-	err = applyMigrations(cfg.DB.String, MIGRATION_FS)
+	err = applyMigrations(cfg.PG.String, MIGRATION_FS)
 	if err != nil {
 		l.Fatal(fmt.Errorf("app - Run - postgres.NewPgPool: %w", err))
 	}

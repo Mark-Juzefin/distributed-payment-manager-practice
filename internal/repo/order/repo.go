@@ -22,20 +22,20 @@ type PgOrderRepo struct {
 func NewPgOrderRepo(pg *postgres.Postgres) order.OrderRepo {
 	return &PgOrderRepo{
 		pg:   pg,
-		repo: repo{pg.Pool, pg},
+		repo: repo{db: pg.Pool, builder: pg.Builder},
 	}
 }
 
 func (r *PgOrderRepo) InTransaction(ctx context.Context, fn func(repo order.TxOrderRepo) error) error {
 	return r.pg.InTransaction(ctx, func(tx postgres.Executor) error {
-		txRepo := &repo{db: tx, pg: r.pg}
+		txRepo := &repo{db: tx, builder: r.pg.Builder}
 		return fn(txRepo)
 	})
 }
 
 type repo struct {
-	db postgres.Executor
-	pg *postgres.Postgres
+	db      postgres.Executor
+	builder squirrel.StatementBuilderType
 }
 
 func (r *repo) GetOrders(ctx context.Context, query *order.OrdersQuery) ([]order.Order, error) {
@@ -61,7 +61,7 @@ func (r *repo) GetEvents(ctx context.Context, query *order.EventQuery) ([]order.
 }
 
 func (r *repo) UpdateOrder(ctx context.Context, event order.Event) error {
-	query, args, err := r.pg.Builder.Update("order").
+	query, args, err := r.builder.Update("order").
 		Set("status", event.Status).
 		Set("updated_at", event.UpdatedAt).
 		Where(squirrel.Eq{"id": event.OrderId}).
@@ -78,7 +78,7 @@ func (r *repo) UpdateOrder(ctx context.Context, event order.Event) error {
 }
 
 func (r *repo) CreateEvent(ctx context.Context, event order.Event) error {
-	query, args, err := r.pg.Builder.Insert("event").
+	query, args, err := r.builder.Insert("event").
 		Columns("id", "order_id", "user_id", "status", "created_at", "updated_at", "meta").
 		Values(event.EventId, event.OrderId, event.UserId, event.Status, event.CreatedAt, event.UpdatedAt, event.Meta).
 		ToSql()
@@ -97,7 +97,7 @@ func (r *repo) CreateEvent(ctx context.Context, event order.Event) error {
 }
 
 func (r *repo) CreateOrderByEvent(ctx context.Context, event order.Event) error {
-	query, args, err := r.pg.Builder.Insert("order").
+	query, args, err := r.builder.Insert("order").
 		Columns("id", "user_id", "status", "created_at", "updated_at").
 		Values(event.OrderId, event.UserId, event.Status, event.CreatedAt, event.UpdatedAt).
 		ToSql()
@@ -113,7 +113,7 @@ func (r *repo) CreateOrderByEvent(ctx context.Context, event order.Event) error 
 }
 
 func (r *repo) buildOrdersQuery(q *order.OrdersQuery) (string, []interface{}) {
-	query := r.pg.Builder.Select("id", "user_id", "status", "created_at", "updated_at").
+	query := r.builder.Select("id", "user_id", "status", "created_at", "updated_at").
 		From("order")
 
 	// Add WHERE conditions
@@ -149,7 +149,7 @@ func (r *repo) buildOrdersQuery(q *order.OrdersQuery) (string, []interface{}) {
 }
 
 func (r *repo) buildEventsQuery(q *order.EventQuery) (string, []interface{}) {
-	query := r.pg.Builder.Select("id", "order_id", "user_id", "status", "created_at", "updated_at").
+	query := r.builder.Select("id", "order_id", "user_id", "status", "created_at", "updated_at").
 		From("event").
 		OrderBy("created_at DESC")
 

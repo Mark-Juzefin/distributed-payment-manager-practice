@@ -14,17 +14,14 @@ func NewOrderService(orderRepo OrderRepo) *OrderService {
 	return &OrderService{orderRepo: orderRepo}
 }
 
-func (s *OrderService) Get(ctx context.Context, id string) (Order, error) {
+func (s *OrderService) GetOrderByID(ctx context.Context, id string) (Order, error) {
 	return getOrderByID(ctx, s.orderRepo, id)
 }
 
 func getOrderByID(ctx context.Context, repo TxOrderRepo, id string) (Order, error) {
-	query, err := NewOrdersQueryBuilder().
+	query, _ := NewOrdersQueryBuilder().
 		WithIDs(id).
 		Build()
-	if err != nil {
-		return Order{}, fmt.Errorf("invalid order ID: %w", err)
-	}
 
 	orders, err := repo.GetOrders(ctx, query)
 	if err != nil {
@@ -36,7 +33,7 @@ func getOrderByID(ctx context.Context, repo TxOrderRepo, id string) (Order, erro
 	return orders[0], nil
 }
 
-func (s *OrderService) Filter(ctx context.Context, query OrdersQuery) ([]Order, error) {
+func (s *OrderService) GetOrders(ctx context.Context, query OrdersQuery) ([]Order, error) {
 	orders, err := s.orderRepo.GetOrders(ctx, &query)
 	if err != nil {
 		return nil, fmt.Errorf("filter orders: %w", err)
@@ -55,9 +52,11 @@ func (s *OrderService) ProcessEvent(ctx context.Context, event Event) error {
 			if err != nil {
 				return fmt.Errorf("load order: %w", err)
 			}
+
 			if !order.Status.CanBeUpdatedTo(event.Status) {
 				return apperror.ErrUnappropriatedStatus
 			}
+
 			if err := tx.UpdateOrder(ctx, event); err != nil {
 				return fmt.Errorf("update order: %w", err)
 			}

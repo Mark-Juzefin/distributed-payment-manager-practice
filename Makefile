@@ -21,6 +21,9 @@ lint:
 test:
 	go test  ./...
 
+generate:
+	go generate ./...
+
 migrate:
 ifndef name
 	$(error "Usage: make migrate name=your_migration_name")

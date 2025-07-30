@@ -2,8 +2,8 @@ package apperror
 
 import "errors"
 
-var ErrUnappropriatedStatus = errors.New("ErrUnappropriatedStatus")
-var ErrOrderNotFound = errors.New("ErrOrderNotFound")
-var ErrEventAlreadyStored = errors.New("ErrEventAlreadyStored")
+var ErrUnappropriatedStatus = errors.New("inappropriate status transition")
+var ErrOrderNotFound = errors.New("order not found")
+var ErrEventAlreadyStored = errors.New("event already stored")
 
 var ErrInvalidOrdersQuery = errors.New("invalid orders query")

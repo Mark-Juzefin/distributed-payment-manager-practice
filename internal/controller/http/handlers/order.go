@@ -48,7 +48,7 @@ func (h *OrderHandler) Get(c *gin.Context) {
 		return
 	}
 	fmt.Println("get orderID:", orderID)
-	res, err := h.service.Get(c, orderID)
+	res, err := h.service.GetOrderByID(c, orderID)
 	if err != nil {
 		if errors.Is(err, apperror.ErrOrderNotFound) {
 			c.JSON(http.StatusNotFound, gin.H{"message": err.Error()})
@@ -81,7 +81,7 @@ func (h *OrderHandler) Filter(c *gin.Context) {
 		return
 	}
 
-	res, err := h.service.Filter(c, *filter)
+	res, err := h.service.GetOrders(c, *filter)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return

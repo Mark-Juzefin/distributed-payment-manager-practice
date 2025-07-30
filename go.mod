@@ -15,6 +15,7 @@ require (
 	github.com/pressly/goose/v3 v3.24.0
 	github.com/rs/zerolog v1.34.0
 	github.com/stretchr/testify v1.10.0
+	go.uber.org/mock v0.4.0
 )
 
 require (

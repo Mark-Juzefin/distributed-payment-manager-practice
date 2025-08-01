@@ -61,7 +61,7 @@ func (r *repo) GetEvents(ctx context.Context, query *order.EventQuery) ([]order.
 }
 
 func (r *repo) UpdateOrder(ctx context.Context, event order.Event) error {
-	query, args, err := r.builder.Update("order").
+	query, args, err := r.builder.Update("orders").
 		Set("status", event.Status).
 		Set("updated_at", event.UpdatedAt).
 		Where(squirrel.Eq{"id": event.OrderId}).
@@ -78,7 +78,7 @@ func (r *repo) UpdateOrder(ctx context.Context, event order.Event) error {
 }
 
 func (r *repo) CreateEvent(ctx context.Context, event order.Event) error {
-	query, args, err := r.builder.Insert("event").
+	query, args, err := r.builder.Insert("order_events").
 		Columns("id", "order_id", "user_id", "status", "created_at", "updated_at", "meta").
 		Values(event.EventId, event.OrderId, event.UserId, event.Status, event.CreatedAt, event.UpdatedAt, event.Meta).
 		ToSql()
@@ -97,7 +97,7 @@ func (r *repo) CreateEvent(ctx context.Context, event order.Event) error {
 }
 
 func (r *repo) CreateOrderByEvent(ctx context.Context, event order.Event) error {
-	query, args, err := r.builder.Insert("order").
+	query, args, err := r.builder.Insert("orders").
 		Columns("id", "user_id", "status", "created_at", "updated_at").
 		Values(event.OrderId, event.UserId, event.Status, event.CreatedAt, event.UpdatedAt).
 		ToSql()
@@ -114,7 +114,7 @@ func (r *repo) CreateOrderByEvent(ctx context.Context, event order.Event) error 
 
 func (r *repo) buildOrdersQuery(q *order.OrdersQuery) (string, []interface{}) {
 	query := r.builder.Select("id", "user_id", "status", "created_at", "updated_at").
-		From("order")
+		From("orders")
 
 	// Add WHERE conditions
 	if len(q.IDs) > 0 {
@@ -150,7 +150,7 @@ func (r *repo) buildOrdersQuery(q *order.OrdersQuery) (string, []interface{}) {
 
 func (r *repo) buildEventsQuery(q *order.EventQuery) (string, []interface{}) {
 	query := r.builder.Select("id", "order_id", "user_id", "status", "created_at", "updated_at").
-		From("event").
+		From("order_events").
 		OrderBy("created_at DESC")
 
 	// Add WHERE conditions

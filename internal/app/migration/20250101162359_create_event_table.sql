@@ -1,6 +1,6 @@
 -- +goose Up
 -- +goose StatementBegin
-CREATE TABLE IF NOT EXISTS "event" (
+CREATE TABLE IF NOT EXISTS "order_events" (
     id VARCHAR(255) PRIMARY KEY,
     order_id VARCHAR(255) NOT NULL,
     user_id UUID NOT NULL,

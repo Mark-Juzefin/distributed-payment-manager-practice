@@ -3,10 +3,12 @@ export
 
 MIGRATION_DIR=src/app/migration
 
+.PHONY: run run-dev start_containers stop_containers lint test integration-test generate migrate
+
 run:
 	docker compose --profile prod up --build
 
-run_dev: start_containers
+run-dev: start_containers
 	go run ./cmd/app
 
 start_containers:
@@ -19,7 +21,10 @@ lint:
 	golangci-lint run
 
 test:
-	go test  ./...
+	go test -v -race -covermode atomic ./...
+
+integration-test: start_containers
+	go clean -testcache && go test -v ./integration-test/...
 
 generate:
 	go generate ./...

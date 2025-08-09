@@ -1,18 +1,28 @@
-FROM golang:1.24.5-bookworm AS dev
+FROM golang:1.24.5-alpine3.21 AS modules
+
+COPY go.mod go.sum /modules/
+
+WORKDIR /modules
+
+RUN go mod download
+
+# Step 2: Builder
+FROM golang:1.24.5-alpine3.21 AS builder
+
+COPY --from=modules /go/pkg /go/pkg
+COPY . /app
+
 WORKDIR /app
-COPY go.mod .
-COPY go.sum .
 
-COPY . .
+RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 \
+    go build -o /bin/app ./cmd/app
 
-RUN go env -w CGO_ENABLED=0
-RUN go mod tidy
-RUN go build -C ./cmd -o /go/bin/app
-CMD ["/go/bin/app"]
+# Step 3: Final
+FROM scratch
 
+COPY --from=builder /app/config /config
+COPY --from=builder /app/internal/app/migrations /migrations
+COPY --from=builder /bin/app /app
+COPY --from=builder /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/
 
-FROM alpine AS prod
-WORKDIR /app
-COPY . /source/
-COPY --from=dev /go/bin/app /app_bin
-CMD ["/app_bin"]
+CMD ["/app"]

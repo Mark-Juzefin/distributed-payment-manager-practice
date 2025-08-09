@@ -8,7 +8,7 @@ import (
 	"github.com/pressly/goose/v3"
 )
 
-func applyMigrations(connStr string, migrationFS embed.FS) error {
+func ApplyMigrations(connStr string, migrationFS embed.FS) error {
 	var db *sql.DB
 	db, err := sql.Open("postgres", connStr)
 	if err != nil {
@@ -20,7 +20,7 @@ func applyMigrations(connStr string, migrationFS embed.FS) error {
 		return err
 	}
 
-	if err := goose.Up(db, "migration"); err != nil {
+	if err := goose.Up(db, "migrations"); err != nil {
 		return err
 	}
 	return nil

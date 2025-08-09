@@ -1,7 +1,13 @@
 package app
 
-import "github.com/gin-gonic/gin"
+import (
+	"TestTaskJustPay/pkg/logger"
 
-func NewGinEngine() *gin.Engine {
-	return gin.Default()
+	"github.com/gin-gonic/gin"
+)
+
+func NewGinEngine(l *logger.Logger) *gin.Engine {
+	engine := gin.New()
+	engine.Use(l.GinBodyLogger(), gin.Recovery())
+	return engine
 }

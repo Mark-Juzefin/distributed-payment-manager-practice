@@ -12,15 +12,15 @@ import (
 	"fmt"
 )
 
-//go:embed migration/*.sql
+//go:embed migrations/*.sql
 var MIGRATION_FS embed.FS
 
-func Run(cfg *config.Config) {
-	l := logger.New(cfg.Log.Level)
+func Run(cfg config.Config) {
+	l := logger.New(cfg.LogLevel)
 
-	engine := NewGinEngine()
+	engine := NewGinEngine(l)
 
-	pool, err := postgres.New(cfg.PG.String, postgres.MaxPoolSize(cfg.PG.PoolMax))
+	pool, err := postgres.New(cfg.PgURL, postgres.MaxPoolSize(cfg.PgPoolMax))
 	if err != nil {
 		l.Fatal(fmt.Errorf("app - Run - postgres.NewPgPool: %w", err))
 	}
@@ -31,7 +31,7 @@ func Run(cfg *config.Config) {
 
 	router.SetUp(engine)
 
-	err = applyMigrations(cfg.PG.String, MIGRATION_FS)
+	err = ApplyMigrations(cfg.PgURL, MIGRATION_FS)
 	if err != nil {
 		l.Fatal(fmt.Errorf("app - Run - postgres.NewPgPool: %w", err))
 	}

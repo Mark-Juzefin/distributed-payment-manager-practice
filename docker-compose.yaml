@@ -9,16 +9,18 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
-      target: prod
     depends_on:
       - db
     env_file: .env
+    environment:
+      - PG_URL=user=postgres password=secret host=db port=5432 dbname=payments sslmode=disable
     ports:
       - "3000:3000"
 
   db:
     image: postgres:13
     restart: always
+    hostname: db
     profiles:
       - prod
       - infra

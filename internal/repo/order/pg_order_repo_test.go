@@ -64,7 +64,7 @@ func TestGetOrders(t *testing.T) {
 			AddRow("order-1", userId, "created", expectedTime, expectedTime).
 			AddRow("order-2", userId, "updated", expectedTime, expectedTime)
 
-		mock.ExpectQuery(`SELECT id, user_id, status, created_at, updated_at FROM order WHERE id IN \(\$1,\$2\)`).
+		mock.ExpectQuery(`SELECT id, user_id, status, created_at, updated_at FROM orders WHERE id IN \(\$1,\$2\)`).
 			WithArgs("order-1", "order-2").
 			WillReturnRows(rows)
 
@@ -100,7 +100,7 @@ func TestGetEvents(t *testing.T) {
 		rows := mock.NewRows([]string{"id", "order_id", "user_id", "status", "created_at", "updated_at"}).
 			AddRow("event-1", "order-1", userId, "created", expectedTime, expectedTime)
 
-		mock.ExpectQuery(`SELECT id, order_id, user_id, status, created_at, updated_at FROM event WHERE order_id IN \(\$1\) AND user_id IN \(\$2\) AND status IN \(\$3\) ORDER BY created_at DESC`).
+		mock.ExpectQuery(`SELECT id, order_id, user_id, status, created_at, updated_at FROM order_events WHERE order_id IN \(\$1\) AND user_id IN \(\$2\) AND status IN \(\$3\) ORDER BY created_at DESC`).
 			WithArgs("order-1", userId.String(), order.StatusCreated).
 			WillReturnRows(rows)
 
@@ -122,7 +122,7 @@ func TestGetEvents(t *testing.T) {
 		rows := mock.NewRows([]string{"id", "order_id", "user_id", "status", "created_at", "updated_at"}).
 			AddRow("event-1", "order-1", userId, "created", expectedTime, expectedTime)
 
-		mock.ExpectQuery(`SELECT id, order_id, user_id, status, created_at, updated_at FROM event ORDER BY created_at DESC`).
+		mock.ExpectQuery(`SELECT id, order_id, user_id, status, created_at, updated_at FROM order_events ORDER BY created_at DESC`).
 			WillReturnRows(rows)
 
 		result, err := repo.GetEvents(ctx, query)
@@ -134,7 +134,7 @@ func TestGetEvents(t *testing.T) {
 	t.Run("should handle database error", func(t *testing.T) {
 		query := &order.EventQuery{}
 
-		mock.ExpectQuery(`SELECT id, order_id, user_id, status, created_at, updated_at FROM event ORDER BY created_at DESC`).
+		mock.ExpectQuery(`SELECT id, order_id, user_id, status, created_at, updated_at FROM order_events ORDER BY created_at DESC`).
 			WillReturnError(assert.AnError)
 
 		result, err := repo.GetEvents(ctx, query)
@@ -166,7 +166,7 @@ func TestUpdateOrder(t *testing.T) {
 			},
 		}
 
-		mock.ExpectExec(`UPDATE order SET status = \$1, updated_at = \$2 WHERE id = \$3`).
+		mock.ExpectExec(`UPDATE orders SET status = \$1, updated_at = \$2 WHERE id = \$3`).
 			WithArgs(order.StatusUpdated, updatedAt, "order-1").
 			WillReturnResult(pgxmock.NewResult("UPDATE", 1))
 
@@ -221,7 +221,7 @@ func TestCreateEvent(t *testing.T) {
 			Meta: map[string]string{"key": "value"},
 		}
 
-		mock.ExpectExec(`INSERT INTO event \(id,order_id,user_id,status,created_at,updated_at,meta\) VALUES \(\$1,\$2,\$3,\$4,\$5,\$6,\$7\)`).
+		mock.ExpectExec(`INSERT INTO order_events \(id,order_id,user_id,status,created_at,updated_at,meta\) VALUES \(\$1,\$2,\$3,\$4,\$5,\$6,\$7\)`).
 			WithArgs("event-1", "order-1", userId, order.StatusCreated, createdAt, updatedAt, event.Meta).
 			WillReturnResult(pgxmock.NewResult("INSERT", 1))
 
@@ -252,7 +252,7 @@ func TestCreateEvent(t *testing.T) {
 			Code: "23505", // unique_violation
 		}
 
-		mock.ExpectExec(`INSERT INTO event \(id,order_id,user_id,status,created_at,updated_at,meta\) VALUES \(\$1,\$2,\$3,\$4,\$5,\$6,\$7\)`).
+		mock.ExpectExec(`INSERT INTO order_events \(id,order_id,user_id,status,created_at,updated_at,meta\) VALUES \(\$1,\$2,\$3,\$4,\$5,\$6,\$7\)`).
 			WithArgs("event-1", "order-1", userId, order.StatusCreated, createdAt, updatedAt, event.Meta).
 			WillReturnError(pgErr)
 
@@ -274,7 +274,7 @@ func TestCreateEvent(t *testing.T) {
 			},
 		}
 
-		mock.ExpectExec(`INSERT INTO event \(id,order_id,user_id,status,created_at,updated_at,meta\) VALUES \(\$1,\$2,\$3,\$4,\$5,\$6,\$7\)`).
+		mock.ExpectExec(`INSERT INTO order_events \(id,order_id,user_id,status,created_at,updated_at,meta\) VALUES \(\$1,\$2,\$3,\$4,\$5,\$6,\$7\)`).
 			WillReturnError(assert.AnError)
 
 		err := repo.CreateEvent(ctx, event)
@@ -308,7 +308,7 @@ func TestCreateOrderByEvent(t *testing.T) {
 			},
 		}
 
-		mock.ExpectExec(`INSERT INTO order \(id,user_id,status,created_at,updated_at\) VALUES \(\$1,\$2,\$3,\$4,\$5\)`).
+		mock.ExpectExec(`INSERT INTO orders \(id,user_id,status,created_at,updated_at\) VALUES \(\$1,\$2,\$3,\$4,\$5\)`).
 			WithArgs("order-1", userId, order.StatusCreated, createdAt, updatedAt).
 			WillReturnResult(pgxmock.NewResult("INSERT", 1))
 
@@ -328,7 +328,7 @@ func TestCreateOrderByEvent(t *testing.T) {
 			},
 		}
 
-		mock.ExpectExec(`INSERT INTO order \(id,user_id,status,created_at,updated_at\) VALUES \(\$1,\$2,\$3,\$4,\$5\)`).
+		mock.ExpectExec(`INSERT INTO orders \(id,user_id,status,created_at,updated_at\) VALUES \(\$1,\$2,\$3,\$4,\$5\)`).
 			WillReturnError(assert.AnError)
 
 		err := repo.CreateOrderByEvent(ctx, event)

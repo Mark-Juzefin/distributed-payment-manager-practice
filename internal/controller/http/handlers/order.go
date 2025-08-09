@@ -5,9 +5,9 @@ import (
 	"TestTaskJustPay/internal/domain/order"
 	"errors"
 	"fmt"
-	"github.com/gin-gonic/gin"
 	"net/http"
-	"strings"
+
+	"github.com/gin-gonic/gin"
 )
 
 type OrderHandler struct {
@@ -90,9 +90,10 @@ func (h *OrderHandler) Filter(c *gin.Context) {
 	c.JSON(http.StatusOK, res)
 }
 
+// todo: redo
 type FilterParams struct {
-	StatusArr  string `form:"status" binding:"required"`
-	UserID     string `form:"user_id" binding:"required"`
+	StatusArr  string `form:"status"`  // todo: redo
+	UserID     string `form:"user_id"` // todo: redo
 	PageSize   int    `form:"limit" binding:"omitempty,min=0" default:"10"`
 	PageNumber int    `form:"offset" binding:"omitempty,min=0" default:"0"`
 	SortBy     string `form:"sort_by" binding:"omitempty,oneof=created_at updated_at" default:"created_at"`
@@ -100,40 +101,41 @@ type FilterParams struct {
 }
 
 func (h *OrderHandler) createFilter(c *gin.Context) (*order.OrdersQuery, error) {
-	var params FilterParams
+	//var params FilterParams
 
-	if err := c.ShouldBindQuery(&params); err != nil {
-		return nil, err
-	}
+	//if err := c.ShouldBindQuery(&params); err != nil {
+	//	return nil, err
+	//}
+	//
+	//statusArr := strings.Split(params.StatusArr, ",")
+	//
+	//statuses := make([]order.Status, len(statusArr))
+	//for i, v := range statusArr {
+	//	s, err := order.NewStatus(v)
+	//	if err != nil {
+	//		return nil, err
+	//	}
+	//
+	//	statuses[i] = s
+	//}
+	//
+	//if params.PageSize == 0 {
+	//	params.PageSize = 10
+	//}
+	//if params.SortBy == "" {
+	//	params.SortBy = "created_at"
+	//}
+	//if params.SortOrder == "" {
+	//	params.SortOrder = "desc"
+	//}
 
-	statusArr := strings.Split(params.StatusArr, ",")
+	//query, err := order.NewOrdersQueryBuilder().
+	//	WithPagination(order.Pagination{
+	//		PageSize:   params.PageSize,
+	//		PageNumber: params.PageNumber,
+	//	}).WithSort(params.SortBy, params.SortOrder).Build()
 
-	statuses := make([]order.Status, len(statusArr))
-	for i, v := range statusArr {
-		s, err := order.NewStatus(v)
-		if err != nil {
-			return nil, err
-		}
-
-		statuses[i] = s
-	}
-
-	if params.PageSize == 0 {
-		params.PageSize = 10
-	}
-	if params.SortBy == "" {
-		params.SortBy = "created_at"
-	}
-	if params.SortOrder == "" {
-		params.SortOrder = "desc"
-	}
-
-	query, err := order.NewOrdersQueryBuilder().
-		WithStatuses(statuses...).
-		WithUserIDs(params.UserID).WithPagination(order.Pagination{
-		PageSize:   params.PageSize,
-		PageNumber: params.PageNumber,
-	}).WithSort(params.SortBy, params.SortOrder).Build()
+	query, err := order.NewOrdersQueryBuilder().Build()
 	if err != nil {
 		return nil, fmt.Errorf("invalid filter params: %w", err)
 	}

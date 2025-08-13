@@ -4,9 +4,10 @@ import (
 	"TestTaskJustPay/internal/controller/apperror"
 	"errors"
 	"fmt"
-	"github.com/google/uuid"
 	"slices"
 	"time"
+
+	"github.com/google/uuid"
 )
 
 type Order struct {

@@ -3,7 +3,8 @@ info:
   title: Payment Orders API
   version: 1.0.0
 description: >-
-  API for handling order webhooks from the JustPay! payment system, storing data in a database, and providing endpoints for retrieving orders and their events.
+  API for ingesting order/chargeback webhooks, storing data, and exposing
+  simple read endpoints for orders, disputes, and their events.
 
 servers:
   - url: http://localhost:3000
@@ -11,142 +12,81 @@ servers:
 
 
 paths:
-  /webhooks/payments/orders:
+  /webhooks/payments/chargebacks:
     post:
-      summary: Handle order webhooks from JustPay!
+      summary: Handle chargeback webhooks
       requestBody:
         required: true
         content:
           application/json:
             schema:
-              type: object
-              properties:
-                event_id:
-                  type: string
-                  description: Unique identifier for the event.
-                order_id:
-                  type: string
-                  description: Unique identifier for the order.
-                user_id:
-                  type: string
-                  description: Identifier for the user associated with the order.
-                status:
-                  type: string
-                  enum: [created, updated, failed, success]
-                  description: Lifecycle status of the order.
-                updated_at:
-                  type: string
-                  format: date-time
-                  description: Timestamp when the order was last updated.
-                created_at:
-                  type: string
-                  format: date-time
-                  description: Timestamp when the order was created.
-                meta:
-                  type: object
-                  description: Metadata associated with the order.
+              $ref: '#/components/schemas/ChargebackWebhook'
       responses:
-        '201':
-          description: Webhook processed successfully.
-        '409':
-          description: Conflict - Duplicate event_id.
-        '422':
-          description: Unprocessable Content - Invalid status transition or final status already received.
+        '202': { description: Accepted for async processing }
+        '200': { description: Duplicate webhook received (idempotent) }
+        '400': { description: Invalid payload }
+
+
+  /webhooks/payments/orders:
+    post:
+      summary: Handle order webhooks
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/OrderEventIn'
+      responses:
+        '202': { description: Accepted for async processing }
+        '200': { description: Duplicate webhook received (idempotent) }
+        '400': { description: Invalid payload }
 
   /orders:
     get:
-      summary: Retrieve a list of orders.
+      summary: Retrieve a list of orders
       parameters:
         - name: status
           in: query
-          schema:
-            type: string
-            description: Filter by order status (comma-separated values).
+          schema: { type: string }
+          description: Comma-separated statuses. Returns all if not provided.
         - name: user_id
           in: query
-          schema:
-            type: string
-            description: Filter by user ID.
+          schema: { type: string }
+          description: Filter by user ID. Returns all if not provided.
         - name: limit
           in: query
-          schema:
-            type: integer
-            default: 10
-            description: Number of orders to return.
+          schema: { type: integer, default: 10, minimum: 1, maximum: 200 }
         - name: offset
           in: query
-          schema:
-            type: integer
-            default: 0
-            description: Number of orders to skip.
+          schema: { type: integer, default: 0, minimum: 0 }
         - name: sort_by
           in: query
-          schema:
-            type: string
-            default: created_at
-            enum: [created_at, updated_at]
-            description: Field to sort by.
+          schema: { type: string, enum: [ created_at, updated_at ], default: created_at }
         - name: sort_order
           in: query
-          schema:
-            type: string
-            default: desc
-            enum: [asc, desc]
-            description: Sort order (ascending or descending).
+          schema: { type: string, enum: [ asc, desc ], default: desc }
       responses:
         '200':
-          description: List of orders.
+          description: Orders page
           content:
             application/json:
-              schema:
-                type: array
-                items:
-                  type: object
-                  properties:
-                    order_id:
-                      type: string
-                    user_id:
-                      type: string
-                    status:
-                      type: string
-                    created_at:
-                      type: string
-                      format: date-time
-                    updated_at:
-                      type: string
-                      format: date-time
+              schema: { $ref: '#/components/schemas/PagedOrders' }
 
   /orders/{order_id}:
     get:
-      summary: Retrieve details of a specific order.
+      summary: Retrieve details of a specific order
       parameters:
         - name: order_id
           in: path
           required: true
-          schema:
-            type: string
+          schema: { type: string }
       responses:
         '200':
-          description: Order details.
+          description: Order details
           content:
             application/json:
-              schema:
-                type: object
-                properties:
-                  order_id:
-                    type: string
-                  user_id:
-                    type: string
-                  status:
-                    type: string
-                  created_at:
-                    type: string
-                    format: date-time
-                  updated_at:
-                    type: string
-                    format: date-time
-        '404':
-          description: Order not found.
+              schema: { $ref: '#/components/schemas/Order' }
+        '404': { description: Order not found }
 
   /orders/{order_id}/events:
     get:
@@ -157,64 +97,238 @@ paths:
           required: true
           schema:
             type: string
+
       responses:
         '200':
-          description: List of events for the order.
+          description: List of events for the order
           content:
             application/json:
               schema:
                 type: array
-                items:
-                  type: object
-                  properties:
-                    event_id:
-                      type: string
-                    order_id:
-                      type: string
-                    user_id:
-                      type: string
-                    status:
-                      type: string
-                    created_at:
-                      type: string
-                      format: date-time
-                    updated_at:
-                      type: string
-                      format: date-time
-        '404':
-          description: Order not found.
+                items: { $ref: '#/components/schemas/Event' }
+        '404': { description: Order not found }
+
+  /disputes:
+    get:
+      summary: Retrieve a list of disputes
+      parameters:
+        - name: status
+          in: query
+          schema:
+            type: string
+            enum: [ open, under_review, submitted, won, lost, canceled ]
+        - name: order_id
+          in: query
+          schema: { type: string }
+        - name: limit
+          in: query
+          schema: { type: integer, default: 10, minimum: 1, maximum: 200 }
+        - name: offset
+          in: query
+          schema: { type: integer, default: 0, minimum: 0 }
+      responses:
+        '200':
+          description: Disputes page
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/PagedDisputes' }
+
+  /disputes/{dispute_id}:
+    get:
+      summary: Retrieve dispute details
+      parameters:
+        - name: dispute_id
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        '200':
+          description: Dispute details
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Dispute' }
+        '404': { description: Dispute not found }
+
+  /disputes/{dispute_id}/events:
+    get:
+      summary: Retrieve events for a specific dispute
+      parameters:
+        - name: dispute_id
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        '200':
+          description: Dispute events
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/DisputeEvent' }
+        '404': { description: Dispute not found }
+
+  /disputes/{dispute_id}/evidence:
+    post:
+      summary: Add/update evidence for a dispute (simple)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/EvidenceUpsert' }
+      responses:
+        '200':
+          description: Current evidence bundle
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/EvidenceBundle' }
+        '404': { description: Dispute not found }
+
+  /disputes/{dispute_id}/submit:
+    post:
+      summary: Submit evidence (representment)
+      responses:
+        '202':
+          description: Submission accepted
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/SubmissionAccepted' }
+        '404': { description: Dispute not found }
+
 
 components:
   schemas:
+    OrderEventIn:
+      type: object
+      required: [event_id, order_id, user_id, status, created_at, updated_at]
+      properties:
+        event_id:   { type: string }
+        order_id:   { type: string }
+        user_id:    { type: string }
+        status:     { type: string, enum: [created, updated, failed, success] }
+        created_at: { type: string, format: date-time }
+        updated_at: { type: string, format: date-time }
+        meta:       { type: object, additionalProperties: true }
+
+    ChargebackWebhook:
+      type: object
+      required: [provider_event_id, status, occurred_at]
+      properties:
+        provider_event_id: { type: string }
+        order_id:          { type: string }
+        status:            { type: string, enum: [opened, updated, closed] }
+        reason:            { type: string }
+        amount:            { type: number }
+        currency:          { type: string }
+        occurred_at:       { type: string, format: date-time }
+        evidence_due_at:   { type: string, format: date-time }
+        meta:              { type: object, additionalProperties: true }
+
     Order:
       type: object
       properties:
-        order_id:
-          type: string
-        user_id:
-          type: string
-        status:
-          type: string
-        created_at:
-          type: string
-          format: date-time
-        updated_at:
-          type: string
-          format: date-time
+        order_id:   { type: string }
+        user_id:    { type: string }
+        status:     { type: string }
+        created_at: { type: string, format: date-time }
+        updated_at: { type: string, format: date-time }
+
     Event:
       type: object
       properties:
-        event_id:
-          type: string
-        order_id:
-          type: string
-        user_id:
-          type: string
+        event_id:   { type: string }
+        order_id:   { type: string }
+        user_id:    { type: string }
+        status:     { type: string }
+        created_at: { type: string, format: date-time }
+        updated_at: { type: string, format: date-time }
+        meta:       { type: object, additionalProperties: true }
+
+    PagedOrders:
+      type: object
+      properties:
+        data:
+          type: array
+          items: { $ref: '#/components/schemas/Order' }
+        meta:
+          type: object
+          properties:
+            limit:  { type: integer }
+            offset: { type: integer }
+            total:  { type: integer }
+
+    Dispute:
+      type: object
+      properties:
+        dispute_id:     { type: string }
+        order_id:       { type: string }
         status:
           type: string
-        created_at:
+          enum: [open, under_review, submitted, won, lost, canceled]
+        reason:         { type: string }
+        amount:         { type: number }
+        currency:       { type: string }
+        opened_at:      { type: string, format: date-time }
+        evidence_due_at: { type: string, format: date-time }
+        submitted_at:   { type: string, format: date-time }
+        closed_at:      { type: string, format: date-time }
+
+    PagedDisputes:
+      type: object
+      properties:
+        data:
+          type: array
+          items: { $ref: '#/components/schemas/Dispute' }
+        meta:
+          type: object
+          properties:
+            limit:  { type: integer }
+            offset: { type: integer }
+            total:  { type: integer }
+
+    DisputeEvent:
+      type: object
+      properties:
+        event_id:   { type: string }
+        dispute_id: { type: string }
+        kind:
           type: string
-          format: date-time
-        updated_at:
-          type: string
-          format: date-time
+          enum: [webhook_opened, evidence_added, submitted, provider_decision]
+        at:   { type: string, format: date-time }
+        meta: { type: object, additionalProperties: true }
+
+    EvidenceUpsert:
+      type: object
+      properties:
+        fields:
+          type: object
+          additionalProperties: { type: string }
+        files:
+          type: array
+          items:
+            type: object
+            properties:
+              file_id:      { type: string }
+              name:         { type: string }
+              content_type: { type: string }
+              size:         { type: integer }
+
+    EvidenceBundle:
+      type: object
+      properties:
+        dispute_id: { type: string }
+        fields:
+          type: object
+          additionalProperties: { type: string }
+        files:
+          type: array
+          items:
+            $ref: '#/components/schemas/EvidenceUpsert/properties/files/items'
+        updated_at: { type: string, format: date-time }
+
+    SubmissionAccepted:
+      type: object
+      properties:
+        submission_id: { type: string }
+        status:        { type: string, enum: [submitted, submission_error] }
+        submitted_at:  { type: string, format: date-time }
+        error:         { type: string }

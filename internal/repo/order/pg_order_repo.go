@@ -5,12 +5,10 @@ import (
 	"TestTaskJustPay/internal/domain/order"
 	"TestTaskJustPay/pkg/postgres"
 	"context"
-	"errors"
 	"fmt"
 
 	"github.com/Masterminds/squirrel"
 	"github.com/jackc/pgx/v5"
-	"github.com/jackc/pgx/v5/pgconn"
 )
 
 // PgOrderRepo is the main repository
@@ -87,7 +85,7 @@ func (r *repo) CreateEvent(ctx context.Context, event order.Event) error {
 	}
 
 	_, err = r.db.Exec(ctx, query, args...)
-	if isPgErrorUniqueViolation(err) {
+	if postgres.IsPgErrorUniqueViolation(err) {
 		return apperror.ErrEventAlreadyStored
 	}
 	if err != nil {
@@ -225,12 +223,4 @@ func parseEventRows(rows pgx.Rows) ([]order.EventBase, error) {
 	}
 
 	return events, nil
-}
-
-func isPgErrorUniqueViolation(err error) bool {
-	var pgErr *pgconn.PgError
-	if errors.As(err, &pgErr) {
-		return pgErr.Code == "23505"
-	}
-	return false
 }

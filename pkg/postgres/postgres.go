@@ -2,6 +2,7 @@ package postgres
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log"
 	"time"
@@ -104,4 +105,12 @@ func (p *Postgres) InTransaction(ctx context.Context, fn func(tx Executor) error
 		return fmt.Errorf("failed to commit transaction: %w", err)
 	}
 	return nil
+}
+
+func IsPgErrorUniqueViolation(err error) bool {
+	var pgErr *pgconn.PgError
+	if errors.As(err, &pgErr) {
+		return pgErr.Code == "23505"
+	}
+	return false
 }

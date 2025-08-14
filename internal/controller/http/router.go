@@ -7,20 +7,23 @@ import (
 )
 
 type Router struct {
-	order handlers.OrderHandler
+	order      handlers.OrderHandler
+	chargeback handlers.ChargebackHandler
 }
 
 func (r *Router) SetUp(engine *gin.Engine) {
 	engine.POST("/webhooks/payments/orders", r.order.Webhook)
+	engine.POST("/webhooks/payments/chargebacks", r.chargeback.Webhook)
 
 	engine.GET("/orders", r.order.Filter)
 	engine.GET("/orders/:order_id", r.order.Get)
 	engine.GET("/orders/:order_id/events", r.order.GetEvents)
 }
 
-func NewRouter(order handlers.OrderHandler) *Router {
+func NewRouter(order handlers.OrderHandler, chargeback handlers.ChargebackHandler) *Router {
 	router := &Router{
-		order: order,
+		order:      order,
+		chargeback: chargeback,
 	}
 	return router
 }

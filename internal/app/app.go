@@ -4,7 +4,9 @@ import (
 	"TestTaskJustPay/config"
 	"TestTaskJustPay/internal/controller/http"
 	"TestTaskJustPay/internal/controller/http/handlers"
+	"TestTaskJustPay/internal/domain/dispute"
 	"TestTaskJustPay/internal/domain/order"
+	dispute_repo "TestTaskJustPay/internal/repo/dispute"
 	order_repo "TestTaskJustPay/internal/repo/order"
 	"TestTaskJustPay/pkg/logger"
 	"TestTaskJustPay/pkg/postgres"
@@ -24,10 +26,16 @@ func Run(cfg config.Config) {
 	if err != nil {
 		l.Fatal(fmt.Errorf("app - Run - postgres.NewPgPool: %w", err))
 	}
-	repo := order_repo.NewPgOrderRepo(pool)
-	iOrderService := order.NewOrderService(repo)
-	orderHandler := handlers.NewOrderHandler(iOrderService)
-	router := http.NewRouter(orderHandler)
+	orderRepo := order_repo.NewPgOrderRepo(pool)
+	disputeRepo := dispute_repo.NewPgDisputeRepo(pool)
+
+	orderService := order.NewOrderService(orderRepo)
+	disputeService := dispute.NewDisputeService(disputeRepo)
+
+	orderHandler := handlers.NewOrderHandler(orderService)
+	disputeHandler := handlers.NewChargebackHandler(disputeService)
+
+	router := http.NewRouter(orderHandler, disputeHandler)
 
 	router.SetUp(engine)
 

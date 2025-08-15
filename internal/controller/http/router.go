@@ -9,6 +9,7 @@ import (
 type Router struct {
 	order      handlers.OrderHandler
 	chargeback handlers.ChargebackHandler
+	dispute    handlers.DisputeHandler
 }
 
 func (r *Router) SetUp(engine *gin.Engine) {
@@ -18,12 +19,15 @@ func (r *Router) SetUp(engine *gin.Engine) {
 	engine.GET("/orders", r.order.Filter)
 	engine.GET("/orders/:order_id", r.order.Get)
 	engine.GET("/orders/:order_id/events", r.order.GetEvents)
+
+	engine.GET("/disputes", r.dispute.GetDisputes)
 }
 
-func NewRouter(order handlers.OrderHandler, chargeback handlers.ChargebackHandler) *Router {
+func NewRouter(order handlers.OrderHandler, chargeback handlers.ChargebackHandler, dispute handlers.DisputeHandler) *Router {
 	router := &Router{
 		order:      order,
 		chargeback: chargeback,
+		dispute:    dispute,
 	}
 	return router
 }

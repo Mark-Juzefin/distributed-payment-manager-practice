@@ -10,6 +10,7 @@ type DisputeRepo interface {
 }
 
 type TxDisputeRepo interface {
+	GetDisputes(ctx context.Context) ([]Dispute, error)
 	GetDisputeByID(ctx context.Context, disputeID string) (*Dispute, error)
 	GetDisputeByOrderID(ctx context.Context, orderID string) (*Dispute, error)
 

@@ -138,11 +138,7 @@ func (r *repo) buildOrdersQuery(q *order.OrdersQuery) (string, []interface{}) {
 		query = query.Limit(uint64(q.Pagination.PageSize)).Offset(uint64(offset))
 	}
 
-	sql, args, err := query.ToSql()
-	if err != nil {
-		return "", nil
-	}
-
+	sql, args, _ := query.ToSql()
 	return sql, args
 }
 
@@ -164,11 +160,7 @@ func (r *repo) buildEventsQuery(q *order.EventQuery) (string, []interface{}) {
 		query = query.Where(squirrel.Eq{"status": q.Statuses})
 	}
 
-	sql, args, err := query.ToSql()
-	if err != nil {
-		return "", nil
-	}
-
+	sql, args, _ := query.ToSql()
 	return sql, args
 }
 

@@ -17,6 +17,14 @@ func NewDisputeService(repo DisputeRepo) *DisputeService {
 	}
 }
 
+func (s *DisputeService) GetDisputes(ctx context.Context) ([]Dispute, error) {
+	disputes, err := s.disputeRepo.GetDisputes(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("get disputes: %w", err)
+	}
+	return disputes, nil
+}
+
 func (s *DisputeService) GetDisputeByID(ctx context.Context, disputeID string) (*Dispute, error) {
 	dispute, err := s.disputeRepo.GetDisputeByID(ctx, disputeID)
 	if err != nil {

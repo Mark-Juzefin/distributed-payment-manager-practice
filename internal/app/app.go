@@ -33,9 +33,10 @@ func Run(cfg config.Config) {
 	disputeService := dispute.NewDisputeService(disputeRepo)
 
 	orderHandler := handlers.NewOrderHandler(orderService)
-	disputeHandler := handlers.NewChargebackHandler(disputeService)
+	chargebackHandler := handlers.NewChargebackHandler(disputeService)
+	disputeHandler := handlers.NewDisputeHandler(disputeService)
 
-	router := http.NewRouter(orderHandler, disputeHandler)
+	router := http.NewRouter(orderHandler, chargebackHandler, disputeHandler)
 
 	router.SetUp(engine)
 

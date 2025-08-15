@@ -36,6 +36,17 @@ type repo struct {
 	builder squirrel.StatementBuilderType
 }
 
+func (r *repo) GetDisputes(ctx context.Context) ([]dispute.Dispute, error) {
+	query, args := r.buildDisputesQuery()
+	rows, err := r.db.Query(ctx, query, args...)
+	if err != nil {
+		return nil, fmt.Errorf("query disputes: %w", err)
+	}
+	defer rows.Close()
+
+	return parseDisputeRows(rows)
+}
+
 func (r *repo) GetDisputeByID(ctx context.Context, disputeID string) (*dispute.Dispute, error) {
 	query, args := r.buildDisputeByIDQuery(disputeID)
 	rows, err := r.db.Query(ctx, query, args...)
@@ -137,16 +148,21 @@ func (r *repo) CreateDisputeEvent(ctx context.Context, event dispute.NewDisputeE
 	return nil
 }
 
+func (r *repo) buildDisputesQuery() (string, []interface{}) {
+	query := r.builder.Select("id", "order_id", "status", "reason", "amount", "currency", "opened_at", "evidence_due_at", "submitted_at", "closed_at").
+		From("disputes").
+		OrderBy("opened_at DESC")
+
+	sql, args, _ := query.ToSql()
+	return sql, args
+}
+
 func (r *repo) buildDisputeByIDQuery(disputeID string) (string, []interface{}) {
 	query := r.builder.Select("id", "order_id", "status", "reason", "amount", "currency", "opened_at", "evidence_due_at", "submitted_at", "closed_at").
 		From("disputes").
 		Where(squirrel.Eq{"id": disputeID})
 
-	sql, args, err := query.ToSql()
-	if err != nil {
-		return "", nil
-	}
-
+	sql, args, _ := query.ToSql()
 	return sql, args
 }
 
@@ -155,11 +171,7 @@ func (r *repo) buildDisputeByOrderIDQuery(orderID string) (string, []interface{}
 		From("disputes").
 		Where(squirrel.Eq{"order_id": orderID})
 
-	sql, args, err := query.ToSql()
-	if err != nil {
-		return "", nil
-	}
-
+	sql, args, _ := query.ToSql()
 	return sql, args
 }
 

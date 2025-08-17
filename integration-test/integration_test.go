@@ -1,3 +1,6 @@
+//go:build integration
+// +build integration
+
 package integration_test
 
 import (
@@ -14,6 +17,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"fmt"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -142,6 +146,7 @@ func TestChargebackFlow(t *testing.T) {
 	closeChargeback := map[string]interface{}{
 		"provider_event_id": "evt-2",
 		"order_id":          orderID,
+		"transaction_id":    "txn-chargeback-1",
 		"status":            "closed",
 		"reason":            "fraud",
 		"amount":            100.50,
@@ -363,4 +368,220 @@ func TestUpdateOrderFlow(t *testing.T) {
 	if updatedResult["status"] != "updated" {
 		t.Errorf("Expected order status to be 'completed', got %v", updatedResult["status"])
 	}
+}
+
+func TestEvidenceAdditionFlow(t *testing.T) {
+	server := setupTestServer(t)
+	defer server.Close()
+
+	orderID := "order-evidence-test"
+
+	// First create an order (required for foreign key constraint)
+	createOrder := map[string]interface{}{
+		"event_id":   "evt-order-evidence",
+		"order_id":   orderID,
+		"user_id":    "55555555-5555-5555-5555-555555555555",
+		"status":     "created",
+		"updated_at": time.Now().Format(time.RFC3339),
+		"created_at": time.Now().Format(time.RFC3339),
+		"meta": map[string]string{
+			"amount":   "250.75",
+			"currency": "USD",
+		},
+	}
+
+	orderPayload, _ := json.Marshal(createOrder)
+	createOrderResp, err := http.Post(server.URL+"/webhooks/payments/orders", "application/json", bytes.NewBuffer(orderPayload))
+	if err != nil {
+		t.Fatalf("Failed to create order: %v", err)
+	}
+	createOrderResp.Body.Close()
+
+	if createOrderResp.StatusCode != http.StatusOK && createOrderResp.StatusCode != http.StatusCreated {
+		t.Errorf("Expected status 200 or 201 for order creation, got %d", createOrderResp.StatusCode)
+	}
+
+	// Create a chargeback to trigger dispute creation
+	openChargeback := map[string]interface{}{
+		"provider_event_id": "evt-evidence-1",
+		"order_id":          orderID,
+		"status":            "opened",
+		"reason":            "unauthorized",
+		"amount":            250.75,
+		"currency":          "USD",
+		"occurred_at":       time.Now().Format(time.RFC3339),
+		"meta":              map[string]string{},
+	}
+
+	openChargebackPayload, _ := json.Marshal(openChargeback)
+	openChargebackResp, err := http.Post(server.URL+"/webhooks/payments/chargebacks", "application/json", bytes.NewBuffer(openChargebackPayload))
+	if err != nil {
+		t.Fatalf("Failed to send chargeback webhook: %v", err)
+	}
+	openChargebackResp.Body.Close()
+
+	if openChargebackResp.StatusCode != http.StatusOK && openChargebackResp.StatusCode != http.StatusCreated && openChargebackResp.StatusCode != http.StatusAccepted {
+		t.Errorf("Expected status 200, 201, or 202 for chargeback, got %d", openChargebackResp.StatusCode)
+	}
+
+	// Get the created dispute
+	disputes := getAllDisputes(t, server)
+	foundDispute := findDisputeByOrderID(disputes, orderID)
+	if foundDispute == nil {
+		t.Fatalf("Could not find dispute for order_id: %s", orderID)
+	}
+
+	disputeID := foundDispute["dispute_id"].(string)
+
+	// Verify initial dispute status is "open"
+	if foundDispute["status"] != "open" {
+		t.Errorf("Expected initial dispute status to be 'open', got %v", foundDispute["status"])
+	}
+
+	// Add evidence to the dispute
+	evidenceData := map[string]interface{}{
+		"fields": map[string]string{
+			"transaction_receipt":    "receipt_123",
+			"customer_communication": "email_456",
+			"shipping_tracking":      "track_789",
+		},
+		"files": []map[string]interface{}{
+			{
+				"file_id":      "file-1",
+				"name":         "receipt.pdf",
+				"content_type": "application/pdf",
+				"size":         1024,
+			},
+			{
+				"file_id":      "file-2",
+				"name":         "communication.txt",
+				"content_type": "text/plain",
+				"size":         512,
+			},
+		},
+	}
+
+	evidencePayload, _ := json.Marshal(evidenceData)
+	evidenceResp, err := http.Post(server.URL+"/disputes/"+disputeID+"/evidence", "application/json", bytes.NewBuffer(evidencePayload))
+	if err != nil {
+		t.Fatalf("Failed to add evidence: %v", err)
+	}
+	defer evidenceResp.Body.Close()
+
+	if evidenceResp.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(evidenceResp.Body)
+		t.Errorf("Expected status 200 for evidence addition, got %d. Response: %s", evidenceResp.StatusCode, string(body))
+	}
+
+	// Verify response contains evidence data
+	var evidenceResult map[string]interface{}
+	json.NewDecoder(evidenceResp.Body).Decode(&evidenceResult)
+
+	if evidenceResult["dispute_id"] != disputeID {
+		t.Errorf("Expected evidence dispute_id to be %s, got %v", disputeID, evidenceResult["dispute_id"])
+	}
+
+	// Verify evidence fields in response
+	responseFields, ok := evidenceResult["fields"].(map[string]interface{})
+	if !ok {
+		t.Fatalf("Expected fields to be a map, got %T", evidenceResult["fields"])
+	}
+
+	if responseFields["transaction_receipt"] != "receipt_123" {
+		t.Errorf("Expected transaction_receipt to be 'receipt_123', got %v", responseFields["transaction_receipt"])
+	}
+
+	// Get updated disputes to verify status change
+	updatedDisputes := getAllDisputes(t, server)
+	updatedDispute := findDisputeByOrderID(updatedDisputes, orderID)
+	if updatedDispute == nil {
+		t.Fatalf("Could not find updated dispute for order_id: %s", orderID)
+	}
+
+	// Verify dispute status changed to "under_review"
+	if updatedDispute["status"] != "under_review" {
+		t.Errorf("Expected dispute status to be 'under_review' after evidence addition, got %v", updatedDispute["status"])
+	}
+
+	// Database verification - get database connection from test setup
+	cfg, err := config.New()
+	if err != nil {
+		t.Fatalf("Failed to load config: %v", err)
+	}
+
+	pool, err := postgres.New(cfg.PgURL, postgres.MaxPoolSize(cfg.PgPoolMax))
+	if err != nil {
+		t.Fatalf("Failed to create postgres pool: %v", err)
+	}
+	defer pool.Close()
+
+	// Verify evidence exists in database
+	evidence := queryEvidenceFromDB(t, pool, disputeID)
+	if evidence == nil {
+		t.Fatalf("Evidence not found in database for dispute_id: %s", disputeID)
+	}
+
+	// Verify evidence_added event was created
+	events := queryDisputeEventsFromAPI(t, server.URL, disputeID)
+	evidenceAddedEventFound := false
+	for _, event := range events {
+		if event["kind"] == "evidence_added" {
+			evidenceAddedEventFound = true
+			break
+		}
+	}
+
+	if !evidenceAddedEventFound {
+		t.Errorf("Expected evidence_added event to be created in dispute_events table")
+	}
+}
+
+// Database query helper functions for evidence testing
+func queryEvidenceFromDB(t *testing.T, pool *postgres.Postgres, disputeID string) map[string]interface{} {
+	row := pool.Pool.QueryRow(context.Background(),
+		"SELECT dispute_id, fields, files, updated_at FROM evidence WHERE dispute_id = $1",
+		disputeID)
+
+	var disputeIDResult, fieldsJSON, filesJSON string
+	var updatedAt time.Time
+
+	err := row.Scan(&disputeIDResult, &fieldsJSON, &filesJSON, &updatedAt)
+	if err != nil {
+		// Return nil if not found (expected for some test cases)
+		return nil
+	}
+
+	var fields map[string]interface{}
+	var files []interface{}
+
+	json.Unmarshal([]byte(fieldsJSON), &fields)
+	json.Unmarshal([]byte(filesJSON), &files)
+
+	return map[string]interface{}{
+		"dispute_id": disputeIDResult,
+		"fields":     fields,
+		"files":      files,
+		"updated_at": updatedAt,
+	}
+}
+
+func queryDisputeEventsFromAPI(t *testing.T, baseURL, disputeID string) []map[string]interface{} {
+	url := fmt.Sprintf("%s/disputes/%s/events", baseURL, disputeID)
+
+	resp, err := http.Get(url)
+	if err != nil {
+		t.Fatalf("Failed to query dispute events: %v", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("Expected status 200, got %d", resp.StatusCode)
+	}
+
+	var events []map[string]interface{}
+	if err := json.NewDecoder(resp.Body).Decode(&events); err != nil {
+		t.Fatalf("Failed to decode dispute events response: %v", err)
+	}
+
+	return events
 }

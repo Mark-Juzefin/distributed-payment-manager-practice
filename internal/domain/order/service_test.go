@@ -203,7 +203,6 @@ func TestOrderService_ProcessEvent(t *testing.T) {
 			EventBase: EventBase{
 				EventId:   "EVENT-1",
 				OrderId:   orderID,
-				UserId:    userID,
 				Status:    StatusCreated,
 				CreatedAt: now,
 				UpdatedAt: now,
@@ -215,7 +214,6 @@ func TestOrderService_ProcessEvent(t *testing.T) {
 			EventBase: EventBase{
 				EventId:   "EVENT-2",
 				OrderId:   orderID,
-				UserId:    userID,
 				Status:    StatusUpdated,
 				CreatedAt: now,
 				UpdatedAt: now,

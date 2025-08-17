@@ -5,7 +5,9 @@ import (
 	"TestTaskJustPay/pkg/postgres"
 	"context"
 	"database/sql"
+	"encoding/json"
 	"fmt"
+	"time"
 
 	"github.com/Masterminds/squirrel"
 	"github.com/google/uuid"
@@ -148,6 +150,64 @@ func (r *repo) CreateDisputeEvent(ctx context.Context, event dispute.NewDisputeE
 	return nil
 }
 
+func (r *repo) GetDisputeEvents(ctx context.Context, query *dispute.DisputeEventQuery) ([]dispute.DisputeEvent, error) {
+	sqlQuery, args := r.buildDisputeEventsQuery(query)
+
+	rows, err := r.db.Query(ctx, sqlQuery, args...)
+	if err != nil {
+		return nil, fmt.Errorf("query dispute events: %w", err)
+	}
+	defer rows.Close()
+
+	return parseDisputeEventRows(rows)
+}
+
+func (r *repo) UpsertEvidence(ctx context.Context, disputeID string, upsert dispute.EvidenceUpsert) (*dispute.Evidence, error) {
+	query, args, err := r.buildUpsertEvidenceQuery(disputeID, upsert)
+	if err != nil {
+		return nil, fmt.Errorf("build upsert query: %w", err)
+	}
+
+	fmt.Println(args)
+	_, err = r.db.Exec(ctx, query, args...)
+	if err != nil {
+		return nil, fmt.Errorf("upsert evidence: %w", err)
+	}
+
+	return &dispute.Evidence{
+		DisputeID: disputeID,
+		EvidenceUpsert: dispute.EvidenceUpsert{
+			Fields: upsert.Fields,
+			Files:  upsert.Files,
+		},
+		UpdatedAt: time.Now(),
+	}, nil
+}
+
+func (r *repo) buildUpsertEvidenceQuery(disputeID string, upsert dispute.EvidenceUpsert) (string, []interface{}, error) {
+	fieldsJSON, err := json.Marshal(upsert.Fields)
+	if err != nil {
+		return "", nil, fmt.Errorf("marshal fields: %w", err)
+	}
+
+	fmt.Println(string(fieldsJSON))
+
+	filesJSON, err := json.Marshal(upsert.Files)
+	if err != nil {
+		return "", nil, fmt.Errorf("marshal files: %w", err)
+	}
+
+	fmt.Println(string(filesJSON))
+
+	now := time.Now()
+	query := r.builder.Insert("evidence").
+		Columns("dispute_id", "fields", "files", "updated_at").
+		Values(disputeID, fieldsJSON, filesJSON, now).
+		Suffix("ON CONFLICT (dispute_id) DO UPDATE SET fields = EXCLUDED.fields, files = EXCLUDED.files, updated_at = EXCLUDED.updated_at")
+
+	return query.ToSql()
+}
+
 func (r *repo) buildDisputesQuery() (string, []interface{}) {
 	query := r.builder.Select("id", "order_id", "status", "reason", "amount", "currency", "opened_at", "evidence_due_at", "submitted_at", "closed_at").
 		From("disputes").
@@ -170,6 +230,23 @@ func (r *repo) buildDisputeByOrderIDQuery(orderID string) (string, []interface{}
 	query := r.builder.Select("id", "order_id", "status", "reason", "amount", "currency", "opened_at", "evidence_due_at", "submitted_at", "closed_at").
 		From("disputes").
 		Where(squirrel.Eq{"order_id": orderID})
+
+	sql, args, _ := query.ToSql()
+	return sql, args
+}
+
+func (r *repo) buildDisputeEventsQuery(eventQuery *dispute.DisputeEventQuery) (string, []interface{}) {
+	query := r.builder.Select("id", "dispute_id", "kind", "provider_event_id", "data", "created_at").
+		From("dispute_events").
+		OrderBy("created_at DESC")
+
+	if len(eventQuery.DisputeIDs) > 0 {
+		query = query.Where(squirrel.Eq{"dispute_id": eventQuery.DisputeIDs})
+	}
+
+	if len(eventQuery.Kinds) > 0 {
+		query = query.Where(squirrel.Eq{"kind": eventQuery.Kinds})
+	}
 
 	sql, args, _ := query.ToSql()
 	return sql, args
@@ -207,4 +284,26 @@ func parseDisputeRows(rows pgx.Rows) ([]dispute.Dispute, error) {
 	}
 
 	return disputes, nil
+}
+
+func parseDisputeEventRows(rows pgx.Rows) ([]dispute.DisputeEvent, error) {
+	var events []dispute.DisputeEvent
+	for rows.Next() {
+		var e dispute.DisputeEvent
+		var rawKind string
+		err := rows.Scan(&e.EventID, &e.DisputeID, &rawKind, &e.ProviderEventID, &e.Data, &e.CreatedAt)
+		if err != nil {
+			return nil, fmt.Errorf("scan dispute event row: %w", err)
+		}
+
+		e.Kind = dispute.DisputeEventKind(rawKind)
+
+		events = append(events, e)
+	}
+
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("iterate dispute event rows: %w", err)
+	}
+
+	return events, nil
 }

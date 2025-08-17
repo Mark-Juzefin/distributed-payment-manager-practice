@@ -20,22 +20,6 @@ type EventBase struct {
 	CreatedAt time.Time `json:"created_at"`
 }
 
-func NewEventBase(eventId, orderId string, userId uuid.UUID, rawStatus string, createdAt time.Time, updatedAt time.Time) (EventBase, error) {
-	status, err := NewStatus(rawStatus)
-	if err != nil {
-		return EventBase{}, err
-	}
-
-	return EventBase{
-		EventId:   eventId,
-		OrderId:   orderId,
-		UserId:    userId,
-		Status:    status,
-		CreatedAt: createdAt,
-		UpdatedAt: updatedAt,
-	}, nil
-}
-
 type EventQuery struct {
 	OrderIDs []string
 	UserIDs  []string
@@ -54,11 +38,6 @@ func NewEventQueryBuilder() *EventQueryBuilder {
 
 func (b *EventQueryBuilder) WithOrderIDs(orderIDs ...string) *EventQueryBuilder {
 	b.query.OrderIDs = orderIDs
-	return b
-}
-
-func (b *EventQueryBuilder) WithUserIDs(userIDs ...string) *EventQueryBuilder {
-	b.query.UserIDs = userIDs
 	return b
 }
 

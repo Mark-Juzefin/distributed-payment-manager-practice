@@ -18,21 +18,6 @@ type Order struct {
 	UpdatedAt time.Time `json:"updated_at"`
 }
 
-func NewOrder(orderId string, userId uuid.UUID, rawStatus string, createdAt time.Time, updatedAt time.Time) (Order, error) {
-	status, err := NewStatus(rawStatus)
-	if err != nil {
-		return Order{}, err
-	}
-
-	return Order{
-		OrderId:   orderId,
-		UserId:    userId,
-		Status:    status,
-		CreatedAt: createdAt,
-		UpdatedAt: updatedAt,
-	}, nil
-}
-
 type Status string
 
 const (

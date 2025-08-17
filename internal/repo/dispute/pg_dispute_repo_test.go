@@ -412,3 +412,357 @@ func TestInTransaction(t *testing.T) {
 		assert.Equal(t, functionErr, err)
 	})
 }
+
+func TestUpsertEvidence(t *testing.T) {
+	t.Run("should upsert evidence successfully", func(t *testing.T) {
+		mock, err := pgxmock.NewPool()
+		require.NoError(t, err)
+		defer mock.Close()
+
+		repo := &repo{db: mock, builder: squirrel.StatementBuilder.PlaceholderFormat(squirrel.Dollar)}
+		ctx := context.Background()
+
+		disputeID := "dispute-1"
+		upsert := dispute.EvidenceUpsert{
+			Fields: map[string]string{
+				"transaction_receipt":    "receipt_123",
+				"customer_communication": "email_456",
+			},
+			Files: []dispute.EvidenceFile{
+				{
+					FileID:      "file-1",
+					Name:        "receipt.pdf",
+					ContentType: "application/pdf",
+					Size:        1024,
+				},
+				{
+					FileID:      "file-2",
+					Name:        "communication.txt",
+					ContentType: "text/plain",
+					Size:        512,
+				},
+			},
+		}
+
+		expectedFieldsJSON := []byte(`{"customer_communication":"email_456","transaction_receipt":"receipt_123"}`)
+		expectedFilesJSON := []byte(`[{"file_id":"file-1","name":"receipt.pdf","content_type":"application/pdf","size":1024},{"file_id":"file-2","name":"communication.txt","content_type":"text/plain","size":512}]`)
+
+		mock.ExpectExec(`INSERT INTO evidence \(dispute_id,fields,files,updated_at\) VALUES \(\$1,\$2,\$3,\$4\) ON CONFLICT \(dispute_id\) DO UPDATE SET fields = EXCLUDED\.fields, files = EXCLUDED\.files, updated_at = EXCLUDED\.updated_at`).
+			WithArgs(disputeID, expectedFieldsJSON, expectedFilesJSON, pgxmock.AnyArg()).
+			WillReturnResult(pgxmock.NewResult("INSERT", 1))
+
+		result, err := repo.UpsertEvidence(ctx, disputeID, upsert)
+
+		require.NoError(t, err)
+		require.NotNil(t, result)
+		assert.Equal(t, disputeID, result.DisputeID)
+		assert.Equal(t, upsert.Fields, result.Fields)
+		assert.Equal(t, upsert.Files, result.Files)
+		assert.NotZero(t, result.UpdatedAt)
+	})
+
+	t.Run("should handle empty fields and files", func(t *testing.T) {
+		mock, err := pgxmock.NewPool()
+		require.NoError(t, err)
+		defer mock.Close()
+
+		repo := &repo{db: mock, builder: squirrel.StatementBuilder.PlaceholderFormat(squirrel.Dollar)}
+		ctx := context.Background()
+
+		disputeID := "dispute-2"
+		upsert := dispute.EvidenceUpsert{
+			Fields: map[string]string{},
+			Files:  []dispute.EvidenceFile{},
+		}
+
+		expectedFieldsJSON := []byte(`{}`)
+		expectedFilesJSON := []byte(`[]`)
+
+		mock.ExpectExec(`INSERT INTO evidence \(dispute_id,fields,files,updated_at\) VALUES \(\$1,\$2,\$3,\$4\) ON CONFLICT \(dispute_id\) DO UPDATE SET fields = EXCLUDED\.fields, files = EXCLUDED\.files, updated_at = EXCLUDED\.updated_at`).
+			WithArgs(disputeID, expectedFieldsJSON, expectedFilesJSON, pgxmock.AnyArg()).
+			WillReturnResult(pgxmock.NewResult("INSERT", 1))
+
+		result, err := repo.UpsertEvidence(ctx, disputeID, upsert)
+
+		require.NoError(t, err)
+		require.NotNil(t, result)
+		assert.Equal(t, disputeID, result.DisputeID)
+		assert.Empty(t, result.Fields)
+		assert.Empty(t, result.Files)
+	})
+
+	t.Run("should handle database error", func(t *testing.T) {
+		mock, err := pgxmock.NewPool()
+		require.NoError(t, err)
+		defer mock.Close()
+
+		repo := &repo{db: mock, builder: squirrel.StatementBuilder.PlaceholderFormat(squirrel.Dollar)}
+		ctx := context.Background()
+
+		disputeID := "dispute-3"
+		upsert := dispute.EvidenceUpsert{
+			Fields: map[string]string{"key": "value"},
+			Files:  []dispute.EvidenceFile{},
+		}
+
+		mock.ExpectExec(`INSERT INTO evidence \(dispute_id,fields,files,updated_at\) VALUES \(\$1,\$2,\$3,\$4\) ON CONFLICT \(dispute_id\) DO UPDATE SET fields = EXCLUDED\.fields, files = EXCLUDED\.files, updated_at = EXCLUDED\.updated_at`).
+			WillReturnError(assert.AnError)
+
+		result, err := repo.UpsertEvidence(ctx, disputeID, upsert)
+
+		require.Error(t, err)
+		assert.Nil(t, result)
+		assert.Contains(t, err.Error(), "upsert evidence")
+	})
+
+	t.Run("should handle nil fields map", func(t *testing.T) {
+		mock, err := pgxmock.NewPool()
+		require.NoError(t, err)
+		defer mock.Close()
+
+		repo := &repo{db: mock, builder: squirrel.StatementBuilder.PlaceholderFormat(squirrel.Dollar)}
+		ctx := context.Background()
+
+		disputeID := "dispute-4"
+		upsert := dispute.EvidenceUpsert{
+			Fields: nil,
+			Files:  []dispute.EvidenceFile{},
+		}
+
+		expectedFieldsJSON := []byte(`null`)
+		expectedFilesJSON := []byte(`[]`)
+
+		mock.ExpectExec(`INSERT INTO evidence \(dispute_id,fields,files,updated_at\) VALUES \(\$1,\$2,\$3,\$4\) ON CONFLICT \(dispute_id\) DO UPDATE SET fields = EXCLUDED\.fields, files = EXCLUDED\.files, updated_at = EXCLUDED\.updated_at`).
+			WithArgs(disputeID, expectedFieldsJSON, expectedFilesJSON, pgxmock.AnyArg()).
+			WillReturnResult(pgxmock.NewResult("INSERT", 1))
+
+		result, err := repo.UpsertEvidence(ctx, disputeID, upsert)
+
+		require.NoError(t, err)
+		require.NotNil(t, result)
+		assert.Equal(t, disputeID, result.DisputeID)
+		assert.Nil(t, result.Fields)
+		assert.Empty(t, result.Files)
+	})
+
+	t.Run("should handle nil files slice", func(t *testing.T) {
+		mock, err := pgxmock.NewPool()
+		require.NoError(t, err)
+		defer mock.Close()
+
+		repo := &repo{db: mock, builder: squirrel.StatementBuilder.PlaceholderFormat(squirrel.Dollar)}
+		ctx := context.Background()
+
+		disputeID := "dispute-5"
+		upsert := dispute.EvidenceUpsert{
+			Fields: map[string]string{"key": "value"},
+			Files:  nil,
+		}
+
+		expectedFieldsJSON := []byte(`{"key":"value"}`)
+		expectedFilesJSON := []byte(`null`)
+
+		mock.ExpectExec(`INSERT INTO evidence \(dispute_id,fields,files,updated_at\) VALUES \(\$1,\$2,\$3,\$4\) ON CONFLICT \(dispute_id\) DO UPDATE SET fields = EXCLUDED\.fields, files = EXCLUDED\.files, updated_at = EXCLUDED\.updated_at`).
+			WithArgs(disputeID, expectedFieldsJSON, expectedFilesJSON, pgxmock.AnyArg()).
+			WillReturnResult(pgxmock.NewResult("INSERT", 1))
+
+		result, err := repo.UpsertEvidence(ctx, disputeID, upsert)
+
+		require.NoError(t, err)
+		require.NotNil(t, result)
+		assert.Equal(t, disputeID, result.DisputeID)
+		assert.Equal(t, map[string]string{"key": "value"}, result.Fields)
+		assert.Nil(t, result.Files)
+	})
+}
+
+func TestGetDisputeEvents(t *testing.T) {
+	t.Run("should return dispute events with basic query", func(t *testing.T) {
+		mock, err := pgxmock.NewPool()
+		require.NoError(t, err)
+		defer mock.Close()
+
+		repo := &repo{db: mock, builder: squirrel.StatementBuilder.PlaceholderFormat(squirrel.Dollar)}
+		ctx := context.Background()
+
+		query := &dispute.DisputeEventQuery{
+			DisputeIDs: []string{"dispute-1"},
+		}
+
+		createdAt := time.Now()
+		rows := mock.NewRows([]string{"id", "dispute_id", "kind", "provider_event_id", "data", "created_at"}).
+			AddRow("event-1", "dispute-1", "webhook_opened", "ev-1", json.RawMessage(`{"test":"data1"}`), createdAt).
+			AddRow("event-2", "dispute-1", "evidence_added", "ev-2", json.RawMessage(`{"test":"data2"}`), createdAt.Add(time.Hour))
+
+		mock.ExpectQuery(`SELECT id, dispute_id, kind, provider_event_id, data, created_at FROM dispute_events WHERE dispute_id IN \(\$1\) ORDER BY created_at DESC`).
+			WithArgs("dispute-1").
+			WillReturnRows(rows)
+
+		result, err := repo.GetDisputeEvents(ctx, query)
+
+		require.NoError(t, err)
+		require.Len(t, result, 2)
+
+		assert.Equal(t, "event-1", result[0].EventID)
+		assert.Equal(t, "dispute-1", result[0].DisputeID)
+		assert.Equal(t, dispute.DisputeEventWebhookOpened, result[0].Kind)
+		assert.Equal(t, "ev-1", result[0].ProviderEventID)
+		assert.Equal(t, json.RawMessage(`{"test":"data1"}`), result[0].Data)
+		assert.Equal(t, createdAt, result[0].CreatedAt)
+
+		assert.Equal(t, "event-2", result[1].EventID)
+		assert.Equal(t, dispute.DisputeEventEvidenceAdded, result[1].Kind)
+	})
+
+	t.Run("should return events filtered by kinds", func(t *testing.T) {
+		mock, err := pgxmock.NewPool()
+		require.NoError(t, err)
+		defer mock.Close()
+
+		repo := &repo{db: mock, builder: squirrel.StatementBuilder.PlaceholderFormat(squirrel.Dollar)}
+		ctx := context.Background()
+
+		query := &dispute.DisputeEventQuery{
+			DisputeIDs: []string{"dispute-1"},
+			Kinds:      []dispute.DisputeEventKind{dispute.DisputeEventWebhookOpened},
+		}
+
+		createdAt := time.Now()
+		rows := mock.NewRows([]string{"id", "dispute_id", "kind", "provider_event_id", "data", "created_at"}).
+			AddRow("event-1", "dispute-1", "webhook_opened", "ev-1", json.RawMessage(`{"test":"data"}`), createdAt)
+
+		mock.ExpectQuery(`SELECT id, dispute_id, kind, provider_event_id, data, created_at FROM dispute_events WHERE dispute_id IN \(\$1\) AND kind IN \(\$2\) ORDER BY created_at DESC`).
+			WithArgs("dispute-1", dispute.DisputeEventWebhookOpened).
+			WillReturnRows(rows)
+
+		result, err := repo.GetDisputeEvents(ctx, query)
+
+		require.NoError(t, err)
+		require.Len(t, result, 1)
+		assert.Equal(t, dispute.DisputeEventWebhookOpened, result[0].Kind)
+	})
+
+	t.Run("should return events for multiple disputes", func(t *testing.T) {
+		mock, err := pgxmock.NewPool()
+		require.NoError(t, err)
+		defer mock.Close()
+
+		repo := &repo{db: mock, builder: squirrel.StatementBuilder.PlaceholderFormat(squirrel.Dollar)}
+		ctx := context.Background()
+
+		query := &dispute.DisputeEventQuery{
+			DisputeIDs: []string{"dispute-1", "dispute-2"},
+		}
+
+		createdAt := time.Now()
+		rows := mock.NewRows([]string{"id", "dispute_id", "kind", "provider_event_id", "data", "created_at"}).
+			AddRow("event-1", "dispute-1", "webhook_opened", "ev-1", json.RawMessage(`{"test":"data1"}`), createdAt).
+			AddRow("event-2", "dispute-2", "webhook_opened", "ev-2", json.RawMessage(`{"test":"data2"}`), createdAt)
+
+		mock.ExpectQuery(`SELECT id, dispute_id, kind, provider_event_id, data, created_at FROM dispute_events WHERE dispute_id IN \(\$1,\$2\) ORDER BY created_at DESC`).
+			WithArgs("dispute-1", "dispute-2").
+			WillReturnRows(rows)
+
+		result, err := repo.GetDisputeEvents(ctx, query)
+
+		require.NoError(t, err)
+		require.Len(t, result, 2)
+		assert.Equal(t, "dispute-1", result[0].DisputeID)
+		assert.Equal(t, "dispute-2", result[1].DisputeID)
+	})
+
+	t.Run("should return empty slice when no events found", func(t *testing.T) {
+		mock, err := pgxmock.NewPool()
+		require.NoError(t, err)
+		defer mock.Close()
+
+		repo := &repo{db: mock, builder: squirrel.StatementBuilder.PlaceholderFormat(squirrel.Dollar)}
+		ctx := context.Background()
+
+		query := &dispute.DisputeEventQuery{
+			DisputeIDs: []string{"nonexistent"},
+		}
+
+		mock.ExpectQuery(`SELECT id, dispute_id, kind, provider_event_id, data, created_at FROM dispute_events WHERE dispute_id IN \(\$1\) ORDER BY created_at DESC`).
+			WithArgs("nonexistent").
+			WillReturnRows(pgxmock.NewRows([]string{"id", "dispute_id", "kind", "provider_event_id", "data", "created_at"}))
+
+		result, err := repo.GetDisputeEvents(ctx, query)
+
+		require.NoError(t, err)
+		assert.Empty(t, result)
+	})
+
+	t.Run("should handle database error", func(t *testing.T) {
+		mock, err := pgxmock.NewPool()
+		require.NoError(t, err)
+		defer mock.Close()
+
+		repo := &repo{db: mock, builder: squirrel.StatementBuilder.PlaceholderFormat(squirrel.Dollar)}
+		ctx := context.Background()
+
+		query := &dispute.DisputeEventQuery{
+			DisputeIDs: []string{"dispute-1"},
+		}
+
+		mock.ExpectQuery(`SELECT id, dispute_id, kind, provider_event_id, data, created_at FROM dispute_events WHERE dispute_id IN \(\$1\) ORDER BY created_at DESC`).
+			WithArgs("dispute-1").
+			WillReturnError(assert.AnError)
+
+		result, err := repo.GetDisputeEvents(ctx, query)
+
+		require.Error(t, err)
+		assert.Nil(t, result)
+		assert.Contains(t, err.Error(), "query dispute events")
+	})
+
+	t.Run("should handle query without filters", func(t *testing.T) {
+		mock, err := pgxmock.NewPool()
+		require.NoError(t, err)
+		defer mock.Close()
+
+		repo := &repo{db: mock, builder: squirrel.StatementBuilder.PlaceholderFormat(squirrel.Dollar)}
+		ctx := context.Background()
+
+		query := &dispute.DisputeEventQuery{}
+
+		createdAt := time.Now()
+		rows := mock.NewRows([]string{"id", "dispute_id", "kind", "provider_event_id", "data", "created_at"}).
+			AddRow("event-1", "dispute-1", "webhook_opened", "ev-1", json.RawMessage(`{"test":"data"}`), createdAt)
+
+		mock.ExpectQuery(`SELECT id, dispute_id, kind, provider_event_id, data, created_at FROM dispute_events ORDER BY created_at DESC`).
+			WillReturnRows(rows)
+
+		result, err := repo.GetDisputeEvents(ctx, query)
+
+		require.NoError(t, err)
+		require.Len(t, result, 1)
+		assert.Equal(t, "event-1", result[0].EventID)
+	})
+
+	t.Run("should handle scan error", func(t *testing.T) {
+		mock, err := pgxmock.NewPool()
+		require.NoError(t, err)
+		defer mock.Close()
+
+		repo := &repo{db: mock, builder: squirrel.StatementBuilder.PlaceholderFormat(squirrel.Dollar)}
+		ctx := context.Background()
+
+		query := &dispute.DisputeEventQuery{
+			DisputeIDs: []string{"dispute-1"},
+		}
+
+		rows := mock.NewRows([]string{"id", "dispute_id", "kind", "provider_event_id", "data", "created_at"}).
+			AddRow("event-1", "dispute-1", "invalid-kind", "ev-1", json.RawMessage(`{"test":"data"}`), "invalid-time")
+
+		mock.ExpectQuery(`SELECT id, dispute_id, kind, provider_event_id, data, created_at FROM dispute_events WHERE dispute_id IN \(\$1\) ORDER BY created_at DESC`).
+			WithArgs("dispute-1").
+			WillReturnRows(rows)
+
+		result, err := repo.GetDisputeEvents(ctx, query)
+
+		require.Error(t, err)
+		assert.Nil(t, result)
+		assert.Contains(t, err.Error(), "scan dispute event row")
+	})
+}

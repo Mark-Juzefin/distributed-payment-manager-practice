@@ -88,3 +88,12 @@ func resolveChargebackStatus(w ChargebackWebhook) (DisputeStatus, *time.Time, er
 		return "", nil, fmt.Errorf("unknown chargeback status: %s", w.Status)
 	}
 }
+
+func IsDisputeEditable(status DisputeStatus) bool {
+	switch status {
+	case DisputeWon, DisputeLost, DisputeCanceled:
+		return false
+	default:
+		return true
+	}
+}

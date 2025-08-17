@@ -515,10 +515,10 @@ func TestEvidenceAdditionFlow(t *testing.T) {
 	}
 	defer pool.Close()
 
-	// Verify evidence exists in database
-	evidence := queryEvidenceFromDB(t, pool, disputeID)
+	// Verify evidence exists via API
+	evidence := queryEvidenceFromAPI(t, server.URL, disputeID)
 	if evidence == nil {
-		t.Fatalf("Evidence not found in database for dispute_id: %s", disputeID)
+		t.Fatalf("Evidence not found for dispute_id: %s", disputeID)
 	}
 
 	// Verify evidence_added event was created
@@ -584,4 +584,29 @@ func queryDisputeEventsFromAPI(t *testing.T, baseURL, disputeID string) []map[st
 	}
 
 	return events
+}
+
+func queryEvidenceFromAPI(t *testing.T, baseURL, disputeID string) map[string]interface{} {
+	url := fmt.Sprintf("%s/disputes/%s/evidence", baseURL, disputeID)
+
+	resp, err := http.Get(url)
+	if err != nil {
+		t.Fatalf("Failed to query evidence: %v", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode == http.StatusNotFound {
+		return nil
+	}
+
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("Expected status 200, got %d", resp.StatusCode)
+	}
+
+	var evidence map[string]interface{}
+	if err := json.NewDecoder(resp.Body).Decode(&evidence); err != nil {
+		t.Fatalf("Failed to decode evidence response: %v", err)
+	}
+
+	return evidence
 }

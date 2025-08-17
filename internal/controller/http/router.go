@@ -22,6 +22,7 @@ func (r *Router) SetUp(engine *gin.Engine) {
 
 	engine.GET("/disputes", r.dispute.GetDisputes)
 	engine.GET("/disputes/:dispute_id/events", r.dispute.GetEvents)
+	engine.GET("/disputes/:dispute_id/evidence", r.dispute.GetEvidence)
 	engine.POST("/disputes/:dispute_id/evidence", r.dispute.UpsertEvidence)
 }
 

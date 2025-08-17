@@ -168,6 +168,20 @@ paths:
         '404': { description: Dispute not found }
 
   /disputes/{dispute_id}/evidence:
+    get:
+      summary: Retrieve evidence for a specific dispute
+      parameters:
+        - name: dispute_id
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        '200':
+          description: Dispute evidence
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/EvidenceBundle' }
+        '404': { description: Evidence not found }
     post:
       summary: Add/update evidence for a dispute (simple)
       requestBody:

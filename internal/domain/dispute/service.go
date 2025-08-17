@@ -45,6 +45,14 @@ func (s *DisputeService) GetEvents(ctx context.Context, disputeID string) ([]Dis
 	return events, nil
 }
 
+func (s *DisputeService) GetEvidence(ctx context.Context, disputeID string) (*Evidence, error) {
+	evidence, err := s.disputeRepo.GetEvidence(ctx, disputeID)
+	if err != nil {
+		return nil, fmt.Errorf("get evidence for dispute %s: %w", disputeID, err)
+	}
+	return evidence, nil
+}
+
 func (s *DisputeService) ProcessChargeback(ctx context.Context, webhook ChargebackWebhook) error {
 	return s.disputeRepo.InTransaction(ctx, func(tx TxDisputeRepo) error {
 		dispute, err := tx.GetDisputeByOrderID(ctx, webhook.OrderID)

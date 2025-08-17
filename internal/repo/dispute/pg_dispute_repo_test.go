@@ -766,3 +766,219 @@ func TestGetDisputeEvents(t *testing.T) {
 		assert.Contains(t, err.Error(), "scan dispute event row")
 	})
 }
+
+func TestGetEvidence(t *testing.T) {
+	t.Run("should return evidence for dispute", func(t *testing.T) {
+		mock, err := pgxmock.NewPool()
+		require.NoError(t, err)
+		defer mock.Close()
+
+		repo := &repo{db: mock, builder: squirrel.StatementBuilder.PlaceholderFormat(squirrel.Dollar)}
+		ctx := context.Background()
+
+		disputeID := "dispute-1"
+		updatedAt := time.Now()
+		fieldsJSON := `{"transaction_receipt":"receipt_123","customer_communication":"email_456"}`
+		filesJSON := `[{"file_id":"file-1","name":"receipt.pdf","content_type":"application/pdf","size":1024}]`
+
+		rows := mock.NewRows([]string{"dispute_id", "fields", "files", "updated_at"}).
+			AddRow(disputeID, fieldsJSON, filesJSON, updatedAt)
+
+		mock.ExpectQuery(`SELECT dispute_id, fields, files, updated_at FROM evidence WHERE dispute_id = \$1`).
+			WithArgs(disputeID).
+			WillReturnRows(rows)
+
+		result, err := repo.GetEvidence(ctx, disputeID)
+
+		require.NoError(t, err)
+		require.NotNil(t, result)
+		assert.Equal(t, disputeID, result.DisputeID)
+		assert.Equal(t, "receipt_123", result.Fields["transaction_receipt"])
+		assert.Equal(t, "email_456", result.Fields["customer_communication"])
+		assert.Len(t, result.Files, 1)
+		assert.Equal(t, "file-1", result.Files[0].FileID)
+		assert.Equal(t, "receipt.pdf", result.Files[0].Name)
+		assert.Equal(t, "application/pdf", result.Files[0].ContentType)
+		assert.Equal(t, 1024, result.Files[0].Size)
+		assert.Equal(t, updatedAt, result.UpdatedAt)
+	})
+
+	t.Run("should return nil when evidence not found", func(t *testing.T) {
+		mock, err := pgxmock.NewPool()
+		require.NoError(t, err)
+		defer mock.Close()
+
+		repo := &repo{db: mock, builder: squirrel.StatementBuilder.PlaceholderFormat(squirrel.Dollar)}
+		ctx := context.Background()
+
+		disputeID := "nonexistent"
+
+		mock.ExpectQuery(`SELECT dispute_id, fields, files, updated_at FROM evidence WHERE dispute_id = \$1`).
+			WithArgs(disputeID).
+			WillReturnRows(pgxmock.NewRows([]string{"dispute_id", "fields", "files", "updated_at"}))
+
+		result, err := repo.GetEvidence(ctx, disputeID)
+
+		require.NoError(t, err)
+		assert.Nil(t, result)
+	})
+
+	t.Run("should handle database error", func(t *testing.T) {
+		mock, err := pgxmock.NewPool()
+		require.NoError(t, err)
+		defer mock.Close()
+
+		repo := &repo{db: mock, builder: squirrel.StatementBuilder.PlaceholderFormat(squirrel.Dollar)}
+		ctx := context.Background()
+
+		disputeID := "dispute-1"
+
+		mock.ExpectQuery(`SELECT dispute_id, fields, files, updated_at FROM evidence WHERE dispute_id = \$1`).
+			WithArgs(disputeID).
+			WillReturnError(assert.AnError)
+
+		result, err := repo.GetEvidence(ctx, disputeID)
+
+		require.Error(t, err)
+		assert.Nil(t, result)
+		assert.Contains(t, err.Error(), "query evidence")
+	})
+
+	t.Run("should handle empty fields and files", func(t *testing.T) {
+		mock, err := pgxmock.NewPool()
+		require.NoError(t, err)
+		defer mock.Close()
+
+		repo := &repo{db: mock, builder: squirrel.StatementBuilder.PlaceholderFormat(squirrel.Dollar)}
+		ctx := context.Background()
+
+		disputeID := "dispute-2"
+		updatedAt := time.Now()
+		fieldsJSON := `{}`
+		filesJSON := `[]`
+
+		rows := mock.NewRows([]string{"dispute_id", "fields", "files", "updated_at"}).
+			AddRow(disputeID, fieldsJSON, filesJSON, updatedAt)
+
+		mock.ExpectQuery(`SELECT dispute_id, fields, files, updated_at FROM evidence WHERE dispute_id = \$1`).
+			WithArgs(disputeID).
+			WillReturnRows(rows)
+
+		result, err := repo.GetEvidence(ctx, disputeID)
+
+		require.NoError(t, err)
+		require.NotNil(t, result)
+		assert.Equal(t, disputeID, result.DisputeID)
+		assert.Empty(t, result.Fields)
+		assert.Empty(t, result.Files)
+		assert.Equal(t, updatedAt, result.UpdatedAt)
+	})
+
+	t.Run("should handle null fields and files", func(t *testing.T) {
+		mock, err := pgxmock.NewPool()
+		require.NoError(t, err)
+		defer mock.Close()
+
+		repo := &repo{db: mock, builder: squirrel.StatementBuilder.PlaceholderFormat(squirrel.Dollar)}
+		ctx := context.Background()
+
+		disputeID := "dispute-3"
+		updatedAt := time.Now()
+		fieldsJSON := `null`
+		filesJSON := `null`
+
+		rows := mock.NewRows([]string{"dispute_id", "fields", "files", "updated_at"}).
+			AddRow(disputeID, fieldsJSON, filesJSON, updatedAt)
+
+		mock.ExpectQuery(`SELECT dispute_id, fields, files, updated_at FROM evidence WHERE dispute_id = \$1`).
+			WithArgs(disputeID).
+			WillReturnRows(rows)
+
+		result, err := repo.GetEvidence(ctx, disputeID)
+
+		require.NoError(t, err)
+		require.NotNil(t, result)
+		assert.Equal(t, disputeID, result.DisputeID)
+		assert.Nil(t, result.Fields)
+		assert.Nil(t, result.Files)
+		assert.Equal(t, updatedAt, result.UpdatedAt)
+	})
+
+	t.Run("should handle scan error", func(t *testing.T) {
+		mock, err := pgxmock.NewPool()
+		require.NoError(t, err)
+		defer mock.Close()
+
+		repo := &repo{db: mock, builder: squirrel.StatementBuilder.PlaceholderFormat(squirrel.Dollar)}
+		ctx := context.Background()
+
+		disputeID := "dispute-1"
+
+		rows := mock.NewRows([]string{"dispute_id", "fields", "files", "updated_at"}).
+			AddRow(disputeID, "invalid-json", "{}", "invalid-time")
+
+		mock.ExpectQuery(`SELECT dispute_id, fields, files, updated_at FROM evidence WHERE dispute_id = \$1`).
+			WithArgs(disputeID).
+			WillReturnRows(rows)
+
+		result, err := repo.GetEvidence(ctx, disputeID)
+
+		require.Error(t, err)
+		assert.Nil(t, result)
+		assert.Contains(t, err.Error(), "scan evidence row")
+	})
+
+	t.Run("should handle invalid fields JSON", func(t *testing.T) {
+		mock, err := pgxmock.NewPool()
+		require.NoError(t, err)
+		defer mock.Close()
+
+		repo := &repo{db: mock, builder: squirrel.StatementBuilder.PlaceholderFormat(squirrel.Dollar)}
+		ctx := context.Background()
+
+		disputeID := "dispute-1"
+		updatedAt := time.Now()
+		fieldsJSON := `{invalid-json}`
+		filesJSON := `[]`
+
+		rows := mock.NewRows([]string{"dispute_id", "fields", "files", "updated_at"}).
+			AddRow(disputeID, fieldsJSON, filesJSON, updatedAt)
+
+		mock.ExpectQuery(`SELECT dispute_id, fields, files, updated_at FROM evidence WHERE dispute_id = \$1`).
+			WithArgs(disputeID).
+			WillReturnRows(rows)
+
+		result, err := repo.GetEvidence(ctx, disputeID)
+
+		require.Error(t, err)
+		assert.Nil(t, result)
+		assert.Contains(t, err.Error(), "unmarshal fields")
+	})
+
+	t.Run("should handle invalid files JSON", func(t *testing.T) {
+		mock, err := pgxmock.NewPool()
+		require.NoError(t, err)
+		defer mock.Close()
+
+		repo := &repo{db: mock, builder: squirrel.StatementBuilder.PlaceholderFormat(squirrel.Dollar)}
+		ctx := context.Background()
+
+		disputeID := "dispute-1"
+		updatedAt := time.Now()
+		fieldsJSON := `{}`
+		filesJSON := `[invalid-json]`
+
+		rows := mock.NewRows([]string{"dispute_id", "fields", "files", "updated_at"}).
+			AddRow(disputeID, fieldsJSON, filesJSON, updatedAt)
+
+		mock.ExpectQuery(`SELECT dispute_id, fields, files, updated_at FROM evidence WHERE dispute_id = \$1`).
+			WithArgs(disputeID).
+			WillReturnRows(rows)
+
+		result, err := repo.GetEvidence(ctx, disputeID)
+
+		require.Error(t, err)
+		assert.Nil(t, result)
+		assert.Contains(t, err.Error(), "unmarshal files")
+	})
+}

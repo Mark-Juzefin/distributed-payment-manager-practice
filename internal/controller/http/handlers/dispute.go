@@ -66,3 +66,24 @@ func (h *DisputeHandler) GetEvents(c *gin.Context) {
 
 	c.JSON(http.StatusOK, res)
 }
+
+func (h *DisputeHandler) GetEvidence(c *gin.Context) {
+	disputeID := c.Param("dispute_id")
+	if disputeID == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"message": "Missing dispute_id"})
+		return
+	}
+
+	evidence, err := h.service.GetEvidence(c, disputeID)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"message": err.Error()})
+		return
+	}
+
+	if evidence == nil {
+		c.JSON(http.StatusNotFound, gin.H{"message": "Evidence not found"})
+		return
+	}
+
+	c.JSON(http.StatusOK, evidence)
+}

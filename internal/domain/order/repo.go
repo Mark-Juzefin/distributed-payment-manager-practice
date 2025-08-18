@@ -2,7 +2,7 @@ package order
 
 import "context"
 
-//go:generate mockgen -source order_repo.go -destination mock_order_repo.go -package order
+//go:generate mockgen -source repo.go -destination mock_repo.go -package order
 
 type OrderRepo interface {
 	TxOrderRepo

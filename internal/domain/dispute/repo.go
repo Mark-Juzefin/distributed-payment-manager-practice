@@ -1,8 +1,10 @@
 package dispute
 
-import "context"
+import (
+	"context"
+)
 
-//go:generate mockgen -source repo.go -destination mock_dispute_repo.go -package dispute
+//go:generate mockgen -source repo.go -destination mock_repo.go -package dispute
 
 type DisputeRepo interface {
 	TxDisputeRepo

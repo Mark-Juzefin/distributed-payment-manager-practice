@@ -1,6 +1,8 @@
 package dispute
 
 import (
+	"TestTaskJustPay/internal/domain/gateway"
+	"TestTaskJustPay/pkg/pointers"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -9,11 +11,13 @@ import (
 
 type DisputeService struct {
 	disputeRepo DisputeRepo
+	provider    gateway.Provider
 }
 
-func NewDisputeService(repo DisputeRepo) *DisputeService {
+func NewDisputeService(repo DisputeRepo, provider gateway.Provider) *DisputeService {
 	return &DisputeService{
 		disputeRepo: repo,
+		provider:    provider,
 	}
 }
 
@@ -122,6 +126,11 @@ func (s *DisputeService) UpsertEvidence(ctx context.Context, disputeID string, u
 			return fmt.Errorf("dispute cannot be edited in status: %s", dispute.Status)
 		}
 
+		//TODO: https://api-docs.solidgate.com/#tag/Files-upload/operation/create-upload-url
+		// upload file to Silvergate -- get file id
+		// set external file id
+		// save files
+
 		// 2. Upsert evidence
 		evidence, err := tx.UpsertEvidence(ctx, disputeID, upsert)
 		if err != nil {
@@ -150,6 +159,67 @@ func (s *DisputeService) UpsertEvidence(ctx context.Context, disputeID string, u
 	}
 
 	return result, nil
+}
+
+func (s *DisputeService) SubmitRepresentment(ctx context.Context, disputeID string, prov gateway.Provider) error {
+	return s.disputeRepo.InTransaction(ctx, func(tx TxDisputeRepo) error {
+		d, err := tx.GetDisputeByID(ctx, disputeID)
+		if err != nil {
+			return fmt.Errorf("get dispute: %w", err)
+		}
+		if d == nil {
+			return fmt.Errorf("dispute not found")
+		}
+
+		//TODO: refactor
+		if d.Status != DisputeOpen && d.Status != DisputeUnderReview {
+			return fmt.Errorf("status %s not eligible for submission", d.Status)
+		}
+
+		//TODO: lock evidence before submit
+		evidence, err := tx.GetEvidence(ctx, disputeID)
+		if err != nil {
+			return fmt.Errorf("get evidence : %w", err)
+		}
+
+		if evidence == nil {
+			return fmt.Errorf("evidence not found")
+		}
+
+		// TODO: do call out of tx
+		// TODO: add retry, idempotency
+		res, err := prov.SubmitRepresentment(ctx, gateway.RepresentmentRequest{
+			DisputeID: d.ID,
+			Evidence:  evidence.Evidence,
+		})
+		if err != nil {
+			return fmt.Errorf("provider submit: %w", err)
+		}
+
+		//TODO: refactor
+		d.SubmittedAt = pointers.Ptr(time.Now())
+		d.Status = DisputeSubmitted
+
+		err = tx.UpdateDispute(ctx, *d)
+		if err != nil {
+			return fmt.Errorf("update dispute: %w", err)
+		}
+
+		//TODO: refactor
+		mRes, _ := json.Marshal(res)
+		ev := NewDisputeEvent{
+			DisputeID:       d.ID,
+			Kind:            DisputeEventEvidenceSubmitted,
+			ProviderEventID: res.ProviderSubmissionID,
+			Data:            mRes,
+			CreatedAt:       time.Now(),
+		}
+		if err := tx.CreateDisputeEvent(ctx, ev); err != nil {
+			return fmt.Errorf("create submitted event: %w", err)
+		}
+
+		return nil
+	})
 }
 
 func (s *DisputeService) createEvidenceAddedEvent(ctx context.Context, tx TxDisputeRepo, disputeID string, evidence Evidence) error {

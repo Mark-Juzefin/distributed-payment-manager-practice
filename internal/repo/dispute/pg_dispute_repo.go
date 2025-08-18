@@ -2,6 +2,7 @@ package dispute_repo
 
 import (
 	"TestTaskJustPay/internal/domain/dispute"
+	"TestTaskJustPay/internal/domain/gateway"
 	"TestTaskJustPay/pkg/postgres"
 	"context"
 	"database/sql"
@@ -175,7 +176,7 @@ func (r *repo) UpsertEvidence(ctx context.Context, disputeID string, upsert disp
 
 	return &dispute.Evidence{
 		DisputeID: disputeID,
-		EvidenceUpsert: dispute.EvidenceUpsert{
+		Evidence: gateway.Evidence{
 			Fields: upsert.Fields,
 			Files:  upsert.Files,
 		},
@@ -341,7 +342,7 @@ func parseEvidenceRows(rows pgx.Rows) ([]dispute.Evidence, error) {
 		}
 
 		var fields map[string]string
-		var files []dispute.EvidenceFile
+		var files []gateway.EvidenceFile
 
 		if err := json.Unmarshal([]byte(fieldsJSON), &fields); err != nil {
 			return nil, fmt.Errorf("unmarshal fields: %w", err)
@@ -351,7 +352,7 @@ func parseEvidenceRows(rows pgx.Rows) ([]dispute.Evidence, error) {
 			return nil, fmt.Errorf("unmarshal files: %w", err)
 		}
 
-		e.EvidenceUpsert = dispute.EvidenceUpsert{
+		e.Evidence = gateway.Evidence{
 			Fields: fields,
 			Files:  files,
 		}

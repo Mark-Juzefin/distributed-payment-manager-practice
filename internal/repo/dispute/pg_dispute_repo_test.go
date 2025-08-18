@@ -2,6 +2,7 @@ package dispute_repo
 
 import (
 	"TestTaskJustPay/internal/domain/dispute"
+	"TestTaskJustPay/internal/domain/gateway"
 	"TestTaskJustPay/pkg/postgres"
 	"context"
 	"encoding/json"
@@ -424,22 +425,24 @@ func TestUpsertEvidence(t *testing.T) {
 
 		disputeID := "dispute-1"
 		upsert := dispute.EvidenceUpsert{
-			Fields: map[string]string{
-				"transaction_receipt":    "receipt_123",
-				"customer_communication": "email_456",
-			},
-			Files: []dispute.EvidenceFile{
-				{
-					FileID:      "file-1",
-					Name:        "receipt.pdf",
-					ContentType: "application/pdf",
-					Size:        1024,
+			Evidence: gateway.Evidence{
+				Fields: map[string]string{
+					"transaction_receipt":    "receipt_123",
+					"customer_communication": "email_456",
 				},
-				{
-					FileID:      "file-2",
-					Name:        "communication.txt",
-					ContentType: "text/plain",
-					Size:        512,
+				Files: []gateway.EvidenceFile{
+					{
+						FileID:      "file-1",
+						Name:        "receipt.pdf",
+						ContentType: "application/pdf",
+						Size:        1024,
+					},
+					{
+						FileID:      "file-2",
+						Name:        "communication.txt",
+						ContentType: "text/plain",
+						Size:        512,
+					},
 				},
 			},
 		}
@@ -471,8 +474,10 @@ func TestUpsertEvidence(t *testing.T) {
 
 		disputeID := "dispute-2"
 		upsert := dispute.EvidenceUpsert{
-			Fields: map[string]string{},
-			Files:  []dispute.EvidenceFile{},
+			Evidence: gateway.Evidence{
+				Fields: map[string]string{},
+				Files:  []gateway.EvidenceFile{},
+			},
 		}
 
 		expectedFieldsJSON := []byte(`{}`)
@@ -501,8 +506,10 @@ func TestUpsertEvidence(t *testing.T) {
 
 		disputeID := "dispute-3"
 		upsert := dispute.EvidenceUpsert{
-			Fields: map[string]string{"key": "value"},
-			Files:  []dispute.EvidenceFile{},
+			Evidence: gateway.Evidence{
+				Fields: map[string]string{"key": "value"},
+				Files:  []gateway.EvidenceFile{},
+			},
 		}
 
 		mock.ExpectExec(`INSERT INTO evidence \(dispute_id,fields,files,updated_at\) VALUES \(\$1,\$2,\$3,\$4\) ON CONFLICT \(dispute_id\) DO UPDATE SET fields = EXCLUDED\.fields, files = EXCLUDED\.files, updated_at = EXCLUDED\.updated_at`).
@@ -525,8 +532,10 @@ func TestUpsertEvidence(t *testing.T) {
 
 		disputeID := "dispute-4"
 		upsert := dispute.EvidenceUpsert{
-			Fields: nil,
-			Files:  []dispute.EvidenceFile{},
+			Evidence: gateway.Evidence{
+				Fields: nil,
+				Files:  []gateway.EvidenceFile{},
+			},
 		}
 
 		expectedFieldsJSON := []byte(`null`)
@@ -555,8 +564,10 @@ func TestUpsertEvidence(t *testing.T) {
 
 		disputeID := "dispute-5"
 		upsert := dispute.EvidenceUpsert{
-			Fields: map[string]string{"key": "value"},
-			Files:  nil,
+			Evidence: gateway.Evidence{
+				Fields: map[string]string{"key": "value"},
+				Files:  nil,
+			},
 		}
 
 		expectedFieldsJSON := []byte(`{"key":"value"}`)

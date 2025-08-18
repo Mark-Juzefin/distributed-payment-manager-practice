@@ -2,6 +2,7 @@ package config
 
 import (
 	"fmt"
+	"time"
 
 	"github.com/caarlos0/env/v11"
 )
@@ -11,6 +12,10 @@ type Config struct {
 	PgURL     string `env:"PG_URL" required:"true"`
 	PgPoolMax int    `env:"PG_POOL_MAX" envDefault:"10"`
 	LogLevel  string `env:"LOG_LEVEL" envDefault:"info"`
+
+	SilvergateBaseURL                 string        `env:"SILVERGATE_BASE_URL" required:"true"`
+	SilvergateSubmitRepresentmentPath string        `env:"SILVERGATE_SUBMIT_REPRESENTMENT_PATH" required:"true"`
+	HTTPSilvergateClientTimeout       time.Duration `env:"HTTP_SILVERGATE_CLIENT_TIMEOUT" envDefault:"20s"`
 }
 
 func New() (Config, error) {

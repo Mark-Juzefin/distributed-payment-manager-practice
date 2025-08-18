@@ -1,7 +1,7 @@
-package http
+package rest
 
 import (
-	"TestTaskJustPay/internal/controller/http/handlers"
+	"TestTaskJustPay/internal/controller/rest/handlers"
 
 	"github.com/gin-gonic/gin"
 )

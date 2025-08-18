@@ -6,10 +6,11 @@ package integration_test
 import (
 	"TestTaskJustPay/config"
 	"TestTaskJustPay/internal/app"
-	apphttp "TestTaskJustPay/internal/controller/http"
-	"TestTaskJustPay/internal/controller/http/handlers"
+	apphttp "TestTaskJustPay/internal/controller/rest"
+	"TestTaskJustPay/internal/controller/rest/handlers"
 	"TestTaskJustPay/internal/domain/dispute"
 	"TestTaskJustPay/internal/domain/order"
+	"TestTaskJustPay/internal/external/silvergate"
 	dispute_repo "TestTaskJustPay/internal/repo/dispute"
 	order_repo "TestTaskJustPay/internal/repo/order"
 	"TestTaskJustPay/pkg/logger"
@@ -54,7 +55,12 @@ func setupTestServer(t *testing.T) *httptest.Server {
 	disputeRepo := dispute_repo.NewPgDisputeRepo(pool)
 
 	orderService := order.NewOrderService(orderRepo)
-	disputeService := dispute.NewDisputeService(disputeRepo)
+	silvergateClient := silvergate.New(
+		cfg.SilvergateBaseURL,
+		cfg.SilvergateSubmitRepresentmentPath,
+		&http.Client{Timeout: cfg.HTTPSilvergateClientTimeout},
+	)
+	disputeService := dispute.NewDisputeService(disputeRepo, silvergateClient)
 
 	orderHandler := handlers.NewOrderHandler(orderService)
 	chargebackHandler := handlers.NewChargebackHandler(disputeService)

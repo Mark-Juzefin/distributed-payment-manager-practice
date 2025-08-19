@@ -29,7 +29,7 @@ func New(baseURL string, submitRepresentmentPath string, httpClient *http.Client
 }
 
 type createReq struct {
-	DisputeID       string   `json:"dispute_id"`
+	OrderId         string   `json:"order_id"`
 	EvidencesFileID []string `json:"evidences_file_id,omitempty"`
 }
 
@@ -39,7 +39,8 @@ type createResp struct {
 
 func (c *Client) SubmitRepresentment(ctx context.Context, req gateway.RepresentmentRequest) (gateway.RepresentmentResult, error) {
 	body := createReq{
-		DisputeID: req.DisputeID,
+		OrderId:         req.OrderId,
+		EvidencesFileID: nil,
 	}
 
 	body.EvidencesFileID = make([]string, 0, len(req.Evidence.Files))
@@ -51,7 +52,6 @@ func (c *Client) SubmitRepresentment(ctx context.Context, req gateway.Representm
 	if err != nil {
 		return gateway.RepresentmentResult{
 			ProviderSubmissionID: "",
-			Accepted:             false,
 		}, fmt.Errorf("marshal: %w", err)
 	}
 
@@ -73,7 +73,6 @@ func (c *Client) SubmitRepresentment(ctx context.Context, req gateway.Representm
 	if resp.StatusCode/100 != 2 {
 		return gateway.RepresentmentResult{
 			ProviderSubmissionID: "",
-			Accepted:             false,
 		}, fmt.Errorf("provider %s: %s", resp.Status, string(raw))
 	}
 
@@ -82,6 +81,5 @@ func (c *Client) SubmitRepresentment(ctx context.Context, req gateway.Representm
 
 	return gateway.RepresentmentResult{
 		ProviderSubmissionID: out.ID,
-		Accepted:             true,
 	}, nil
 }

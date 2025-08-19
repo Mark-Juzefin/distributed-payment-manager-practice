@@ -17,8 +17,9 @@ type NewDispute struct {
 }
 
 type DisputeInfo struct {
-	OrderID string `json:"order_id"`
-	Reason  string `json:"reason"`
+	OrderID      string  `json:"order_id"`
+	SubmittingId *string `json:"submitting_id,omitempty"`
+	Reason       string  `json:"reason"`
 	Money
 	OpenedAt      time.Time  `json:"opened_at"`
 	EvidenceDueAt *time.Time `json:"evidence_due_at,omitempty"`

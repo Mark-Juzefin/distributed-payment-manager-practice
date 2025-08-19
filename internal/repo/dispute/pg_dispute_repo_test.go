@@ -56,10 +56,10 @@ func TestGetDisputeByID(t *testing.T) {
 		disputeID := "dispute-1"
 		expectedTime := time.Now()
 
-		rows := mock.NewRows([]string{"id", "order_id", "status", "reason", "amount", "currency", "opened_at", "evidence_due_at", "submitted_at", "closed_at"}).
-			AddRow(disputeID, "order-1", "open", "fraud", 100.50, "USD", expectedTime, nil, nil, nil)
+		rows := mock.NewRows([]string{"id", "order_id", "submitting_id", "status", "reason", "amount", "currency", "opened_at", "evidence_due_at", "submitted_at", "closed_at"}).
+			AddRow(disputeID, "order-1", nil, "open", "fraud", 100.50, "USD", expectedTime, nil, nil, nil)
 
-		mock.ExpectQuery(`SELECT id, order_id, status, reason, amount, currency, opened_at, evidence_due_at, submitted_at, closed_at FROM disputes WHERE id = \$1`).
+		mock.ExpectQuery(`SELECT id, order_id, submitting_id, status, reason, amount, currency, opened_at, evidence_due_at, submitted_at, closed_at FROM disputes WHERE id = \$1`).
 			WithArgs(disputeID).
 			WillReturnRows(rows)
 
@@ -82,9 +82,9 @@ func TestGetDisputeByID(t *testing.T) {
 	t.Run("should return nil when dispute not found", func(t *testing.T) {
 		disputeID := "nonexistent"
 
-		mock.ExpectQuery(`SELECT id, order_id, status, reason, amount, currency, opened_at, evidence_due_at, submitted_at, closed_at FROM disputes WHERE id = \$1`).
+		mock.ExpectQuery(`SELECT id, order_id, submitting_id, status, reason, amount, currency, opened_at, evidence_due_at, submitted_at, closed_at FROM disputes WHERE id = \$1`).
 			WithArgs(disputeID).
-			WillReturnRows(pgxmock.NewRows([]string{"id", "order_id", "status", "reason", "amount", "currency", "opened_at", "evidence_due_at", "submitted_at", "closed_at"}))
+			WillReturnRows(pgxmock.NewRows([]string{"id", "order_id", "submitting_id", "status", "reason", "amount", "currency", "opened_at", "evidence_due_at", "submitted_at", "closed_at"}))
 
 		result, err := repo.GetDisputeByID(ctx, disputeID)
 
@@ -95,7 +95,7 @@ func TestGetDisputeByID(t *testing.T) {
 	t.Run("should handle database error", func(t *testing.T) {
 		disputeID := "dispute-1"
 
-		mock.ExpectQuery(`SELECT id, order_id, status, reason, amount, currency, opened_at, evidence_due_at, submitted_at, closed_at FROM disputes WHERE id = \$1`).
+		mock.ExpectQuery(`SELECT id, order_id, submitting_id, status, reason, amount, currency, opened_at, evidence_due_at, submitted_at, closed_at FROM disputes WHERE id = \$1`).
 			WithArgs(disputeID).
 			WillReturnError(assert.AnError)
 
@@ -120,10 +120,10 @@ func TestGetDisputeByOrderID(t *testing.T) {
 		expectedTime := time.Now()
 		evidenceTime := expectedTime.Add(7 * 24 * time.Hour)
 
-		rows := mock.NewRows([]string{"id", "order_id", "status", "reason", "amount", "currency", "opened_at", "evidence_due_at", "submitted_at", "closed_at"}).
-			AddRow("dispute-1", orderID, "open", "fraud", 100.50, "USD", expectedTime, evidenceTime, nil, nil)
+		rows := mock.NewRows([]string{"id", "order_id", "submitting_id", "status", "reason", "amount", "currency", "opened_at", "evidence_due_at", "submitted_at", "closed_at"}).
+			AddRow("dispute-1", orderID, nil, "open", "fraud", 100.50, "USD", expectedTime, evidenceTime, nil, nil)
 
-		mock.ExpectQuery(`SELECT id, order_id, status, reason, amount, currency, opened_at, evidence_due_at, submitted_at, closed_at FROM disputes WHERE order_id = \$1`).
+		mock.ExpectQuery(`SELECT id, order_id, submitting_id, status, reason, amount, currency, opened_at, evidence_due_at, submitted_at, closed_at FROM disputes WHERE order_id = \$1`).
 			WithArgs(orderID).
 			WillReturnRows(rows)
 
@@ -164,8 +164,8 @@ func TestCreateDispute(t *testing.T) {
 			},
 		}
 
-		mock.ExpectExec(`INSERT INTO disputes \(id,order_id,status,reason,amount,currency,opened_at,evidence_due_at,submitted_at,closed_at\) VALUES \(\$1,\$2,\$3,\$4,\$5,\$6,\$7,\$8,\$9,\$10\)`).
-			WithArgs(pgxmock.AnyArg(), "order-1", dispute.DisputeOpen, "fraud", 100.50, "USD", openedAt, &evidenceDueAt, (*time.Time)(nil), (*time.Time)(nil)).
+		mock.ExpectExec(`INSERT INTO disputes \(id,order_id,submitting_id,status,reason,amount,currency,opened_at,evidence_due_at,submitted_at,closed_at\) VALUES \(\$1,\$2,\$3,\$4,\$5,\$6,\$7,\$8,\$9,\$10,\$11\)`).
+			WithArgs(pgxmock.AnyArg(), "order-1", (*string)(nil), dispute.DisputeOpen, "fraud", 100.50, "USD", openedAt, &evidenceDueAt, (*time.Time)(nil), (*time.Time)(nil)).
 			WillReturnResult(pgxmock.NewResult("INSERT", 1))
 
 		result, err := repo.CreateDispute(ctx, newDispute)
@@ -194,7 +194,7 @@ func TestCreateDispute(t *testing.T) {
 			},
 		}
 
-		mock.ExpectExec(`INSERT INTO disputes \(id,order_id,status,reason,amount,currency,opened_at,evidence_due_at,submitted_at,closed_at\) VALUES \(\$1,\$2,\$3,\$4,\$5,\$6,\$7,\$8,\$9,\$10\)`).
+		mock.ExpectExec(`INSERT INTO disputes \(id,order_id,submitting_id,status,reason,amount,currency,opened_at,evidence_due_at,submitted_at,closed_at\) VALUES \(\$1,\$2,\$3,\$4,\$5,\$6,\$7,\$8,\$9,\$10,\$11\)`).
 			WillReturnError(assert.AnError)
 
 		result, err := repo.CreateDispute(ctx, newDispute)
@@ -230,8 +230,8 @@ func TestUpdateDispute(t *testing.T) {
 			},
 		}
 
-		mock.ExpectExec(`UPDATE disputes SET status = \$1, reason = \$2, amount = \$3, currency = \$4, opened_at = \$5, evidence_due_at = \$6, submitted_at = \$7, closed_at = \$8 WHERE id = \$9`).
-			WithArgs(dispute.DisputeWon, "fraud", 100.50, "USD", disputeToUpdate.OpenedAt, (*time.Time)(nil), (*time.Time)(nil), &closedAt, "dispute-1").
+		mock.ExpectExec(`UPDATE disputes SET submitting_id = \$1, status = \$2, reason = \$3, amount = \$4, currency = \$5, opened_at = \$6, evidence_due_at = \$7, submitted_at = \$8, closed_at = \$9 WHERE id = \$10`).
+			WithArgs((*string)(nil), dispute.DisputeWon, "fraud", 100.50, "USD", disputeToUpdate.OpenedAt, (*time.Time)(nil), (*time.Time)(nil), &closedAt, "dispute-1").
 			WillReturnResult(pgxmock.NewResult("UPDATE", 1))
 
 		err := repo.UpdateDispute(ctx, disputeToUpdate)
@@ -254,7 +254,7 @@ func TestUpdateDispute(t *testing.T) {
 			},
 		}
 
-		mock.ExpectExec(`UPDATE disputes SET status = \$1, reason = \$2, amount = \$3, currency = \$4, opened_at = \$5, evidence_due_at = \$6, submitted_at = \$7, closed_at = \$8 WHERE id = \$9`).
+		mock.ExpectExec(`UPDATE disputes SET submitting_id = \$1, status = \$2, reason = \$3, amount = \$4, currency = \$5, opened_at = \$6, evidence_due_at = \$7, submitted_at = \$8, closed_at = \$9 WHERE id = \$10`).
 			WillReturnError(assert.AnError)
 
 		err := repo.UpdateDispute(ctx, disputeToUpdate)

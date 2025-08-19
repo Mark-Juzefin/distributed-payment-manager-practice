@@ -12,7 +12,7 @@ run-dev: start_containers
 	go run ./cmd/app
 
 start_containers:
-	docker-compose --profile infra up -d
+	docker-compose --profile infra up --build -d
 
 stop_containers:
 	docker compose --profile infra --profile prod down --remove-orphans

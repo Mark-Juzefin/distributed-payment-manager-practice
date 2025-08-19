@@ -41,7 +41,7 @@ func (m *MockDisputeRepo) EXPECT() *MockDisputeRepoMockRecorder {
 }
 
 // CreateDispute mocks base method.
-func (m *MockDisputeRepo) CreateDispute(ctx context.Context, dispute NewDispute) (*Dispute, error) {
+func (m *MockDisputeRepo) CreateDispute(ctx context.Context, dispute Dispute) (*Dispute, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "CreateDispute", ctx, dispute)
 	ret0, _ := ret[0].(*Dispute)
@@ -212,7 +212,7 @@ func (m *MockTxDisputeRepo) EXPECT() *MockTxDisputeRepoMockRecorder {
 }
 
 // CreateDispute mocks base method.
-func (m *MockTxDisputeRepo) CreateDispute(ctx context.Context, dispute NewDispute) (*Dispute, error) {
+func (m *MockTxDisputeRepo) CreateDispute(ctx context.Context, dispute Dispute) (*Dispute, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "CreateDispute", ctx, dispute)
 	ret0, _ := ret[0].(*Dispute)

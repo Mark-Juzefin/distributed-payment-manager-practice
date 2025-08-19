@@ -1,0 +1,26 @@
+{
+  "request": {
+    "method": "POST",
+    "url": "/api/v1/dispute-representments/create",
+    "headers": {
+      "Content-Type": { "contains": "application/json" }
+    },
+    "bodyPatterns": [
+      { "matchesJsonPath": "$[?(@.evidences_file_id.size() == 0)]" }
+    ]
+  },
+  "response": {
+    "status": 400,
+    "jsonBody": {
+      "error": {
+        "code": "2.01",
+        "constraints": {
+          "evidences_file_id": [
+            { "code": "NotBlank", "message": "at least one file is required" }
+          ]
+        },
+        "message": "Validation error"
+      }
+    }
+  }
+}

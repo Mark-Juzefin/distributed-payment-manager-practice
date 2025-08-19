@@ -1,0 +1,19 @@
+{
+  "request": {
+    "method": "POST",
+    "url": "/api/v1/dispute-representments/create",
+    "headers": {
+      "Content-Type": {
+        "equalTo": "application/json"
+      }
+    },
+    "bodyPatterns": [
+      { "matchesJsonPath": "$.order_id" },
+      { "matchesJsonPath": "$.evidences_file_id[0]" }
+    ]
+  },
+  "response": {
+    "status": 200,
+    "jsonBody": { "id": "sg-subm-1" }
+  }
+}

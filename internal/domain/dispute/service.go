@@ -161,7 +161,7 @@ func (s *DisputeService) UpsertEvidence(ctx context.Context, disputeID string, u
 	return result, nil
 }
 
-func (s *DisputeService) SubmitRepresentment(ctx context.Context, disputeID string, prov gateway.Provider) error {
+func (s *DisputeService) Submit(ctx context.Context, disputeID string) error {
 	return s.disputeRepo.InTransaction(ctx, func(tx TxDisputeRepo) error {
 		d, err := tx.GetDisputeByID(ctx, disputeID)
 		if err != nil {
@@ -188,16 +188,19 @@ func (s *DisputeService) SubmitRepresentment(ctx context.Context, disputeID stri
 
 		// TODO: do call out of tx
 		// TODO: add retry, idempotency
-		res, err := prov.SubmitRepresentment(ctx, gateway.RepresentmentRequest{
-			DisputeID: d.ID,
-			Evidence:  evidence.Evidence,
+		res, err := s.provider.SubmitRepresentment(ctx, gateway.RepresentmentRequest{
+			OrderId:  d.OrderID,
+			Evidence: evidence.Evidence,
 		})
 		if err != nil {
 			return fmt.Errorf("provider submit: %w", err)
 		}
 
+		fmt.Printf("Submit represented responce: %+v\n", res)
+
 		//TODO: refactor
 		d.SubmittedAt = pointers.Ptr(time.Now())
+		d.SubmittingId = pointers.Ptr(res.ProviderSubmissionID)
 		d.Status = DisputeSubmitted
 
 		err = tx.UpdateDispute(ctx, *d)
@@ -245,7 +248,7 @@ func (s *DisputeService) saveWebhookEvent(ctx context.Context, tx TxDisputeRepo,
 	disputeEvent := NewDisputeEvent{
 		DisputeID:       dispute.ID,
 		Kind:            deriveKindFromChargebackStatus(webhook.Status),
-		ProviderEventID: webhook.ProviderEventID,
+		ProviderEventID: webhook.DisputeID,
 		Data:            payload,
 		CreatedAt:       time.Now(),
 	}

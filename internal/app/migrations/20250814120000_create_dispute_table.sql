@@ -3,6 +3,7 @@
 CREATE TABLE IF NOT EXISTS "disputes" (
     id VARCHAR(255) PRIMARY KEY,
     order_id VARCHAR(255) NOT NULL,
+    submitting_id VARCHAR(255),
     status VARCHAR(32) NOT NULL,
     reason TEXT NOT NULL,
     amount DECIMAL(10,2) NOT NULL,

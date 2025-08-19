@@ -17,6 +17,17 @@ services:
     ports:
       - "3000:3000"
 
+  silvergate-mock:
+    image: wiremock/wiremock:latest
+    container_name: silvergate-mock
+    profiles:
+      - infra
+    ports:
+      - '8080:8080'
+    volumes:
+      - ./integration-test/mappings:/home/wiremock/mappings
+    entrypoint: ["/docker-entrypoint.sh", "--global-response-templating", "--disable-gzip", "--verbose"]
+
   db:
     image: postgres:13
     restart: always

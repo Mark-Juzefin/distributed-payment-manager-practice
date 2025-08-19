@@ -15,6 +15,8 @@ import (
 	"github.com/jackc/pgx/v5"
 )
 
+var disputeColumns = []string{"id", "order_id", "submitting_id", "status", "reason", "amount", "currency", "opened_at", "evidence_due_at", "submitted_at", "closed_at"}
+
 type PgDisputeRepo struct {
 	pg *postgres.Postgres
 	repo
@@ -89,8 +91,8 @@ func (r *repo) CreateDispute(ctx context.Context, newDispute dispute.NewDispute)
 	id := uuid.New().String()
 
 	query, args, err := r.builder.Insert("disputes").
-		Columns("id", "order_id", "status", "reason", "amount", "currency", "opened_at", "evidence_due_at", "submitted_at", "closed_at").
-		Values(id, newDispute.OrderID, newDispute.Status, newDispute.Reason, newDispute.Amount, newDispute.Currency, newDispute.OpenedAt, newDispute.EvidenceDueAt, newDispute.SubmittedAt, newDispute.ClosedAt).
+		Columns(disputeColumns...).
+		Values(id, newDispute.OrderID, newDispute.SubmittingId, newDispute.Status, newDispute.Reason, newDispute.Amount, newDispute.Currency, newDispute.OpenedAt, newDispute.EvidenceDueAt, newDispute.SubmittedAt, newDispute.ClosedAt).
 		ToSql()
 	if err != nil {
 		return nil, fmt.Errorf("build insert query: %w", err)
@@ -109,6 +111,7 @@ func (r *repo) CreateDispute(ctx context.Context, newDispute dispute.NewDispute)
 }
 func (r *repo) UpdateDispute(ctx context.Context, disputeToUpdate dispute.Dispute) error {
 	query, args, err := r.builder.Update("disputes").
+		Set("submitting_id", disputeToUpdate.SubmittingId).
 		Set("status", disputeToUpdate.Status).
 		Set("reason", disputeToUpdate.Reason).
 		Set("amount", disputeToUpdate.Amount).
@@ -232,7 +235,7 @@ func (r *repo) buildGetEvidenceQuery(disputeID string) (string, []interface{}) {
 }
 
 func (r *repo) buildDisputesQuery() (string, []interface{}) {
-	query := r.builder.Select("id", "order_id", "status", "reason", "amount", "currency", "opened_at", "evidence_due_at", "submitted_at", "closed_at").
+	query := r.builder.Select(disputeColumns...).
 		From("disputes").
 		OrderBy("opened_at DESC")
 
@@ -241,7 +244,7 @@ func (r *repo) buildDisputesQuery() (string, []interface{}) {
 }
 
 func (r *repo) buildDisputeByIDQuery(disputeID string) (string, []interface{}) {
-	query := r.builder.Select("id", "order_id", "status", "reason", "amount", "currency", "opened_at", "evidence_due_at", "submitted_at", "closed_at").
+	query := r.builder.Select(disputeColumns...).
 		From("disputes").
 		Where(squirrel.Eq{"id": disputeID})
 
@@ -250,7 +253,7 @@ func (r *repo) buildDisputeByIDQuery(disputeID string) (string, []interface{}) {
 }
 
 func (r *repo) buildDisputeByOrderIDQuery(orderID string) (string, []interface{}) {
-	query := r.builder.Select("id", "order_id", "status", "reason", "amount", "currency", "opened_at", "evidence_due_at", "submitted_at", "closed_at").
+	query := r.builder.Select(disputeColumns...).
 		From("disputes").
 		Where(squirrel.Eq{"order_id": orderID})
 
@@ -282,7 +285,7 @@ func parseDisputeRows(rows pgx.Rows) ([]dispute.Dispute, error) {
 		var d dispute.Dispute
 		var rawStatus string
 		var evidenceDueAt, submittedAt, closedAt sql.NullTime
-		err := rows.Scan(&d.ID, &d.OrderID, &rawStatus, &d.Reason, &d.Amount, &d.Currency, &d.OpenedAt, &evidenceDueAt, &submittedAt, &closedAt)
+		err := rows.Scan(&d.ID, &d.OrderID, &d.SubmittingId, &rawStatus, &d.Reason, &d.Amount, &d.Currency, &d.OpenedAt, &evidenceDueAt, &submittedAt, &closedAt)
 		if err != nil {
 			return nil, fmt.Errorf("scan dispute row: %w", err)
 		}

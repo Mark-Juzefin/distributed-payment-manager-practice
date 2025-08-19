@@ -9,7 +9,7 @@ type Provider interface {
 }
 
 type RepresentmentRequest struct {
-	DisputeID string
+	OrderId string
 	Evidence
 	// TODO: додати IdempotencyKey для безпечних ретраїв
 
@@ -29,5 +29,4 @@ type EvidenceFile struct {
 
 type RepresentmentResult struct {
 	ProviderSubmissionID string
-	Accepted             bool
 }

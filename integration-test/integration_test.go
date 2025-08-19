@@ -26,6 +26,8 @@ import (
 	"time"
 )
 
+var successfulSubmittingId = "sg-subm-1"
+
 // todo: refactor
 func setupTestServer(t *testing.T) *httptest.Server {
 	cfg, err := config.New()
@@ -334,16 +336,88 @@ func TestEvidenceAdditionFlow(t *testing.T) {
 
 func TestSubmitDisputeFlow(t *testing.T) {
 
-	t.Run("Dispute with evidences is successfully submitted and closed", func(t *testing.T) {
-		// create dispute
-		// check it exist
+	t.Run("Dispute with evidences is successfully submitted", func(t *testing.T) {
+		server := setupTestServer(t)
+		defer server.Close()
 
-		// upload evidances
-		// check
+		orderID := "order-submit-test"
 
-		// submit
-		// get dispute
+		// Create dispute
+		disputeID := createOpenedDisputeForOrderId(t, server, orderID)
 
+		// Verify initial dispute status is "open"
+		initialDispute := findDisputeByOrderID(t, server.URL, orderID)
+		if initialDispute == nil {
+			t.Fatalf("Could not find dispute for order_id: %s", orderID)
+		}
+		if initialDispute["status"] != "open" {
+			t.Errorf("Expected initial dispute status to be 'open', got %v", initialDispute["status"])
+		}
+
+		// Upload evidence
+		evidenceData := map[string]interface{}{
+			"fields": map[string]string{
+				"transaction_receipt":    "receipt_submit_123",
+				"customer_communication": "email_submit_456",
+				"shipping_tracking":      "track_submit_789",
+			},
+			"files": []map[string]interface{}{
+				{
+					"file_id":      "submit-file-1",
+					"name":         "submit_receipt.pdf",
+					"content_type": "application/pdf",
+					"size":         2048,
+				},
+			},
+		}
+		addEvidence(t, server, disputeID, evidenceData)
+
+		// Verify status changed to "under_review" after evidence addition
+		updatedDispute := findDisputeByOrderID(t, server.URL, orderID)
+		if updatedDispute == nil {
+			t.Fatalf("Could not find updated dispute for order_id: %s", orderID)
+		}
+		if updatedDispute["status"] != "under_review" {
+			t.Errorf("Expected dispute status to be 'under_review' after evidence addition, got %v", updatedDispute["status"])
+		}
+
+		// Submit dispute
+		submitDispute(t, server, disputeID)
+
+		// Verify final state after submission
+		finalDispute := findDisputeByOrderID(t, server.URL, orderID)
+		if finalDispute == nil {
+			t.Fatalf("Could not find final dispute for order_id: %s", orderID)
+		}
+
+		// Verify status changed to "submitted"
+		if finalDispute["status"] != "submitted" {
+			t.Errorf("Expected dispute status to be 'submitted' after submission, got %v", finalDispute["status"])
+		}
+
+		// Verify submitted_at timestamp is set
+		if finalDispute["submitted_at"] == nil {
+			t.Errorf("Expected submitted_at to be set after submission")
+		}
+
+		// Verify submitting_id is set
+		if finalDispute["submitting_id"] != successfulSubmittingId {
+			t.Errorf("Expected submitting_id to be set after submission. Filan dispute %v", finalDispute)
+		}
+
+		// Verify evidence_submitted event was created
+		events := getDisputeEvents(t, server.URL, disputeID)
+		evidenceSubmittedEventFound := false
+		for _, event := range events {
+			if event["kind"] == "evidence_submitted" {
+				evidenceSubmittedEventFound = true
+				break
+			}
+		}
+
+		if !evidenceSubmittedEventFound {
+			t.Errorf("Expected evidence_submitted event to be created in dispute_events table")
+		}
 	})
 
 }
@@ -498,6 +572,11 @@ func addEvidence(t *testing.T, server *httptest.Server, disputeID string, eviden
 	url := server.URL + "/disputes/" + disputeID + "/evidence"
 	makePostRequestWithResponse(t, url, evidenceData, http.StatusOK, &evidenceResult)
 	return evidenceResult
+}
+
+func submitDispute(t *testing.T, server *httptest.Server, disputeID string) {
+	url := server.URL + "/disputes/" + disputeID + "/submit"
+	makePostRequest(t, url, nil, http.StatusAccepted)
 }
 
 func createOpenedDisputeForOrderId(t *testing.T, server *httptest.Server, orderId string) (disputeId string) {

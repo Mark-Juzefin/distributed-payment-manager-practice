@@ -26,6 +26,20 @@ func (h *DisputeHandler) GetDisputes(c *gin.Context) {
 	c.JSON(http.StatusOK, disputes)
 }
 
+func (h *DisputeHandler) Submit(c *gin.Context) {
+	disputeID := c.Param("dispute_id")
+	if disputeID == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"message": "dispute_id is required"})
+		return
+	}
+
+	err := h.service.Submit(c, disputeID)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"message": err.Error()})
+	}
+	c.Status(http.StatusAccepted)
+}
+
 func (h *DisputeHandler) UpsertEvidence(c *gin.Context) {
 	disputeID := c.Param("dispute_id")
 	if disputeID == "" {

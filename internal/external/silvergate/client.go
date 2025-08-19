@@ -37,6 +37,7 @@ type createResp struct {
 	ID string `json:"id,omitempty"`
 }
 
+// todo: Integration tests with wiremock: validation, timeout
 func (c *Client) SubmitRepresentment(ctx context.Context, req gateway.RepresentmentRequest) (gateway.RepresentmentResult, error) {
 	body := createReq{
 		OrderId:         req.OrderId,

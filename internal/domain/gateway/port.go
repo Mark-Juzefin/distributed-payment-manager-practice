@@ -4,6 +4,7 @@ import "context"
 
 //go:generate mockgen -source port.go -destination mock_port.go -package gateway
 
+// TODO: Add domain errors and return them from SubmitRepresentment. Describe each here
 type Provider interface {
 	SubmitRepresentment(ctx context.Context, req RepresentmentRequest) (RepresentmentResult, error)
 }

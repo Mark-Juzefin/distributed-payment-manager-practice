@@ -8,6 +8,7 @@ import (
 	"TestTaskJustPay/internal/domain/order"
 	"TestTaskJustPay/internal/external/silvergate"
 	dispute_repo "TestTaskJustPay/internal/repo/dispute"
+	"TestTaskJustPay/internal/repo/eventsink"
 	order_repo "TestTaskJustPay/internal/repo/order"
 	"TestTaskJustPay/pkg/logger"
 	"TestTaskJustPay/pkg/postgres"
@@ -30,6 +31,7 @@ func Run(cfg config.Config) {
 	}
 	orderRepo := order_repo.NewPgOrderRepo(pool)
 	disputeRepo := dispute_repo.NewPgDisputeRepo(pool)
+	eventSink := eventsink.NewPgEventRepo(pool)
 
 	orderService := order.NewOrderService(orderRepo)
 	silvergateClient := silvergate.New(
@@ -37,7 +39,7 @@ func Run(cfg config.Config) {
 		cfg.SilvergateSubmitRepresentmentPath,
 		&http.Client{Timeout: cfg.HTTPSilvergateClientTimeout},
 	)
-	disputeService := dispute.NewDisputeService(disputeRepo, silvergateClient)
+	disputeService := dispute.NewDisputeService(disputeRepo, silvergateClient, eventSink)
 
 	orderHandler := handlers.NewOrderHandler(orderService)
 	chargebackHandler := handlers.NewChargebackHandler(disputeService)

@@ -1,9 +1,15 @@
 package dispute
 
 import (
+	"context"
 	"encoding/json"
 	"time"
 )
+
+type EventSink interface {
+	CreateDisputeEvent(ctx context.Context, event NewDisputeEvent) error
+	GetDisputeEvents(ctx context.Context, query *DisputeEventQuery) ([]DisputeEvent, error)
+}
 
 type DisputeEvent struct {
 	EventID string `json:"event_id"`

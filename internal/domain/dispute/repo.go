@@ -19,9 +19,6 @@ type TxDisputeRepo interface {
 	CreateDispute(ctx context.Context, dispute NewDispute) (*Dispute, error)
 	UpdateDispute(ctx context.Context, dispute Dispute) error
 
-	CreateDisputeEvent(ctx context.Context, event NewDisputeEvent) error
-	GetDisputeEvents(ctx context.Context, query *DisputeEventQuery) ([]DisputeEvent, error)
-
 	UpsertEvidence(ctx context.Context, disputeID string, upsert EvidenceUpsert) (*Evidence, error)
 	GetEvidence(ctx context.Context, disputeID string) (*Evidence, error)
 }

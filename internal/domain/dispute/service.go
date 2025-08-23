@@ -11,13 +11,15 @@ import (
 
 type DisputeService struct {
 	disputeRepo DisputeRepo
+	eventSink   EventSink
 	provider    gateway.Provider
 }
 
-func NewDisputeService(repo DisputeRepo, provider gateway.Provider) *DisputeService {
+func NewDisputeService(repo DisputeRepo, provider gateway.Provider, eventSink EventSink) *DisputeService {
 	return &DisputeService{
 		disputeRepo: repo,
 		provider:    provider,
+		eventSink:   eventSink,
 	}
 }
 
@@ -42,7 +44,7 @@ func (s *DisputeService) GetEvents(ctx context.Context, disputeID string) ([]Dis
 		WithDisputeIDs(disputeID).
 		Build()
 
-	events, err := s.disputeRepo.GetDisputeEvents(ctx, query)
+	events, err := s.eventSink.GetDisputeEvents(ctx, query)
 	if err != nil {
 		return nil, fmt.Errorf("get events for dispute %s: %w", disputeID, err)
 	}
@@ -58,7 +60,8 @@ func (s *DisputeService) GetEvidence(ctx context.Context, disputeID string) (*Ev
 }
 
 func (s *DisputeService) ProcessChargeback(ctx context.Context, webhook ChargebackWebhook) error {
-	return s.disputeRepo.InTransaction(ctx, func(tx TxDisputeRepo) error {
+	var actualDisputeData Dispute
+	err := s.disputeRepo.InTransaction(ctx, func(tx TxDisputeRepo) error {
 		dispute, err := tx.GetDisputeByOrderID(ctx, webhook.OrderID)
 		if err != nil {
 			return fmt.Errorf("get dispute by order_id: %w", err)
@@ -85,28 +88,31 @@ func (s *DisputeService) ProcessChargeback(ctx context.Context, webhook Chargeba
 			if err != nil {
 				return fmt.Errorf("create dispute: %w", err)
 			}
-			if err := s.saveWebhookEvent(ctx, tx, *created, webhook); err != nil {
-				return fmt.Errorf("create dispute event: %w", err)
-			}
+			actualDisputeData = *created
 
 			return nil
 		}
 
-		updated, err := ApplyChargebackWebhook(*dispute, webhook)
+		actualDisputeData, err = ApplyChargebackWebhook(*dispute, webhook)
 		if err != nil {
 			return err
 		}
 
-		if err := tx.UpdateDispute(ctx, updated); err != nil {
+		if err := tx.UpdateDispute(ctx, actualDisputeData); err != nil {
 			return fmt.Errorf("update dispute: %w", err)
-		}
-
-		if err := s.saveWebhookEvent(ctx, tx, *dispute, webhook); err != nil {
-			return fmt.Errorf("create dispute event: %w", err)
 		}
 
 		return nil
 	})
+	if err != nil {
+		return fmt.Errorf("process chargeback: %w", err)
+	}
+
+	if err := s.saveWebhookEvent(ctx, actualDisputeData, webhook); err != nil {
+		return fmt.Errorf("create dispute event: %w", err)
+	}
+
+	return nil
 }
 
 func (s *DisputeService) UpsertEvidence(ctx context.Context, disputeID string, upsert EvidenceUpsert) (*Evidence, error) {
@@ -146,23 +152,23 @@ func (s *DisputeService) UpsertEvidence(ctx context.Context, disputeID string, u
 			}
 		}
 
-		// 4. Create evidence_added event
-		if err := s.createEvidenceAddedEvent(ctx, tx, disputeID, *evidence); err != nil {
-			return fmt.Errorf("create evidence event: %w", err)
-		}
-
 		return nil
 	})
-
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("upsert evidence: %w", err)
+	}
+
+	// 4. Create evidence_added event
+	if err := s.createEvidenceAddedEvent(ctx, disputeID, *result); err != nil {
+		return nil, fmt.Errorf("create evidence event: %w", err)
 	}
 
 	return result, nil
 }
 
 func (s *DisputeService) Submit(ctx context.Context, disputeID string) error {
-	return s.disputeRepo.InTransaction(ctx, func(tx TxDisputeRepo) error {
+	var result *gateway.RepresentmentResult
+	err := s.disputeRepo.InTransaction(ctx, func(tx TxDisputeRepo) error {
 		d, err := tx.GetDisputeByID(ctx, disputeID)
 		if err != nil {
 			return fmt.Errorf("get dispute: %w", err)
@@ -195,6 +201,7 @@ func (s *DisputeService) Submit(ctx context.Context, disputeID string) error {
 		if err != nil {
 			return fmt.Errorf("provider submit: %w", err)
 		}
+		result = &res
 
 		fmt.Printf("Submit represented responce: %+v\n", res)
 
@@ -208,24 +215,30 @@ func (s *DisputeService) Submit(ctx context.Context, disputeID string) error {
 			return fmt.Errorf("update dispute: %w", err)
 		}
 
-		//TODO: refactor
-		mRes, _ := json.Marshal(res)
-		ev := NewDisputeEvent{
-			DisputeID:       d.ID,
-			Kind:            DisputeEventEvidenceSubmitted,
-			ProviderEventID: res.ProviderSubmissionID,
-			Data:            mRes,
-			CreatedAt:       time.Now(),
-		}
-		if err := tx.CreateDisputeEvent(ctx, ev); err != nil {
-			return fmt.Errorf("create submitted event: %w", err)
-		}
-
 		return nil
 	})
+
+	if err != nil {
+		return fmt.Errorf("submit evidence: %w", err)
+	}
+
+	//TODO: refactor
+	mRes, _ := json.Marshal(result)
+	ev := NewDisputeEvent{
+		DisputeID:       disputeID,
+		Kind:            DisputeEventEvidenceSubmitted,
+		ProviderEventID: result.ProviderSubmissionID,
+		Data:            mRes,
+		CreatedAt:       time.Now(),
+	}
+	if err := s.eventSink.CreateDisputeEvent(ctx, ev); err != nil {
+		return fmt.Errorf("create submitted event: %w", err)
+	}
+	return nil
+
 }
 
-func (s *DisputeService) createEvidenceAddedEvent(ctx context.Context, tx TxDisputeRepo, disputeID string, evidence Evidence) error {
+func (s *DisputeService) createEvidenceAddedEvent(ctx context.Context, disputeID string, evidence Evidence) error {
 	payload, _ := json.Marshal(evidence)
 
 	disputeEvent := NewDisputeEvent{
@@ -236,13 +249,13 @@ func (s *DisputeService) createEvidenceAddedEvent(ctx context.Context, tx TxDisp
 		CreatedAt:       time.Now(),
 	}
 
-	if err := tx.CreateDisputeEvent(ctx, disputeEvent); err != nil {
+	if err := s.eventSink.CreateDisputeEvent(ctx, disputeEvent); err != nil {
 		return fmt.Errorf("create dispute event: %w", err)
 	}
 	return nil
 }
 
-func (s *DisputeService) saveWebhookEvent(ctx context.Context, tx TxDisputeRepo, dispute Dispute, webhook ChargebackWebhook) error {
+func (s *DisputeService) saveWebhookEvent(ctx context.Context, dispute Dispute, webhook ChargebackWebhook) error {
 	payload, _ := json.Marshal(webhook)
 
 	disputeEvent := NewDisputeEvent{
@@ -253,7 +266,7 @@ func (s *DisputeService) saveWebhookEvent(ctx context.Context, tx TxDisputeRepo,
 		CreatedAt:       time.Now(),
 	}
 
-	if err := tx.CreateDisputeEvent(ctx, disputeEvent); err != nil {
+	if err := s.eventSink.CreateDisputeEvent(ctx, disputeEvent); err != nil {
 		return fmt.Errorf("create dispute event: %w", err)
 	}
 	return nil

@@ -10,9 +10,9 @@ import (
 	"TestTaskJustPay/internal/controller/rest/handlers"
 	"TestTaskJustPay/internal/domain/dispute"
 	"TestTaskJustPay/internal/domain/order"
+	"TestTaskJustPay/internal/external/opensearch"
 	"TestTaskJustPay/internal/external/silvergate"
 	dispute_repo "TestTaskJustPay/internal/repo/dispute"
-	"TestTaskJustPay/internal/repo/eventsink"
 	order_repo "TestTaskJustPay/internal/repo/order"
 	"TestTaskJustPay/pkg/logger"
 	"TestTaskJustPay/pkg/postgres"
@@ -56,7 +56,11 @@ func setupTestServer(t *testing.T) *httptest.Server {
 
 	orderRepo := order_repo.NewPgOrderRepo(pool)
 	disputeRepo := dispute_repo.NewPgDisputeRepo(pool)
-	eventSink := eventsink.NewPgEventRepo(pool)
+	//eventSink := eventsink.NewPgEventRepo(pool)
+	opensearchEventSink, err := opensearch.NewOpenSearchEventSink(context.Background(), cfg.OpensearchUrls, cfg.OpensearchIndexDisputes, cfg.OpensearchIndexOrders)
+	if err != nil {
+		t.Fatalf("Failed to create opensearch event sink: %v", err)
+	}
 
 	orderService := order.NewOrderService(orderRepo)
 	silvergateClient := silvergate.New(
@@ -64,7 +68,7 @@ func setupTestServer(t *testing.T) *httptest.Server {
 		cfg.SilvergateSubmitRepresentmentPath,
 		&http.Client{Timeout: cfg.HTTPSilvergateClientTimeout},
 	)
-	disputeService := dispute.NewDisputeService(disputeRepo, silvergateClient, eventSink)
+	disputeService := dispute.NewDisputeService(disputeRepo, silvergateClient, opensearchEventSink)
 
 	orderHandler := handlers.NewOrderHandler(orderService)
 	chargebackHandler := handlers.NewChargebackHandler(disputeService)

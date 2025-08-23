@@ -16,6 +16,11 @@ type Config struct {
 	SilvergateBaseURL                 string        `env:"SILVERGATE_BASE_URL" required:"true"`
 	SilvergateSubmitRepresentmentPath string        `env:"SILVERGATE_SUBMIT_REPRESENTMENT_PATH" required:"true"`
 	HTTPSilvergateClientTimeout       time.Duration `env:"HTTP_SILVERGATE_CLIENT_TIMEOUT" envDefault:"20s"`
+
+	OpensearchUrls []string `env:"OPENSEARCH_URLS" required:"true"`
+
+	OpensearchIndexDisputes string `env:"OPENSEARCH_INDEX_DISPUTES" required:"true"`
+	OpensearchIndexOrders   string `env:"OPENSEARCH_INDEX_ORDERS" required:"true"`
 }
 
 func New() (Config, error) {

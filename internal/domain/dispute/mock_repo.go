@@ -41,7 +41,7 @@ func (m *MockDisputeRepo) EXPECT() *MockDisputeRepoMockRecorder {
 }
 
 // CreateDispute mocks base method.
-func (m *MockDisputeRepo) CreateDispute(ctx context.Context, dispute Dispute) (*Dispute, error) {
+func (m *MockDisputeRepo) CreateDispute(ctx context.Context, dispute NewDispute) (*Dispute, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "CreateDispute", ctx, dispute)
 	ret0, _ := ret[0].(*Dispute)
@@ -53,20 +53,6 @@ func (m *MockDisputeRepo) CreateDispute(ctx context.Context, dispute Dispute) (*
 func (mr *MockDisputeRepoMockRecorder) CreateDispute(ctx, dispute any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CreateDispute", reflect.TypeOf((*MockDisputeRepo)(nil).CreateDispute), ctx, dispute)
-}
-
-// CreateDisputeEvent mocks base method.
-func (m *MockDisputeRepo) CreateDisputeEvent(ctx context.Context, event NewDisputeEvent) error {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "CreateDisputeEvent", ctx, event)
-	ret0, _ := ret[0].(error)
-	return ret0
-}
-
-// CreateDisputeEvent indicates an expected call of CreateDisputeEvent.
-func (mr *MockDisputeRepoMockRecorder) CreateDisputeEvent(ctx, event any) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CreateDisputeEvent", reflect.TypeOf((*MockDisputeRepo)(nil).CreateDisputeEvent), ctx, event)
 }
 
 // GetDisputeByID mocks base method.
@@ -97,21 +83,6 @@ func (m *MockDisputeRepo) GetDisputeByOrderID(ctx context.Context, orderID strin
 func (mr *MockDisputeRepoMockRecorder) GetDisputeByOrderID(ctx, orderID any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetDisputeByOrderID", reflect.TypeOf((*MockDisputeRepo)(nil).GetDisputeByOrderID), ctx, orderID)
-}
-
-// GetDisputeEvents mocks base method.
-func (m *MockDisputeRepo) GetDisputeEvents(ctx context.Context, query *DisputeEventQuery) ([]DisputeEvent, error) {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetDisputeEvents", ctx, query)
-	ret0, _ := ret[0].([]DisputeEvent)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
-}
-
-// GetDisputeEvents indicates an expected call of GetDisputeEvents.
-func (mr *MockDisputeRepoMockRecorder) GetDisputeEvents(ctx, query any) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetDisputeEvents", reflect.TypeOf((*MockDisputeRepo)(nil).GetDisputeEvents), ctx, query)
 }
 
 // GetDisputes mocks base method.
@@ -212,7 +183,7 @@ func (m *MockTxDisputeRepo) EXPECT() *MockTxDisputeRepoMockRecorder {
 }
 
 // CreateDispute mocks base method.
-func (m *MockTxDisputeRepo) CreateDispute(ctx context.Context, dispute Dispute) (*Dispute, error) {
+func (m *MockTxDisputeRepo) CreateDispute(ctx context.Context, dispute NewDispute) (*Dispute, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "CreateDispute", ctx, dispute)
 	ret0, _ := ret[0].(*Dispute)
@@ -224,20 +195,6 @@ func (m *MockTxDisputeRepo) CreateDispute(ctx context.Context, dispute Dispute) 
 func (mr *MockTxDisputeRepoMockRecorder) CreateDispute(ctx, dispute any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CreateDispute", reflect.TypeOf((*MockTxDisputeRepo)(nil).CreateDispute), ctx, dispute)
-}
-
-// CreateDisputeEvent mocks base method.
-func (m *MockTxDisputeRepo) CreateDisputeEvent(ctx context.Context, event NewDisputeEvent) error {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "CreateDisputeEvent", ctx, event)
-	ret0, _ := ret[0].(error)
-	return ret0
-}
-
-// CreateDisputeEvent indicates an expected call of CreateDisputeEvent.
-func (mr *MockTxDisputeRepoMockRecorder) CreateDisputeEvent(ctx, event any) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CreateDisputeEvent", reflect.TypeOf((*MockTxDisputeRepo)(nil).CreateDisputeEvent), ctx, event)
 }
 
 // GetDisputeByID mocks base method.
@@ -268,21 +225,6 @@ func (m *MockTxDisputeRepo) GetDisputeByOrderID(ctx context.Context, orderID str
 func (mr *MockTxDisputeRepoMockRecorder) GetDisputeByOrderID(ctx, orderID any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetDisputeByOrderID", reflect.TypeOf((*MockTxDisputeRepo)(nil).GetDisputeByOrderID), ctx, orderID)
-}
-
-// GetDisputeEvents mocks base method.
-func (m *MockTxDisputeRepo) GetDisputeEvents(ctx context.Context, query *DisputeEventQuery) ([]DisputeEvent, error) {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetDisputeEvents", ctx, query)
-	ret0, _ := ret[0].([]DisputeEvent)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
-}
-
-// GetDisputeEvents indicates an expected call of GetDisputeEvents.
-func (mr *MockTxDisputeRepoMockRecorder) GetDisputeEvents(ctx, query any) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetDisputeEvents", reflect.TypeOf((*MockTxDisputeRepo)(nil).GetDisputeEvents), ctx, query)
 }
 
 // GetDisputes mocks base method.

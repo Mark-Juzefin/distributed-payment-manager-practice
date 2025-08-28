@@ -157,14 +157,49 @@ paths:
           in: path
           required: true
           schema: { type: string }
+        - name: limit
+          in: query
+          required: false
+          schema: 
+            type: integer
+            minimum: 1
+            maximum: 1000
+            default: 100
+        - name: cursor
+          in: query
+          required: false
+          schema: { type: string }
+        - name: time_from
+          in: query
+          required: false
+          schema: 
+            type: string
+            format: date-time
+        - name: time_to
+          in: query
+          required: false
+          schema: 
+            type: string
+            format: date-time
+        - name: kinds
+          in: query
+          required: false
+          schema: { type: string }
+          description: Comma-separated list of event kinds
+        - name: sort
+          in: query
+          required: false
+          schema: 
+            type: string
+            enum: [asc, desc]
+            default: desc
       responses:
         '200':
-          description: Dispute events
+          description: Paginated dispute events
           content:
             application/json:
               schema:
-                type: array
-                items: { $ref: '#/components/schemas/DisputeEvent' }
+                $ref: '#/components/schemas/DisputeEventPage'
         '404': { description: Dispute not found }
 
   /disputes/{dispute_id}/evidence:
@@ -306,9 +341,19 @@ components:
         dispute_id: { type: string }
         kind:
           type: string
-          enum: [webhook_opened, evidence_added, submitted, provider_decision]
-        at:   { type: string, format: date-time }
-        meta: { type: object, additionalProperties: true }
+          enum: [webhook_opened, webhook_updated, evidence_added, evidence_submitted, provider_decision]
+        provider_event_id: { type: string }
+        data: { type: object, additionalProperties: true }
+        created_at: { type: string, format: date-time }
+
+    DisputeEventPage:
+      type: object
+      properties:
+        items:
+          type: array
+          items: { $ref: '#/components/schemas/DisputeEvent' }
+        next_cursor: { type: string }
+        has_more: { type: boolean }
 
     EvidenceUpsert:
       type: object

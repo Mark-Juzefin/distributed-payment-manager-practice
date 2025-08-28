@@ -100,7 +100,7 @@ type osDisputeEventDoc struct {
 	CreatedAt       time.Time                `json:"created_at"`
 }
 
-func (s *EventSink) CreateDisputeEvent(ctx context.Context, ev dispute.NewDisputeEvent) error {
+func (s *EventSink) CreateDisputeEvent(ctx context.Context, ev dispute.NewDisputeEvent) (*dispute.DisputeEvent, error) {
 	// Generate event ID here (since NewDisputeEvent has none).
 	eventID := uuid.NewString()
 	if ev.CreatedAt.IsZero() {
@@ -124,25 +124,25 @@ func (s *EventSink) CreateDisputeEvent(ctx context.Context, ev dispute.NewDisput
 		s.client.Index.WithRefresh("true"),
 	)
 	if err != nil {
-		return fmt.Errorf("index: %w", err)
+		return nil, fmt.Errorf("index: %w", err)
 	}
 	defer res.Body.Close()
 	if res.IsError() {
-		return fmt.Errorf("index error: %s", res.String())
+		return nil, fmt.Errorf("index error: %s", res.String())
 	}
-	return nil
+	return &dispute.DisputeEvent{
+		EventID:         eventID,
+		NewDisputeEvent: ev,
+	}, nil
 }
 
-func (s *EventSink) GetDisputeEvents(ctx context.Context, q *dispute.DisputeEventQuery) ([]dispute.DisputeEvent, error) {
-	if q == nil {
-		q = &dispute.DisputeEventQuery{}
-	}
+func (s *EventSink) GetDisputeEvents(ctx context.Context, query dispute.DisputeEventQuery) (dispute.DisputeEventPage, error) {
 	// Build a simple bool/filter query.
 	filters := make([]map[string]any, 0, 2)
-	if len(q.DisputeIDs) > 0 {
+	if len(query.DisputeIDs) > 0 {
 		// terms on entity_id
-		vals := make([]string, 0, len(q.DisputeIDs))
-		for _, id := range q.DisputeIDs {
+		vals := make([]string, 0, len(query.DisputeIDs))
+		for _, id := range query.DisputeIDs {
 			if id != "" {
 				vals = append(vals, id)
 			}
@@ -153,9 +153,9 @@ func (s *EventSink) GetDisputeEvents(ctx context.Context, q *dispute.DisputeEven
 			})
 		}
 	}
-	if len(q.Kinds) > 0 {
-		vals := make([]string, 0, len(q.Kinds))
-		for _, k := range q.Kinds {
+	if len(query.Kinds) > 0 {
+		vals := make([]string, 0, len(query.Kinds))
+		for _, k := range query.Kinds {
 			if k != "" {
 				vals = append(vals, string(k))
 			}
@@ -186,11 +186,11 @@ func (s *EventSink) GetDisputeEvents(ctx context.Context, q *dispute.DisputeEven
 		s.client.Search.WithBody(bytes.NewReader(raw)),
 	)
 	if err != nil {
-		return nil, fmt.Errorf("search: %w", err)
+		return dispute.DisputeEventPage{}, fmt.Errorf("search: %w", err)
 	}
 	defer res.Body.Close()
 	if res.IsError() {
-		return nil, fmt.Errorf("search error: %s", res.String())
+		return dispute.DisputeEventPage{}, fmt.Errorf("search error: %s", res.String())
 	}
 
 	var sr struct {
@@ -202,14 +202,14 @@ func (s *EventSink) GetDisputeEvents(ctx context.Context, q *dispute.DisputeEven
 		} `json:"hits"`
 	}
 	if err := json.NewDecoder(res.Body).Decode(&sr); err != nil {
-		return nil, fmt.Errorf("decode search: %w", err)
+		return dispute.DisputeEventPage{}, fmt.Errorf("decode search: %w", err)
 	}
 
 	out := make([]dispute.DisputeEvent, 0, len(sr.Hits.Hits))
 	for _, h := range sr.Hits.Hits {
 		var doc osDisputeEventDoc
 		if err := json.Unmarshal(h.Source, &doc); err != nil {
-			return nil, fmt.Errorf("decode hit: %w", err)
+			return dispute.DisputeEventPage{}, fmt.Errorf("decode hit: %w", err)
 		}
 		evtID := doc.EventID
 		if evtID == "" {
@@ -227,5 +227,9 @@ func (s *EventSink) GetDisputeEvents(ctx context.Context, q *dispute.DisputeEven
 			},
 		})
 	}
-	return out, nil
+	return dispute.DisputeEventPage{
+		Items:      out,
+		NextCursor: "",    //TODO
+		HasMore:    false, //TODO
+	}, nil
 }

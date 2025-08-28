@@ -107,6 +107,23 @@ func (p *Postgres) InTransaction(ctx context.Context, fn func(tx Executor) error
 	return nil
 }
 
+func (p *Postgres) SandboxTransaction(ctx context.Context, fn func(tx Executor) error) (err error) {
+	tx, err := p.Pool.BeginTx(ctx, pgx.TxOptions{
+		IsoLevel: pgx.ReadCommitted,
+	})
+	if err != nil {
+		return fmt.Errorf("start transaction: %w", err)
+	}
+
+	defer func() {
+		if rollbackErr := tx.Rollback(ctx); rollbackErr != nil {
+			fmt.Printf("failed to rollback transaction: %v", rollbackErr)
+		}
+	}()
+
+	return fn(tx)
+}
+
 func IsPgErrorUniqueViolation(err error) bool {
 	var pgErr *pgconn.PgError
 	if errors.As(err, &pgErr) {

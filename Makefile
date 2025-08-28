@@ -3,7 +3,7 @@ export
 
 MIGRATION_DIR=src/app/migration
 
-.PHONY: run run-dev start_containers stop_containers lint test integration-test generate migrate
+.PHONY: run run-dev start_containers stop_containers lint test integration-test generate migrate seed-db
 
 run:
 	docker compose --profile prod up --build
@@ -23,8 +23,12 @@ lint:
 test:
 	go test -race ./...
 
+INTEGRATION_DIRS = \
+	./internal/repo/eventsink 
+#	./integration-test/...
+
 integration-test: start_containers
-	go clean -testcache && go test -tags=integration -v ./integration-test/...
+	go clean -testcache && go test -tags=integration -v  $(INTEGRATION_DIRS)
 
 generate:
 	go generate ./...
@@ -34,3 +38,6 @@ ifndef name
 	$(error "Usage: make migrate name=your_migration_name")
 endif
 	go tool goose -dir=$(MIGRATION_DIR) create $(name) sql
+
+seed-db:
+	psql -d "$(PG_URL)" -f ./scripts/seed_data.sql

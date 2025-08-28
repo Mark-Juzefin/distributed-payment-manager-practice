@@ -7,8 +7,8 @@ import (
 )
 
 type EventSink interface {
-	CreateDisputeEvent(ctx context.Context, event NewDisputeEvent) error
-	GetDisputeEvents(ctx context.Context, query *DisputeEventQuery) ([]DisputeEvent, error)
+	CreateDisputeEvent(ctx context.Context, event NewDisputeEvent) (*DisputeEvent, error)
+	GetDisputeEvents(ctx context.Context, query DisputeEventQuery) (DisputeEventPage, error)
 }
 
 type DisputeEvent struct {
@@ -34,33 +34,22 @@ const (
 	DisputeEventEvidenceAdded     DisputeEventKind = "evidence_added"
 )
 
+type DisputeEventPage struct {
+	Items      []DisputeEvent `json:"items"`
+	NextCursor string         `json:"next_cursor"`
+	HasMore    bool           `json:"has_more"`
+}
+
 type DisputeEventQuery struct {
-	DisputeIDs []string
-	Kinds      []DisputeEventKind
-}
+	DisputeIDs []string           `json:"dispute_ids"`
+	Kinds      []DisputeEventKind `json:"kinds"`
 
-type DisputeEventQueryBuilder struct {
-	query *DisputeEventQuery
-}
+	TimeFrom *time.Time `json:"time_from,omitempty"`
+	TimeTo   *time.Time `json:"time_to,omitempty"`
 
-func NewDisputeEventQueryBuilder() *DisputeEventQueryBuilder {
-	return &DisputeEventQueryBuilder{
-		query: &DisputeEventQuery{},
-	}
-}
-
-func (b *DisputeEventQueryBuilder) WithDisputeIDs(disputeIDs ...string) *DisputeEventQueryBuilder {
-	b.query.DisputeIDs = disputeIDs
-	return b
-}
-
-func (b *DisputeEventQueryBuilder) WithKinds(kinds ...DisputeEventKind) *DisputeEventQueryBuilder {
-	b.query.Kinds = kinds
-	return b
-}
-
-func (b *DisputeEventQueryBuilder) Build() *DisputeEventQuery {
-	return b.query
+	Limit   int    `json:"limit"` //  default 10
+	Cursor  string `json:"cursor"`
+	SortAsc bool   `json:"sort_asc"`
 }
 
 func deriveKindFromChargebackStatus(status ChargebackStatus) DisputeEventKind {

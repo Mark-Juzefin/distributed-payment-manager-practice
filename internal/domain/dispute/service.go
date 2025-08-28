@@ -39,16 +39,16 @@ func (s *DisputeService) GetDisputeByID(ctx context.Context, disputeID string) (
 	return dispute, err
 }
 
-func (s *DisputeService) GetEvents(ctx context.Context, disputeID string) ([]DisputeEvent, error) {
-	query := NewDisputeEventQueryBuilder().
-		WithDisputeIDs(disputeID).
-		Build()
-
-	events, err := s.eventSink.GetDisputeEvents(ctx, query)
-	if err != nil {
-		return nil, fmt.Errorf("get events for dispute %s: %w", disputeID, err)
+func (s *DisputeService) GetEvents(ctx context.Context, query DisputeEventQuery) (DisputeEventPage, error) {
+	if query.Limit <= 0 {
+		query.Limit = 10
 	}
-	return events, nil
+
+	eventPage, err := s.eventSink.GetDisputeEvents(ctx, query)
+	if err != nil {
+		return DisputeEventPage{}, fmt.Errorf("get events: %w", err)
+	}
+	return eventPage, nil
 }
 
 func (s *DisputeService) GetEvidence(ctx context.Context, disputeID string) (*Evidence, error) {
@@ -222,20 +222,29 @@ func (s *DisputeService) Submit(ctx context.Context, disputeID string) error {
 		return fmt.Errorf("submit evidence: %w", err)
 	}
 
-	//TODO: refactor
-	mRes, _ := json.Marshal(result)
-	ev := NewDisputeEvent{
-		DisputeID:       disputeID,
-		Kind:            DisputeEventEvidenceSubmitted,
-		ProviderEventID: result.ProviderSubmissionID,
-		Data:            mRes,
-		CreatedAt:       time.Now(),
-	}
-	if err := s.eventSink.CreateDisputeEvent(ctx, ev); err != nil {
+	err = s.createEvidenceSubmittedEvent(ctx, disputeID, result)
+	if err != nil {
 		return fmt.Errorf("create submitted event: %w", err)
 	}
 	return nil
 
+}
+
+func (s *DisputeService) createEvidenceSubmittedEvent(ctx context.Context, disputeID string, result *gateway.RepresentmentResult) error {
+	payload, _ := json.Marshal(result)
+
+	disputeEvent := NewDisputeEvent{
+		DisputeID:       disputeID,
+		Kind:            DisputeEventEvidenceSubmitted,
+		ProviderEventID: result.ProviderSubmissionID,
+		Data:            payload,
+		CreatedAt:       time.Now(),
+	}
+
+	if _, err := s.eventSink.CreateDisputeEvent(ctx, disputeEvent); err != nil {
+		return fmt.Errorf("create dispute event: %w", err)
+	}
+	return nil
 }
 
 func (s *DisputeService) createEvidenceAddedEvent(ctx context.Context, disputeID string, evidence Evidence) error {
@@ -249,7 +258,7 @@ func (s *DisputeService) createEvidenceAddedEvent(ctx context.Context, disputeID
 		CreatedAt:       time.Now(),
 	}
 
-	if err := s.eventSink.CreateDisputeEvent(ctx, disputeEvent); err != nil {
+	if _, err := s.eventSink.CreateDisputeEvent(ctx, disputeEvent); err != nil {
 		return fmt.Errorf("create dispute event: %w", err)
 	}
 	return nil
@@ -266,7 +275,7 @@ func (s *DisputeService) saveWebhookEvent(ctx context.Context, dispute Dispute, 
 		CreatedAt:       time.Now(),
 	}
 
-	if err := s.eventSink.CreateDisputeEvent(ctx, disputeEvent); err != nil {
+	if _, err := s.eventSink.CreateDisputeEvent(ctx, disputeEvent); err != nil {
 		return fmt.Errorf("create dispute event: %w", err)
 	}
 	return nil

@@ -31,7 +31,7 @@ func Run(cfg config.Config) {
 	}
 	orderRepo := order_repo.NewPgOrderRepo(pool)
 	disputeRepo := dispute_repo.NewPgDisputeRepo(pool)
-	eventSink := eventsink.NewPgEventRepo(pool)
+	eventSink := eventsink.NewPgEventRepo(pool.Pool, pool.Builder)
 
 	orderService := order.NewOrderService(orderRepo)
 	silvergateClient := silvergate.New(

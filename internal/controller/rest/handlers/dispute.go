@@ -2,7 +2,6 @@ package handlers
 
 import (
 	"TestTaskJustPay/internal/domain/dispute"
-	"fmt"
 	"net/http"
 
 	"github.com/gin-gonic/gin"
@@ -67,13 +66,11 @@ func (h *DisputeHandler) UpsertEvidence(c *gin.Context) {
 }
 
 func (h *DisputeHandler) GetEvents(c *gin.Context) {
-	disputeID := c.Param("dispute_id")
-	if disputeID == "" {
-		c.JSON(http.StatusBadRequest, gin.H{"message": "Missing dispute_id"})
-		return
+	var query dispute.DisputeEventQuery
+	if err := c.ShouldBindQuery(&query); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"message": err.Error()})
 	}
-	fmt.Println("get disputeID:", disputeID)
-	res, err := h.service.GetEvents(c, disputeID)
+	res, err := h.service.GetEvents(c, query)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"message": err.Error()})
 	}

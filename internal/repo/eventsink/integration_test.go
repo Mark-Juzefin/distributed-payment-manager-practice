@@ -19,7 +19,7 @@ import (
 	"github.com/testcontainers/testcontainers-go/wait"
 )
 
-//go:embed testdata/orders-50_disputes-15_events-103.sql
+//go:embed testdata/minimal_base.sql
 var baseFixture string
 
 //go:embed testdata/pagination_test.sql

@@ -200,6 +200,7 @@ func TestGetDisputeEventByIDIntegration(t *testing.T) {
 	}
 }
 
+// TODO: add testcases for pagination cursor
 func TestGetDisputeEventsIntegration(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
@@ -240,7 +241,7 @@ func TestGetDisputeEventsIntegration(t *testing.T) {
 				Limit:      100,
 			},
 			validate: func(t *testing.T, result dispute.DisputeEventPage) {
-				assert.Equal(t, 7, len(result.Items)) // dispute_001 has 7 events in base fixture
+				assert.Equal(t, 5, len(result.Items)) // dispute_001 has 5 events in minimal fixture
 				for _, event := range result.Items {
 					assert.Equal(t, "dispute_001", event.DisputeID)
 				}
@@ -257,7 +258,7 @@ func TestGetDisputeEventsIntegration(t *testing.T) {
 				Limit:      100,
 			},
 			validate: func(t *testing.T, result dispute.DisputeEventPage) {
-				assert.Equal(t, 14, len(result.Items)) // dispute_001 (7) + dispute_002 (7) = 14 events
+				assert.Equal(t, 10, len(result.Items)) // dispute_001 (5) + dispute_002 (5) = 10 events
 				for _, event := range result.Items {
 					assert.Contains(t, []string{"dispute_001", "dispute_002"}, event.DisputeID)
 				}

@@ -41,7 +41,7 @@ func (m *MockOrderRepo) EXPECT() *MockOrderRepoMockRecorder {
 }
 
 // CreateEvent mocks base method.
-func (m *MockOrderRepo) CreateEvent(ctx context.Context, event Event) error {
+func (m *MockOrderRepo) CreateEvent(ctx context.Context, event PaymentWebhook) error {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "CreateEvent", ctx, event)
 	ret0, _ := ret[0].(error)
@@ -55,7 +55,7 @@ func (mr *MockOrderRepoMockRecorder) CreateEvent(ctx, event any) *gomock.Call {
 }
 
 // CreateOrderByEvent mocks base method.
-func (m *MockOrderRepo) CreateOrderByEvent(ctx context.Context, event Event) error {
+func (m *MockOrderRepo) CreateOrderByEvent(ctx context.Context, event PaymentWebhook) error {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "CreateOrderByEvent", ctx, event)
 	ret0, _ := ret[0].(error)
@@ -69,10 +69,10 @@ func (mr *MockOrderRepoMockRecorder) CreateOrderByEvent(ctx, event any) *gomock.
 }
 
 // GetEvents mocks base method.
-func (m *MockOrderRepo) GetEvents(ctx context.Context, query *EventQuery) ([]EventBase, error) {
+func (m *MockOrderRepo) GetEvents(ctx context.Context, query *EventQuery) ([]PaymentWebhook, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "GetEvents", ctx, query)
-	ret0, _ := ret[0].([]EventBase)
+	ret0, _ := ret[0].([]PaymentWebhook)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
@@ -113,7 +113,7 @@ func (mr *MockOrderRepoMockRecorder) InTransaction(ctx, fn any) *gomock.Call {
 }
 
 // UpdateOrder mocks base method.
-func (m *MockOrderRepo) UpdateOrder(ctx context.Context, event Event) error {
+func (m *MockOrderRepo) UpdateOrder(ctx context.Context, event PaymentWebhook) error {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "UpdateOrder", ctx, event)
 	ret0, _ := ret[0].(error)
@@ -151,7 +151,7 @@ func (m *MockTxOrderRepo) EXPECT() *MockTxOrderRepoMockRecorder {
 }
 
 // CreateEvent mocks base method.
-func (m *MockTxOrderRepo) CreateEvent(ctx context.Context, event Event) error {
+func (m *MockTxOrderRepo) CreateEvent(ctx context.Context, event PaymentWebhook) error {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "CreateEvent", ctx, event)
 	ret0, _ := ret[0].(error)
@@ -165,7 +165,7 @@ func (mr *MockTxOrderRepoMockRecorder) CreateEvent(ctx, event any) *gomock.Call 
 }
 
 // CreateOrderByEvent mocks base method.
-func (m *MockTxOrderRepo) CreateOrderByEvent(ctx context.Context, event Event) error {
+func (m *MockTxOrderRepo) CreateOrderByEvent(ctx context.Context, event PaymentWebhook) error {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "CreateOrderByEvent", ctx, event)
 	ret0, _ := ret[0].(error)
@@ -179,10 +179,10 @@ func (mr *MockTxOrderRepoMockRecorder) CreateOrderByEvent(ctx, event any) *gomoc
 }
 
 // GetEvents mocks base method.
-func (m *MockTxOrderRepo) GetEvents(ctx context.Context, query *EventQuery) ([]EventBase, error) {
+func (m *MockTxOrderRepo) GetEvents(ctx context.Context, query *EventQuery) ([]PaymentWebhook, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "GetEvents", ctx, query)
-	ret0, _ := ret[0].([]EventBase)
+	ret0, _ := ret[0].([]PaymentWebhook)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
@@ -209,7 +209,7 @@ func (mr *MockTxOrderRepoMockRecorder) GetOrders(ctx, filter any) *gomock.Call {
 }
 
 // UpdateOrder mocks base method.
-func (m *MockTxOrderRepo) UpdateOrder(ctx context.Context, event Event) error {
+func (m *MockTxOrderRepo) UpdateOrder(ctx context.Context, event PaymentWebhook) error {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "UpdateOrder", ctx, event)
 	ret0, _ := ret[0].(error)

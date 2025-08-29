@@ -53,7 +53,7 @@ func TestGetOrders(t *testing.T) {
 	ctx := context.Background()
 
 	t.Run("should return orders with basic query", func(t *testing.T) {
-		userId := uuid.New()
+		userId := uuid.NewString()
 		expectedTime := time.Now()
 
 		query := &order.OrdersQuery{
@@ -88,12 +88,12 @@ func TestGetEvents(t *testing.T) {
 	ctx := context.Background()
 
 	t.Run("should return events with filters", func(t *testing.T) {
-		userId := uuid.New()
+		userId := uuid.NewString()
 		expectedTime := time.Now()
 
 		query := &order.EventQuery{
 			OrderIDs: []string{"order-1"},
-			UserIDs:  []string{userId.String()},
+			UserIDs:  []string{userId},
 			Statuses: []order.Status{order.StatusCreated},
 		}
 
@@ -101,7 +101,7 @@ func TestGetEvents(t *testing.T) {
 			AddRow("event-1", "order-1", userId, "created", expectedTime, expectedTime)
 
 		mock.ExpectQuery(`SELECT id, order_id, user_id, status, created_at, updated_at FROM order_events WHERE order_id IN \(\$1\) AND user_id IN \(\$2\) AND status IN \(\$3\) ORDER BY created_at DESC`).
-			WithArgs("order-1", userId.String(), order.StatusCreated).
+			WithArgs("order-1", userId, order.StatusCreated).
 			WillReturnRows(rows)
 
 		result, err := repo.GetEvents(ctx, query)
@@ -114,7 +114,7 @@ func TestGetEvents(t *testing.T) {
 	})
 
 	t.Run("should return events without filters", func(t *testing.T) {
-		userId := uuid.New()
+		userId := uuid.NewString()
 		expectedTime := time.Now()
 
 		query := &order.EventQuery{}
@@ -154,16 +154,14 @@ func TestUpdateOrder(t *testing.T) {
 	ctx := context.Background()
 
 	t.Run("should update order successfully", func(t *testing.T) {
-		userId := uuid.New()
+		userId := uuid.NewString()
 		updatedAt := time.Now()
 
-		event := order.Event{
-			EventBase: order.EventBase{
-				OrderId:   "order-1",
-				UserId:    userId,
-				Status:    order.StatusUpdated,
-				UpdatedAt: updatedAt,
-			},
+		event := order.PaymentWebhook{
+			OrderId:   "order-1",
+			UserId:    userId,
+			Status:    order.StatusUpdated,
+			UpdatedAt: updatedAt,
 		}
 
 		mock.ExpectExec(`UPDATE orders SET status = \$1, updated_at = \$2 WHERE id = \$3`).
@@ -176,14 +174,13 @@ func TestUpdateOrder(t *testing.T) {
 	})
 
 	t.Run("should handle database error", func(t *testing.T) {
-		userId := uuid.New()
+		userId := uuid.NewString()
 
-		event := order.Event{
-			EventBase: order.EventBase{
-				OrderId: "order-1",
-				UserId:  userId,
-				Status:  order.StatusUpdated,
-			},
+		event := order.PaymentWebhook{
+
+			OrderId: "order-1",
+			UserId:  userId,
+			Status:  order.StatusUpdated,
 		}
 
 		mock.ExpectExec(`UPDATE order SET status = \$1, updated_at = \$2 WHERE id = \$3`).
@@ -205,20 +202,18 @@ func TestCreateEvent(t *testing.T) {
 	ctx := context.Background()
 
 	t.Run("should create event successfully", func(t *testing.T) {
-		userId := uuid.New()
+		userId := uuid.NewString()
 		createdAt := time.Now()
 		updatedAt := time.Now()
 
-		event := order.Event{
-			EventBase: order.EventBase{
-				EventId:   "event-1",
-				OrderId:   "order-1",
-				UserId:    userId,
-				Status:    order.StatusCreated,
-				CreatedAt: createdAt,
-				UpdatedAt: updatedAt,
-			},
-			Meta: map[string]string{"key": "value"},
+		event := order.PaymentWebhook{
+			EventId:   "event-1",
+			OrderId:   "order-1",
+			UserId:    userId,
+			Status:    order.StatusCreated,
+			CreatedAt: createdAt,
+			UpdatedAt: updatedAt,
+			Meta:      map[string]string{"key": "value"},
 		}
 
 		mock.ExpectExec(`INSERT INTO order_events \(id,order_id,user_id,status,created_at,updated_at,meta\) VALUES \(\$1,\$2,\$3,\$4,\$5,\$6,\$7\)`).
@@ -231,20 +226,18 @@ func TestCreateEvent(t *testing.T) {
 	})
 
 	t.Run("should handle unique violation error", func(t *testing.T) {
-		userId := uuid.New()
+		userId := uuid.NewString()
 		createdAt := time.Now()
 		updatedAt := time.Now()
 
-		event := order.Event{
-			EventBase: order.EventBase{
-				EventId:   "event-1",
-				OrderId:   "order-1",
-				UserId:    userId,
-				Status:    order.StatusCreated,
-				CreatedAt: createdAt,
-				UpdatedAt: updatedAt,
-			},
-			Meta: map[string]string{},
+		event := order.PaymentWebhook{
+			EventId:   "event-1",
+			OrderId:   "order-1",
+			UserId:    userId,
+			Status:    order.StatusCreated,
+			CreatedAt: createdAt,
+			UpdatedAt: updatedAt,
+			Meta:      map[string]string{},
 		}
 
 		// Mock PostgreSQL unique violation error
@@ -263,15 +256,13 @@ func TestCreateEvent(t *testing.T) {
 	})
 
 	t.Run("should handle other database errors", func(t *testing.T) {
-		userId := uuid.New()
+		userId := uuid.NewString()
 
-		event := order.Event{
-			EventBase: order.EventBase{
-				EventId: "event-1",
-				OrderId: "order-1",
-				UserId:  userId,
-				Status:  order.StatusCreated,
-			},
+		event := order.PaymentWebhook{
+			EventId: "event-1",
+			OrderId: "order-1",
+			UserId:  userId,
+			Status:  order.StatusCreated,
 		}
 
 		mock.ExpectExec(`INSERT INTO order_events \(id,order_id,user_id,status,created_at,updated_at,meta\) VALUES \(\$1,\$2,\$3,\$4,\$5,\$6,\$7\)`).
@@ -294,18 +285,16 @@ func TestCreateOrderByEvent(t *testing.T) {
 	ctx := context.Background()
 
 	t.Run("should create order successfully", func(t *testing.T) {
-		userId := uuid.New()
+		userId := uuid.NewString()
 		createdAt := time.Now()
 		updatedAt := time.Now()
 
-		event := order.Event{
-			EventBase: order.EventBase{
-				OrderId:   "order-1",
-				UserId:    userId,
-				Status:    order.StatusCreated,
-				CreatedAt: createdAt,
-				UpdatedAt: updatedAt,
-			},
+		event := order.PaymentWebhook{
+			OrderId:   "order-1",
+			UserId:    userId,
+			Status:    order.StatusCreated,
+			CreatedAt: createdAt,
+			UpdatedAt: updatedAt,
 		}
 
 		mock.ExpectExec(`INSERT INTO orders \(id,user_id,status,created_at,updated_at\) VALUES \(\$1,\$2,\$3,\$4,\$5\)`).
@@ -318,14 +307,12 @@ func TestCreateOrderByEvent(t *testing.T) {
 	})
 
 	t.Run("should handle database error", func(t *testing.T) {
-		userId := uuid.New()
+		userId := uuid.NewString()
 
-		event := order.Event{
-			EventBase: order.EventBase{
-				OrderId: "order-1",
-				UserId:  userId,
-				Status:  order.StatusCreated,
-			},
+		event := order.PaymentWebhook{
+			OrderId: "order-1",
+			UserId:  userId,
+			Status:  order.StatusCreated,
 		}
 
 		mock.ExpectExec(`INSERT INTO orders \(id,user_id,status,created_at,updated_at\) VALUES \(\$1,\$2,\$3,\$4,\$5\)`).

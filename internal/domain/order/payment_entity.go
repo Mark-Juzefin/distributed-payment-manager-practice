@@ -1,23 +1,15 @@
 package order
 
-import (
-	"time"
+import "time"
 
-	"github.com/google/uuid"
-)
-
-type Event struct {
-	EventBase
-	Meta map[string]string `json:"meta"`
-}
-
-type EventBase struct {
-	EventId   string    `json:"event_id"`
-	OrderId   string    `json:"order_id"`
-	UserId    uuid.UUID `json:"user_id"`
-	Status    Status    `json:"status"`
-	UpdatedAt time.Time `json:"updated_at"`
-	CreatedAt time.Time `json:"created_at"`
+type PaymentWebhook struct {
+	EventId   string            `json:"event_id"`
+	OrderId   string            `json:"order_id"`
+	UserId    string            `json:"user_id"`
+	Status    Status            `json:"status"`
+	UpdatedAt time.Time         `json:"updated_at"`
+	CreatedAt time.Time         `json:"created_at"`
+	Meta      map[string]string `json:"meta"`
 }
 
 type EventQuery struct {

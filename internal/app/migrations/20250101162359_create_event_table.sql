@@ -3,7 +3,7 @@
 CREATE TABLE IF NOT EXISTS "order_events" (
     id VARCHAR(255) PRIMARY KEY,
     order_id VARCHAR(255) NOT NULL,
-    user_id UUID NOT NULL,
+    user_id VARCHAR(255) NOT NULL,
     status VARCHAR(32) NOT NULL,
     created_at TIMESTAMP NOT NULL,
     updated_at TIMESTAMP NOT NULL,

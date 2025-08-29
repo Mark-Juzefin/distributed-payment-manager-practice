@@ -41,7 +41,7 @@ func (s *OrderService) GetOrders(ctx context.Context, query OrdersQuery) ([]Orde
 	return orders, nil
 }
 
-func (s *OrderService) ProcessEvent(ctx context.Context, event Event) error {
+func (s *OrderService) ProcessPaymentWebhook(ctx context.Context, event PaymentWebhook) error {
 	return s.orderRepo.InTransaction(ctx, func(tx TxOrderRepo) error {
 		if event.Status == StatusCreated {
 			if err := tx.CreateOrderByEvent(ctx, event); err != nil {
@@ -70,7 +70,7 @@ func (s *OrderService) ProcessEvent(ctx context.Context, event Event) error {
 	})
 }
 
-func (s *OrderService) GetEvents(ctx context.Context, orderID string) ([]EventBase, error) {
+func (s *OrderService) GetEvents(ctx context.Context, orderID string) ([]PaymentWebhook, error) {
 	query := NewEventQueryBuilder().
 		WithOrderIDs(orderID).
 		Build()

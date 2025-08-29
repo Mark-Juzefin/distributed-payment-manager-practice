@@ -199,31 +199,27 @@ func TestOrderService_ProcessEvent(t *testing.T) {
 			UpdatedAt: now,
 		}
 
-		createEvent := Event{
-			EventBase: EventBase{
-				EventId:   "EVENT-1",
-				OrderId:   orderID,
-				Status:    StatusCreated,
-				CreatedAt: now,
-				UpdatedAt: now,
-			},
-			Meta: map[string]string{"key": "value"},
+		createEvent := PaymentWebhook{
+			EventId:   "EVENT-1",
+			OrderId:   orderID,
+			Status:    StatusCreated,
+			CreatedAt: now,
+			UpdatedAt: now,
+			Meta:      map[string]string{"key": "value"},
 		}
 
-		updateEvent := Event{
-			EventBase: EventBase{
-				EventId:   "EVENT-2",
-				OrderId:   orderID,
-				Status:    StatusUpdated,
-				CreatedAt: now,
-				UpdatedAt: now,
-			},
-			Meta: map[string]string{"key": "value"},
+		updateEvent := PaymentWebhook{
+			EventId:   "EVENT-2",
+			OrderId:   orderID,
+			Status:    StatusUpdated,
+			CreatedAt: now,
+			UpdatedAt: now,
+			Meta:      map[string]string{"key": "value"},
 		}
 
 		testCases := []struct {
 			name          string
-			event         Event
+			event         PaymentWebhook
 			mock          func(*MockTxOrderRepo)
 			expectedError error
 		}{
@@ -288,7 +284,7 @@ func TestOrderService_ProcessEvent(t *testing.T) {
 				tc.mock(mockTxRepo)
 
 				// when
-				err := service.ProcessEvent(ctx, tc.event)
+				err := service.ProcessPaymentWebhook(ctx, tc.event)
 
 				// then
 				if tc.expectedError == nil {
@@ -310,10 +306,10 @@ func TestOrderService_GetEvents(t *testing.T) {
 		// given
 		ctx := context.Background()
 		orderID := "ORDER-123"
-		userID := uuid.New()
+		userID := uuid.NewString()
 		now := time.Now()
 
-		expectedEvents := []EventBase{
+		expectedEvents := []PaymentWebhook{
 			{
 				EventId:   "EVENT-1",
 				OrderId:   orderID,
@@ -336,7 +332,7 @@ func TestOrderService_GetEvents(t *testing.T) {
 			name           string
 			orderID        string
 			mock           func()
-			expectedEvents []EventBase
+			expectedEvents []PaymentWebhook
 			expectedError  error
 		}{
 			{

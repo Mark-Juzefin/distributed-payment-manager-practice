@@ -19,12 +19,12 @@ func NewOrderHandler(s *order.OrderService) OrderHandler {
 }
 
 func (h *OrderHandler) Webhook(c *gin.Context) {
-	var event order.Event
+	var event order.PaymentWebhook
 	if err := c.ShouldBindJSON(&event); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"message": "Missing order_id"})
 	}
 
-	err := h.service.ProcessEvent(c, event)
+	err := h.service.ProcessPaymentWebhook(c, event)
 	if err != nil {
 		if errors.Is(err, apperror.ErrUnappropriatedStatus) {
 			c.JSON(http.StatusUnprocessableEntity, gin.H{"message": err.Error()})

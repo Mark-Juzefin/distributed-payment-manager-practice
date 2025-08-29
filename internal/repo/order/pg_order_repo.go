@@ -47,7 +47,7 @@ func (r *repo) GetOrders(ctx context.Context, query *order.OrdersQuery) ([]order
 	return parseOrderRows(rows)
 }
 
-func (r *repo) GetEvents(ctx context.Context, query *order.EventQuery) ([]order.EventBase, error) {
+func (r *repo) GetEvents(ctx context.Context, query *order.EventQuery) ([]order.PaymentWebhook, error) {
 	sql, args := r.buildEventsQuery(query)
 	rows, err := r.db.Query(ctx, sql, args...)
 	if err != nil {
@@ -58,7 +58,7 @@ func (r *repo) GetEvents(ctx context.Context, query *order.EventQuery) ([]order.
 	return parseEventRows(rows)
 }
 
-func (r *repo) UpdateOrder(ctx context.Context, event order.Event) error {
+func (r *repo) UpdateOrder(ctx context.Context, event order.PaymentWebhook) error {
 	query, args, err := r.builder.Update("orders").
 		Set("status", event.Status).
 		Set("updated_at", event.UpdatedAt).
@@ -75,7 +75,7 @@ func (r *repo) UpdateOrder(ctx context.Context, event order.Event) error {
 	return nil
 }
 
-func (r *repo) CreateEvent(ctx context.Context, event order.Event) error {
+func (r *repo) CreateEvent(ctx context.Context, event order.PaymentWebhook) error {
 	query, args, err := r.builder.Insert("order_events").
 		Columns("id", "order_id", "user_id", "status", "created_at", "updated_at", "meta").
 		Values(event.EventId, event.OrderId, event.UserId, event.Status, event.CreatedAt, event.UpdatedAt, event.Meta).
@@ -94,7 +94,7 @@ func (r *repo) CreateEvent(ctx context.Context, event order.Event) error {
 	return nil
 }
 
-func (r *repo) CreateOrderByEvent(ctx context.Context, event order.Event) error {
+func (r *repo) CreateOrderByEvent(ctx context.Context, event order.PaymentWebhook) error {
 	query, args, err := r.builder.Insert("orders").
 		Columns("id", "user_id", "status", "created_at", "updated_at").
 		Values(event.OrderId, event.UserId, event.Status, event.CreatedAt, event.UpdatedAt).
@@ -191,10 +191,10 @@ func parseOrderRows(rows pgx.Rows) ([]order.Order, error) {
 	return orders, nil
 }
 
-func parseEventRows(rows pgx.Rows) ([]order.EventBase, error) {
-	var events []order.EventBase
+func parseEventRows(rows pgx.Rows) ([]order.PaymentWebhook, error) {
+	var events []order.PaymentWebhook
 	for rows.Next() {
-		var e order.EventBase
+		var e order.PaymentWebhook
 		var rawStatus string
 		err := rows.Scan(&e.EventId, &e.OrderId, &e.UserId, &rawStatus, &e.CreatedAt, &e.UpdatedAt)
 		if err != nil {

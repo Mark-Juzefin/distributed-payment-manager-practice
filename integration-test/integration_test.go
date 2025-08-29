@@ -20,7 +20,6 @@ import (
 	"context"
 	_ "embed"
 	"encoding/json"
-	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -97,6 +96,7 @@ func TestDisputePagination(t *testing.T) {
 	defer server.Close()
 
 	applyBaseFixture(t, pool.Pool)
+
 }
 
 func TestChargebackFlow(t *testing.T) {
@@ -549,28 +549,9 @@ func getDisputeEvents(t *testing.T, baseURL string, query dispute.DisputeEventQu
 	return page
 }
 
-func getEvidence(t *testing.T, baseURL, disputeID string) map[string]interface{} {
-	url := fmt.Sprintf("%s/disputes/%s/evidence", baseURL, disputeID)
-	resp, err := http.Get(url)
-	if err != nil {
-		t.Fatalf("Failed to query evidence: %v", err)
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode == http.StatusNotFound {
-		return nil
-	}
-
-	if resp.StatusCode != http.StatusOK {
-		t.Fatalf("Expected status 200, got %d", resp.StatusCode)
-	}
-
-	var evidence map[string]interface{}
-	if err := json.NewDecoder(resp.Body).Decode(&evidence); err != nil {
-		t.Fatalf("Failed to decode evidence response: %v", err)
-	}
-
-	return evidence
+func getEvidence(t *testing.T, baseURL, disputeID string) *dispute.Evidence {
+	evidence := GET[dispute.Evidence](t, baseURL, "/disputes/"+disputeID+"/evidence", nil, http.StatusOK)
+	return &evidence
 }
 
 func addEvidence(t *testing.T, server *httptest.Server, disputeID string, evidenceData map[string]interface{}) dispute.Evidence {

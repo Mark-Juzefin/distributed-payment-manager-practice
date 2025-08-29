@@ -18,9 +18,9 @@ import (
 	"TestTaskJustPay/pkg/postgres"
 	"bytes"
 	"context"
+	_ "embed"
 	"encoding/json"
 	"fmt"
-	"io"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -31,6 +31,15 @@ import (
 
 	"github.com/google/go-querystring/query"
 )
+
+//go:embed testdata/orders-50_disputes-15_events-103.sql
+var baseFixture string
+
+func applyBaseFixture(t *testing.T, tx postgres.Executor) {
+	t.Helper()
+	_, err := tx.Exec(context.Background(), baseFixture)
+	require.NoError(t, err)
+}
 
 var successfulSubmittingId = "sg-subm-1"
 
@@ -81,6 +90,13 @@ func setupTestServer(t *testing.T) (*httptest.Server, *postgres.Postgres) {
 	router.SetUp(engine)
 
 	return httptest.NewServer(engine), pool
+}
+
+func TestDisputePagination(t *testing.T) {
+	server, pool := setupTestServer(t)
+	defer server.Close()
+
+	applyBaseFixture(t, pool.Pool)
 }
 
 func TestChargebackFlow(t *testing.T) {
@@ -295,18 +311,13 @@ func TestEvidenceAdditionFlow(t *testing.T) {
 
 	evidenceResult := addEvidence(t, server, disputeID, evidenceData)
 
-	if evidenceResult["dispute_id"] != disputeID {
-		t.Errorf("Expected evidence dispute_id to be %s, got %v", disputeID, evidenceResult["dispute_id"])
+	if evidenceResult.DisputeID != disputeID {
+		t.Errorf("Expected evidence dispute_id to be %s, got %v", disputeID, evidenceResult.DisputeID)
 	}
 
 	// Verify evidence fields in response
-	responseFields, ok := evidenceResult["fields"].(map[string]interface{})
-	if !ok {
-		t.Fatalf("Expected fields to be a map, got %T", evidenceResult["fields"])
-	}
-
-	if responseFields["transaction_receipt"] != "receipt_123" {
-		t.Errorf("Expected transaction_receipt to be 'receipt_123', got %v", responseFields["transaction_receipt"])
+	if evidenceResult.Fields["transaction_receipt"] != "receipt_123" {
+		t.Errorf("Expected transaction_receipt to be 'receipt_123', got %v", evidenceResult.Fields["transaction_receipt"])
 	}
 
 	// Get updated disputes to verify status change
@@ -480,38 +491,42 @@ func GET[T any](t *testing.T, baseUrl, path string, queryPayload any, expectedSt
 	require.NoError(t, err)
 	defer resp.Body.Close()
 
+	require.Equal(t, expectedStatus, resp.StatusCode)
+
 	err = json.NewDecoder(resp.Body).Decode(&res)
 	require.NoError(t, err)
 	return res
 }
 
-func makePostRequest(t *testing.T, url string, payload interface{}, expectedStatus int) *http.Response {
-	jsonPayload, err := json.Marshal(payload)
-	if err != nil {
-		t.Fatalf("Failed to marshal payload: %v", err)
+func POST[T any](t *testing.T, baseUrl, path string, payload any, expectedStatus int) T {
+	t.Helper()
+
+	var res T
+
+	u, _ := url.Parse(baseUrl)
+	u.Path = path
+
+	var reqBody *bytes.Buffer
+	if payload != nil {
+		jsonPayload, err := json.Marshal(payload)
+		require.NoError(t, err)
+		reqBody = bytes.NewBuffer(jsonPayload)
+	} else {
+		reqBody = bytes.NewBuffer(nil)
 	}
 
-	resp, err := http.Post(url, "application/json", bytes.NewBuffer(jsonPayload))
-	if err != nil {
-		t.Fatalf("Failed to make POST request to %s: %v", url, err)
-	}
-
-	if resp.StatusCode != expectedStatus {
-		body, _ := io.ReadAll(resp.Body)
-		resp.Body.Close()
-		t.Fatalf("Expected status %d, got %d. Response: %s", expectedStatus, resp.StatusCode, string(body))
-	}
-
-	return resp
-}
-
-func makePostRequestWithResponse(t *testing.T, url string, payload interface{}, expectedStatus int, target interface{}) {
-	resp := makePostRequest(t, url, payload, expectedStatus)
+	resp, err := http.Post(u.String(), "application/json", reqBody)
+	require.NoError(t, err)
 	defer resp.Body.Close()
 
-	if err := json.NewDecoder(resp.Body).Decode(target); err != nil {
-		t.Fatalf("Failed to decode response: %v", err)
+	require.Equal(t, expectedStatus, resp.StatusCode)
+
+	if resp.ContentLength > 0 {
+		err = json.NewDecoder(resp.Body).Decode(&res)
+		require.NoError(t, err)
 	}
+
+	return res
 }
 
 func getOrders(t *testing.T, server *httptest.Server) []order.Order {
@@ -558,16 +573,13 @@ func getEvidence(t *testing.T, baseURL, disputeID string) map[string]interface{}
 	return evidence
 }
 
-func addEvidence(t *testing.T, server *httptest.Server, disputeID string, evidenceData map[string]interface{}) map[string]interface{} {
-	var evidenceResult map[string]interface{}
-	url := server.URL + "/disputes/" + disputeID + "/evidence"
-	makePostRequestWithResponse(t, url, evidenceData, http.StatusOK, &evidenceResult)
+func addEvidence(t *testing.T, server *httptest.Server, disputeID string, evidenceData map[string]interface{}) dispute.Evidence {
+	evidenceResult := POST[dispute.Evidence](t, server.URL, "/disputes/"+disputeID+"/evidence", evidenceData, http.StatusOK)
 	return evidenceResult
 }
 
 func submitDispute(t *testing.T, server *httptest.Server, disputeID string) {
-	url := server.URL + "/disputes/" + disputeID + "/submit"
-	makePostRequest(t, url, nil, http.StatusAccepted)
+	POST[any](t, server.URL, "/disputes/"+disputeID+"/submit", nil, http.StatusAccepted)
 }
 
 func createOpenedDisputeForOrderId(t *testing.T, server *httptest.Server, orderId string) (disputeId string) {

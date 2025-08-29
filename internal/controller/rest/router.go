@@ -21,7 +21,7 @@ func (r *Router) SetUp(engine *gin.Engine) {
 	engine.GET("/orders/:order_id/events", r.order.GetEvents)
 
 	engine.GET("/disputes", r.dispute.GetDisputes)
-	engine.GET("/disputes/:dispute_id/events", r.dispute.GetEvents)
+	engine.GET("/disputes/events", r.dispute.GetEvents)
 	engine.GET("/disputes/:dispute_id/evidence", r.dispute.GetEvidence)
 	engine.POST("/disputes/:dispute_id/evidence", r.dispute.UpsertEvidence)
 	engine.POST("/disputes/:dispute_id/submit", r.dispute.Submit)

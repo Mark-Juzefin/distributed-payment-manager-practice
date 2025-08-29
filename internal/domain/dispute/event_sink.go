@@ -41,15 +41,15 @@ type DisputeEventPage struct {
 }
 
 type DisputeEventQuery struct {
-	DisputeIDs []string           `json:"dispute_ids"`
-	Kinds      []DisputeEventKind `json:"kinds"`
+	DisputeIDs []string           `json:"dispute_ids" url:"dispute_ids"`
+	Kinds      []DisputeEventKind `json:"kinds" url:"kinds"`
 
-	TimeFrom *time.Time `json:"time_from,omitempty"`
-	TimeTo   *time.Time `json:"time_to,omitempty"`
+	TimeFrom *time.Time `json:"time_from,omitempty" url:"time_from,omitempty"`
+	TimeTo   *time.Time `json:"time_to,omitempty" url:"time_to,omitempty"`
 
-	Limit   int    `json:"limit"` //  default 10
-	Cursor  string `json:"cursor"`
-	SortAsc bool   `json:"sort_asc"`
+	Limit   int    `json:"limit" url:"limit"`
+	Cursor  string `json:"cursor" url:"cursor"`
+	SortAsc bool   `json:"sort_asc" url:"sort_asc"`
 }
 
 func deriveKindFromChargebackStatus(status ChargebackStatus) DisputeEventKind {

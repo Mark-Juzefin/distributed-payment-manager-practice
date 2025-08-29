@@ -24,8 +24,8 @@ test:
 	go test -race ./...
 
 INTEGRATION_DIRS = \
-	./internal/repo/eventsink 
-#	./integration-test/...
+	./internal/repo/eventsink \
+	./integration-test/...
 
 integration-test: start_containers
 	go clean -testcache && go test -tags=integration -v  $(INTEGRATION_DIRS)

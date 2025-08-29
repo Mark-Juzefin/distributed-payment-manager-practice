@@ -149,14 +149,25 @@ paths:
               schema: { $ref: '#/components/schemas/Dispute' }
         '404': { description: Dispute not found }
 
-  /disputes/{dispute_id}/events:
+
+  /disputes/events:
     get:
       summary: Retrieve events for a specific dispute
       parameters:
-        - name: dispute_id
-          in: path
-          required: true
-          schema: { type: string }
+        - name: dispute_ids
+          in: query
+          schema:
+            type: array
+            items:
+              type: string
+        - name: kinds
+          in: query
+          required: false
+          schema:
+            type: array
+            items:
+              type: string
+          description: Comma-separated list of event kinds
         - name: limit
           in: query
           required: false
@@ -181,18 +192,10 @@ paths:
           schema: 
             type: string
             format: date-time
-        - name: kinds
+        - name: sort_asc
           in: query
           required: false
-          schema: { type: string }
-          description: Comma-separated list of event kinds
-        - name: sort
-          in: query
-          required: false
-          schema: 
-            type: string
-            enum: [asc, desc]
-            default: desc
+          schema: { type: boolean }
       responses:
         '200':
           description: Paginated dispute events

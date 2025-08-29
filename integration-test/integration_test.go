@@ -23,14 +23,19 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"testing"
 	"time"
+
+	"github.com/stretchr/testify/require"
+
+	"github.com/google/go-querystring/query"
 )
 
 var successfulSubmittingId = "sg-subm-1"
 
 // todo: refactor
-func setupTestServer(t *testing.T) *httptest.Server {
+func setupTestServer(t *testing.T) (*httptest.Server, *postgres.Postgres) {
 	cfg, err := config.New()
 	if err != nil {
 		t.Fatalf("Failed to load config: %v", err)
@@ -75,11 +80,11 @@ func setupTestServer(t *testing.T) *httptest.Server {
 	engine := app.NewGinEngine(l)
 	router.SetUp(engine)
 
-	return httptest.NewServer(engine)
+	return httptest.NewServer(engine), pool
 }
 
 func TestChargebackFlow(t *testing.T) {
-	server := setupTestServer(t)
+	server, _ := setupTestServer(t)
 	defer server.Close()
 
 	orderID := "order-chargeback-1"
@@ -119,11 +124,11 @@ func TestChargebackFlow(t *testing.T) {
 		t.Fatalf("Could not find dispute for order_id: %s", orderID)
 	}
 
-	if foundDispute["status"] != "open" {
-		t.Errorf("Expected dispute status to be 'open', got %v", foundDispute["status"])
+	if foundDispute.Status != "open" {
+		t.Errorf("Expected dispute status to be 'open', got %v", foundDispute.Status)
 	}
-	if foundDispute["reason"] != "fraud" {
-		t.Errorf("Expected dispute reason to be 'fraud', got %v", foundDispute["reason"])
+	if foundDispute.Reason != "fraud" {
+		t.Errorf("Expected dispute reason to be 'fraud', got %v", foundDispute.Reason)
 	}
 
 	// send event to update dispute (close it as won)
@@ -149,18 +154,18 @@ func TestChargebackFlow(t *testing.T) {
 		t.Fatalf("Could not find updated dispute for order_id: %s", orderID)
 	}
 
-	if updatedDispute["status"] != "won" {
-		t.Errorf("Expected updated dispute status to be 'won', got %v", updatedDispute["status"])
+	if updatedDispute.Status != "won" {
+		t.Errorf("Expected updated dispute status to be 'won', got %v", updatedDispute.Status)
 	}
 
 	// verify closed_at timestamp is set
-	if updatedDispute["closed_at"] == nil {
+	if updatedDispute.ClosedAt == nil {
 		t.Errorf("Expected closed_at to be set for closed dispute")
 	}
 }
 
 func TestCreateOrdersFlow(t *testing.T) {
-	server := setupTestServer(t)
+	server, _ := setupTestServer(t)
 	defer server.Close()
 
 	// Create multiple orders via webhook
@@ -205,7 +210,7 @@ func TestCreateOrdersFlow(t *testing.T) {
 }
 
 func TestUpdateOrderFlow(t *testing.T) {
-	server := setupTestServer(t)
+	server, _ := setupTestServer(t)
 	defer server.Close()
 
 	orderID := "order-update-test"
@@ -229,8 +234,8 @@ func TestUpdateOrderFlow(t *testing.T) {
 	// Verify order was created
 	initialResult := getOrder(t, server, orderID)
 
-	if initialResult["status"] != "created" {
-		t.Errorf("Expected order status to be 'created', got %v", initialResult["status"])
+	if initialResult.Status != "created" {
+		t.Errorf("Expected order status to be 'created', got %v", initialResult.Status)
 	}
 
 	// Update the order
@@ -252,13 +257,13 @@ func TestUpdateOrderFlow(t *testing.T) {
 	// Verify order was updated
 	updatedResult := getOrder(t, server, orderID)
 
-	if updatedResult["status"] != "updated" {
-		t.Errorf("Expected order status to be 'updated', got %v", updatedResult["status"])
+	if updatedResult.Status != "updated" {
+		t.Errorf("Expected order status to be 'updated', got %v", updatedResult.Status)
 	}
 }
 
 func TestEvidenceAdditionFlow(t *testing.T) {
-	server := setupTestServer(t)
+	server, _ := setupTestServer(t)
 	defer server.Close()
 
 	orderID := "order-evidence-test"
@@ -311,8 +316,8 @@ func TestEvidenceAdditionFlow(t *testing.T) {
 	}
 
 	// Verify dispute status changed to "under_review"
-	if updatedDispute["status"] != "under_review" {
-		t.Errorf("Expected dispute status to be 'under_review' after evidence addition, got %v", updatedDispute["status"])
+	if updatedDispute.Status != "under_review" {
+		t.Errorf("Expected dispute status to be 'under_review' after evidence addition, got %v", updatedDispute.Status)
 	}
 
 	// Verify evidence exists via API
@@ -322,24 +327,20 @@ func TestEvidenceAdditionFlow(t *testing.T) {
 	}
 
 	// Verify evidence_added event was created
-	events := getDisputeEvents(t, server.URL, disputeID)
-	evidenceAddedEventFound := false
-	for _, event := range events {
-		if event["kind"] == "evidence_added" {
-			evidenceAddedEventFound = true
-			break
-		}
-	}
+	page := getDisputeEvents(t, server.URL, dispute.DisputeEventQuery{
+		DisputeIDs: []string{disputeID},
+		Kinds:      []dispute.DisputeEventKind{dispute.DisputeEventEvidenceAdded},
+	})
 
-	if !evidenceAddedEventFound {
-		t.Errorf("Expected evidence_added event to be created in dispute_events table")
+	if len(page.Items) == 0 {
+		t.Errorf("Expected evidence_submitted event to be created in dispute_events table")
 	}
 }
 
 func TestSubmitDisputeFlow(t *testing.T) {
 
 	t.Run("Dispute with evidences is successfully submitted", func(t *testing.T) {
-		server := setupTestServer(t)
+		server, _ := setupTestServer(t)
 		defer server.Close()
 
 		orderID := "order-submit-test"
@@ -352,8 +353,8 @@ func TestSubmitDisputeFlow(t *testing.T) {
 		if initialDispute == nil {
 			t.Fatalf("Could not find dispute for order_id: %s", orderID)
 		}
-		if initialDispute["status"] != "open" {
-			t.Errorf("Expected initial dispute status to be 'open', got %v", initialDispute["status"])
+		if initialDispute.Status != "open" {
+			t.Errorf("Expected initial dispute status to be 'open', got %v", initialDispute.Status)
 		}
 
 		// Upload evidence
@@ -379,8 +380,8 @@ func TestSubmitDisputeFlow(t *testing.T) {
 		if updatedDispute == nil {
 			t.Fatalf("Could not find updated dispute for order_id: %s", orderID)
 		}
-		if updatedDispute["status"] != "under_review" {
-			t.Errorf("Expected dispute status to be 'under_review' after evidence addition, got %v", updatedDispute["status"])
+		if updatedDispute.Status != "under_review" {
+			t.Errorf("Expected dispute status to be 'under_review' after evidence addition, got %v", updatedDispute.Status)
 		}
 
 		// Submit dispute
@@ -393,31 +394,27 @@ func TestSubmitDisputeFlow(t *testing.T) {
 		}
 
 		// Verify status changed to "submitted"
-		if finalDispute["status"] != "submitted" {
-			t.Errorf("Expected dispute status to be 'submitted' after submission, got %v", finalDispute["status"])
+		if finalDispute.Status != "submitted" {
+			t.Errorf("Expected dispute status to be 'submitted' after submission, got %v", finalDispute.Status)
 		}
 
 		// Verify submitted_at timestamp is set
-		if finalDispute["submitted_at"] == nil {
+		if finalDispute.SubmittedAt == nil {
 			t.Errorf("Expected submitted_at to be set after submission")
 		}
 
 		// Verify submitting_id is set
-		if finalDispute["submitting_id"] != successfulSubmittingId {
+		if finalDispute.SubmittingId == nil || *finalDispute.SubmittingId != successfulSubmittingId {
 			t.Errorf("Expected submitting_id to be set after submission. Filan dispute %v", finalDispute)
 		}
 
 		// Verify evidence_submitted event was created
-		events := getDisputeEvents(t, server.URL, disputeID)
-		evidenceSubmittedEventFound := false
-		for _, event := range events {
-			if event["kind"] == "evidence_submitted" {
-				evidenceSubmittedEventFound = true
-				break
-			}
-		}
+		page := getDisputeEvents(t, server.URL, dispute.DisputeEventQuery{
+			DisputeIDs: []string{disputeID},
+			Kinds:      []dispute.DisputeEventKind{dispute.DisputeEventEvidenceSubmitted},
+		})
 
-		if !evidenceSubmittedEventFound {
+		if len(page.Items) == 0 {
 			t.Errorf("Expected evidence_submitted event to be created in dispute_events table")
 		}
 	})
@@ -467,28 +464,25 @@ func sendChargebacksWebhooks(t *testing.T, server *httptest.Server, payload map[
 	}
 }
 
-func makeGetRequest(t *testing.T, url string, expectedStatus int) *http.Response {
-	resp, err := http.Get(url)
-	if err != nil {
-		t.Fatalf("Failed to make GET request to %s: %v", url, err)
+func GET[T any](t *testing.T, baseUrl, path string, queryPayload any, expectedStatus int) T {
+	t.Helper()
+
+	var res T
+
+	u, _ := url.Parse(baseUrl)
+	u.Path = path
+	if queryPayload != nil {
+		v, _ := query.Values(queryPayload)
+		u.RawQuery = v.Encode()
 	}
 
-	if resp.StatusCode != expectedStatus {
-		body, _ := io.ReadAll(resp.Body)
-		resp.Body.Close()
-		t.Fatalf("Expected status %d, got %d. Response: %s", expectedStatus, resp.StatusCode, string(body))
-	}
-
-	return resp
-}
-
-func makeGetRequestWithResponse(t *testing.T, url string, expectedStatus int, target interface{}) {
-	resp := makeGetRequest(t, url, expectedStatus)
+	resp, err := http.Get(u.String())
+	require.NoError(t, err)
 	defer resp.Body.Close()
 
-	if err := json.NewDecoder(resp.Body).Decode(target); err != nil {
-		t.Fatalf("Failed to decode response: %v", err)
-	}
+	err = json.NewDecoder(resp.Body).Decode(&res)
+	require.NoError(t, err)
+	return res
 }
 
 func makePostRequest(t *testing.T, url string, payload interface{}, expectedStatus int) *http.Response {
@@ -520,29 +514,24 @@ func makePostRequestWithResponse(t *testing.T, url string, payload interface{}, 
 	}
 }
 
-func getOrders(t *testing.T, server *httptest.Server) []map[string]interface{} {
-	var orders []map[string]interface{}
-	makeGetRequestWithResponse(t, server.URL+"/orders", http.StatusOK, &orders)
+func getOrders(t *testing.T, server *httptest.Server) []order.Order {
+	orders := GET[[]order.Order](t, server.URL, "/orders", nil, http.StatusOK)
 	return orders
 }
 
-func getOrder(t *testing.T, server *httptest.Server, orderID string) map[string]interface{} {
-	var order map[string]interface{}
-	makeGetRequestWithResponse(t, server.URL+"/orders/"+orderID, http.StatusOK, &order)
+func getOrder(t *testing.T, server *httptest.Server, orderID string) order.Order {
+	order := GET[order.Order](t, server.URL, "/orders/"+orderID, nil, http.StatusOK)
 	return order
 }
 
-func getDisputes(t *testing.T, baseURL string) []map[string]interface{} {
-	var disputes []map[string]interface{}
-	makeGetRequestWithResponse(t, baseURL+"/disputes", http.StatusOK, &disputes)
+func getDisputes(t *testing.T, baseURL string) []dispute.Dispute {
+	disputes := GET[[]dispute.Dispute](t, baseURL, "/disputes", nil, http.StatusOK)
 	return disputes
 }
 
-func getDisputeEvents(t *testing.T, baseURL, disputeID string) []map[string]interface{} {
-	var events []map[string]interface{}
-	url := fmt.Sprintf("%s/disputes/%s/events", baseURL, disputeID)
-	makeGetRequestWithResponse(t, url, http.StatusOK, &events)
-	return events
+func getDisputeEvents(t *testing.T, baseURL string, query dispute.DisputeEventQuery) dispute.DisputeEventPage {
+	page := GET[dispute.DisputeEventPage](t, baseURL, "/disputes/events", query, http.StatusOK)
+	return page
 }
 
 func getEvidence(t *testing.T, baseURL, disputeID string) map[string]interface{} {
@@ -602,21 +591,21 @@ func createOpenedDisputeForOrderId(t *testing.T, server *httptest.Server, orderI
 		t.Fatalf("Could not find dispute for order_id: %s", orderId)
 	}
 
-	disputeID := foundDispute["dispute_id"].(string)
+	disputeID := foundDispute.ID
 
 	// Verify initial dispute status is "open"
-	if foundDispute["status"] != "open" {
-		t.Errorf("Expected initial dispute status to be 'open', got %v", foundDispute["status"])
+	if foundDispute.Status != "open" {
+		t.Errorf("Expected initial dispute status to be 'open', got %v", foundDispute.Status)
 	}
 	return disputeID
 }
 
-func findDisputeByOrderID(t *testing.T, baseURL, orderID string) map[string]interface{} {
+func findDisputeByOrderID(t *testing.T, baseURL, orderID string) *dispute.Dispute {
 	disputes := getDisputes(t, baseURL)
 
 	for _, disputeRecord := range disputes {
-		if disputeRecord["order_id"] == orderID {
-			return disputeRecord
+		if disputeRecord.OrderID == orderID {
+			return &disputeRecord
 		}
 	}
 	return nil

@@ -26,6 +26,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/google/go-querystring/query"
@@ -97,6 +98,155 @@ func TestDisputePagination(t *testing.T) {
 
 	applyBaseFixture(t, pool.Pool)
 
+	t.Run("Basic pagination flow", func(t *testing.T) {
+		// dispute_001: 7, dispute_002: 7, dispute_003: 7, dispute_004: 6,
+		// dispute_005: 8, dispute_006: 7, dispute_007: 8 = 50 total
+		expectedTotal := 50
+		targetDisputes := []string{"dispute_001", "dispute_002", "dispute_003", "dispute_004", "dispute_005", "dispute_006", "dispute_007"}
+
+		filter := dispute.DisputeEventQuery{
+			DisputeIDs: targetDisputes,
+			Limit:      20,
+			Cursor:     "",
+			SortAsc:    true,
+		}
+
+		// First page: 20 items
+		page1 := getDisputeEvents(t, server.URL, filter)
+		assert.Len(t, page1.Items, 20)
+		assert.True(t, page1.HasMore)
+		assert.NotEmpty(t, page1.NextCursor)
+
+		// Verify events are ordered by creation time
+		for i := 1; i < len(page1.Items); i++ {
+			assert.True(t, page1.Items[i-1].CreatedAt.Before(page1.Items[i].CreatedAt) ||
+				page1.Items[i-1].CreatedAt.Equal(page1.Items[i].CreatedAt),
+				"Events should be ordered by creation time")
+		}
+
+		// Second page: 20 items
+		filter.Cursor = page1.NextCursor
+		page2 := getDisputeEvents(t, server.URL, filter)
+		assert.Len(t, page2.Items, 20)
+		assert.True(t, page2.HasMore)
+		assert.NotEmpty(t, page2.NextCursor)
+		assert.NotEqual(t, page1.NextCursor, page2.NextCursor, "Cursors should be different")
+
+		// Third page: 10 items
+		filter.Cursor = page2.NextCursor
+		page3 := getDisputeEvents(t, server.URL, filter)
+		assert.Len(t, page3.Items, 10)
+		assert.False(t, page3.HasMore)
+		assert.Empty(t, page3.NextCursor)
+
+		// Verify no duplicate events across pages
+		allEventIDs := make(map[string]bool)
+		for _, event := range append(append(page1.Items, page2.Items...), page3.Items...) {
+			assert.False(t, allEventIDs[event.EventID], "Event ID should be unique: %s", event.EventID)
+			allEventIDs[event.EventID] = true
+		}
+		assert.Len(t, allEventIDs, expectedTotal, "Total unique events should match expected")
+	})
+
+	t.Run("Should sort ASC/DESC", func(t *testing.T) {
+		// dispute_001: 7
+		filter := dispute.DisputeEventQuery{
+			DisputeIDs: []string{"dispute_001"},
+			Limit:      10, // default
+			Cursor:     "",
+			SortAsc:    true,
+		}
+
+		page := getDisputeEvents(t, server.URL, filter)
+		assert.Len(t, page.Items, 7)
+
+		// Verify events are ordered by creation time ASC
+		for i := 1; i < len(page.Items); i++ {
+			assert.True(t, page.Items[i-1].CreatedAt.Before(page.Items[i].CreatedAt) ||
+				page.Items[i-1].CreatedAt.Equal(page.Items[i].CreatedAt),
+				"Events should be ordered by creation time")
+		}
+
+		filter.SortAsc = false
+
+		page = getDisputeEvents(t, server.URL, filter)
+		assert.Len(t, page.Items, 7)
+
+		// Verify events are ordered by creation time DESC
+		for i := 1; i < len(page.Items); i++ {
+			assert.True(t, page.Items[i-1].CreatedAt.After(page.Items[i].CreatedAt) ||
+				page.Items[i-1].CreatedAt.Equal(page.Items[i].CreatedAt),
+				"Events should be ordered by creation time")
+		}
+	})
+
+	t.Run("Single page result", func(t *testing.T) {
+		filter := dispute.DisputeEventQuery{
+			DisputeIDs: []string{"dispute_001"}, // Only 7 events
+			Limit:      20,
+			Cursor:     "",
+		}
+
+		page := getDisputeEvents(t, server.URL, filter)
+		assert.Len(t, page.Items, 7) // dispute_001 has exactly 7 events
+		assert.False(t, page.HasMore)
+		assert.Empty(t, page.NextCursor)
+	})
+
+	t.Run("Small limit pagination", func(t *testing.T) {
+		filter := dispute.DisputeEventQuery{
+			DisputeIDs: []string{"dispute_001", "dispute_002"}, // 14 total events
+			Limit:      5,
+			Cursor:     "",
+		}
+
+		var allEvents []dispute.DisputeEvent
+		pageCount := 0
+
+		for {
+			page := getDisputeEvents(t, server.URL, filter)
+			allEvents = append(allEvents, page.Items...)
+			pageCount++
+
+			if !page.HasMore {
+				assert.Empty(t, page.NextCursor)
+				break
+			}
+
+			assert.NotEmpty(t, page.NextCursor)
+			filter.Cursor = page.NextCursor
+
+			if pageCount > 3 {
+				t.Fatal("Too many pages")
+			}
+		}
+
+		assert.Len(t, allEvents, 14)  // dispute_001 (7) + dispute_002 (7)
+		assert.Equal(t, pageCount, 3) // ceil(14/5) = 3 pages
+	})
+
+	t.Run("Empty result pagination", func(t *testing.T) {
+		filter := dispute.DisputeEventQuery{
+			DisputeIDs: []string{"dispute_999"}, // Non-existent dispute
+			Limit:      10,
+		}
+
+		page := getDisputeEvents(t, server.URL, filter)
+		assert.Len(t, page.Items, 0)
+		assert.False(t, page.HasMore)
+		assert.Empty(t, page.NextCursor)
+	})
+
+	t.Run("Event kind filtering with pagination", func(t *testing.T) {
+		filter := dispute.DisputeEventQuery{
+			DisputeIDs: []string{"dispute_011", "dispute_012", "dispute_013", "dispute_014", "dispute_015"},
+			Kinds:      []dispute.DisputeEventKind{dispute.DisputeEventEvidenceAdded},
+			Limit:      20,
+		}
+
+		page := getDisputeEvents(t, server.URL, filter)
+		assert.Len(t, page.Items, 14)
+	})
 }
 
 func TestChargebackFlow(t *testing.T) {

@@ -1,7 +1,6 @@
 package config
 
 import (
-	"fmt"
 	"time"
 
 	"github.com/caarlos0/env/v11"
@@ -29,8 +28,5 @@ func New() (Config, error) {
 		return Config{}, err
 	}
 
-	// Debug output
-	fmt.Printf("DEBUG: PG_POOL_MAX = %d\n", c.PgPoolMax)
-	fmt.Printf("DEBUG: PG_URL = %s\n", c.PgURL)
 	return c, nil
 }

@@ -40,4 +40,13 @@ endif
 	go tool goose -dir=$(MIGRATION_DIR) create $(name) sql
 
 seed-db:
-	psql -d "$(PG_URL)" -f ./scripts/seed_data.sql
+	psql -d "$(PG_URL)" -f ./benchmark/generate_dispute_events.sql
+
+print-db-size:
+	psql -d "$(PG_URL)" -c 'SELECT pg_size_pretty(pg_database_size(current_database()));'
+
+clean-db:
+	psql -d "$(PG_URL)" -c  'TRUNCATE TABLE dispute_events, disputes, order_events, orders, evidence CASCADE'
+
+benchmark:
+	k6 run -e BASE_URL=http://localhost:3000 -e LIMIT=1000 -e VUS=8 -e DURATION=30s benchmark/disputes_bench.js

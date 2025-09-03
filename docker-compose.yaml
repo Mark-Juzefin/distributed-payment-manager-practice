@@ -31,7 +31,8 @@ services:
     entrypoint: ["/docker-entrypoint.sh", "--global-response-templating", "--disable-gzip", "--verbose"]
 
   db:
-    image: postgres:13
+    build:
+      dockerfile: ./PG.Dockerfile
     restart: always
     hostname: db
     profiles:

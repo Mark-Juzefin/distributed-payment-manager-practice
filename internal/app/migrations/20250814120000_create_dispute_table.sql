@@ -14,9 +14,16 @@ CREATE TABLE IF NOT EXISTS "disputes" (
     closed_at TIMESTAMP NULL,
     CONSTRAINT fk_dispute_order FOREIGN KEY (order_id) REFERENCES orders(id)
 );
+
+CREATE INDEX IF NOT EXISTS
+    disputes_status_reason_id
+    ON public.disputes (status, reason, id);
 -- +goose StatementEnd
 
 -- +goose Down
 -- +goose StatementBegin
+DROP INDEX IF EXISTS public.disputes_status_reason_id;
+
+
 DROP TABLE IF EXISTS disputes;
 -- +goose StatementEnd

@@ -14,6 +14,6 @@ INSERT INTO disputes (id, order_id, submitting_id, status, reason, amount, curre
 -- Single event for testing single result scenarios
 INSERT INTO dispute_events (id, dispute_id, kind, provider_event_id, data, created_at) VALUES
 ('edge_event_001', 'edge_dispute_001', 'webhook_opened', 'edge_provider_001', '{"test": "single_event", "amount": 99.99}', '2024-04-01 10:00:00')
-    ON CONFLICT (id) DO NOTHING;
+    ON CONFLICT (id, created_at) DO NOTHING;
 
 -- Note: edge_dispute_002 deliberately has no events for testing empty result scenarios

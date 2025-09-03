@@ -3,28 +3,24 @@
 **Payment Manager** is a backend service that simulates a merchant system integrated with external payment providers.  
 It receives and processes webhook events related to orders and disputes.
 
-TODO
-- Наглядно логувати усі операції для репрезентативності
-- Особливо у інтеграційних тестах
+## Tech Stack
+Go, PostgreSQL, pg_partman, Docker, MongoDB, OpenSearch, Kafka, testcontainers-go, Citus, WireMock
+
+# Goals
+
+- Practice database scaling: time-series partitioning, sharding, replication, and queues.
+- Experiment with multiple database systems
+- Write high-quality Golang code
+- Include thorough testing: unit, integration, and end-to-end tests
+- Practice metrics collection and benchmarking configurations. 
 
 
-## Features
-- **Order Processing**: Handles incoming events to create and update orders based on external provider data.
-- **Dispute Flow**: Simulates a basic chargeback lifecycle:
-  - Receives `chargeback.created` events.
-  - Stores open disputes.
-  - Allows submission of evidence (representment).
-  - Processes dispute resolution via `chargeback.closed` events.
+# Not Goals
 
-## Tech Highlights
-- Swappable repository layer (PostgreSQL / MongoDB)
-- MongoDB Time-Series collection for storing events
-- Sharding-ready design for scaling
+- A rational or production-ready domain design 
+- Solving real-world fintech problems
+- Achieving real performance gains from scaling (metrics and benchmarks here are for learning, not for driving design decisions)
 
+## Status
 
-## Quick Start
-
-```bash
-# Set DB_DRIVER=postgres or mongo
-DB_DRIVER=mongo go run cmd/server/main.go
-```
+## Roadmap

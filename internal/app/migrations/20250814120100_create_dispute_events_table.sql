@@ -10,21 +10,13 @@ CREATE TABLE IF NOT EXISTS "dispute_events" (
     CONSTRAINT fk_dispute_event_dispute FOREIGN KEY (dispute_id) REFERENCES disputes(id)
 );
 
-CREATE INDEX IF NOT EXISTS idx_dispute_events_created_at
-    ON public.dispute_events (created_at);
+CREATE INDEX IF NOT EXISTS de_kind_created_at_inc_dispute
+    ON public.dispute_events (kind, created_at);
 
-CREATE INDEX IF NOT EXISTS brin_dispute_events_created_at
-    ON public.dispute_events USING BRIN (created_at)
-    WITH (pages_per_range = 64);
-
-CREATE INDEX IF NOT EXISTS idx_dispute_events_dispute_id
-    ON public.dispute_events (dispute_id);
 -- +goose StatementEnd
 
 -- +goose Down
 -- +goose StatementBegin
-DROP INDEX IF EXISTS public.idx_dispute_events_dispute_id;
-DROP INDEX IF EXISTS public.brin_dispute_events_created_at;
-DROP INDEX IF EXISTS public.idx_dispute_events_created_at;
+DROP INDEX IF EXISTS public.de_kind_created_at_inc_dispute;
 DROP TABLE IF EXISTS dispute_events;
 -- +goose StatementEnd

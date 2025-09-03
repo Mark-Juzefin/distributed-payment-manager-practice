@@ -39,4 +39,4 @@ INSERT INTO dispute_events (id, dispute_id, kind, provider_event_id, data, creat
 -- Events for dispute_003 (ongoing - partial lifecycle)
 ('event_011', 'dispute_003', 'webhook_opened', 'chb_opened_003', '{"amount": 200.00, "currency": "EUR", "reason": "Service not provided"}', '2024-01-18 15:20:00'),
 ('event_012', 'dispute_003', 'webhook_updated', 'chb_updated_003', '{"evidence_due_at": "2024-01-25T23:59:59Z"}', '2024-01-18 15:25:00')
-    ON CONFLICT (id) DO NOTHING;
+    ON CONFLICT (id, created_at) DO NOTHING;

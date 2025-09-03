@@ -43,4 +43,4 @@ INSERT INTO dispute_events (id, dispute_id, kind, provider_event_id, data, creat
 ('filter_event_017', 'filter_dispute_001', 'webhook_updated', 'filter_provider_017', '{"test": "additional_updated_1"}', '2024-02-06 10:00:00'),
 ('filter_event_018', 'filter_dispute_002', 'webhook_updated', 'filter_provider_018', '{"test": "additional_updated_2"}', '2024-02-13 10:00:00'),
 ('filter_event_019', 'filter_dispute_003', 'webhook_updated', 'filter_provider_019', '{"test": "additional_updated_3"}', '2024-02-18 10:00:00')
-    ON CONFLICT (id) DO NOTHING;
+    ON CONFLICT (id, created_at) DO NOTHING;

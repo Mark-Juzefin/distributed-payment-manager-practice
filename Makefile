@@ -1,9 +1,9 @@
 -include .env
 export
 
-MIGRATION_DIR=src/app/migration
+MIGRATION_DIR=internal/app/migrations
 
-.PHONY: run run-dev start_containers stop_containers lint test integration-test generate migrate seed-db
+.PHONY: run run-dev start_containers stop_containers lint test integration-test generate migrate seed-db print-db-size clean-db benchmark build-pg-image
 
 run:
 	docker compose --profile prod up --build
@@ -16,6 +16,9 @@ start_containers:
 
 stop_containers:
 	docker compose --profile infra --profile prod down --remove-orphans
+
+build-pg-image:
+	docker build -f PG.Dockerfile -t pg17-partman:local .
 
 lint:
 	golangci-lint run

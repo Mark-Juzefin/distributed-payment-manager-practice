@@ -1,13 +1,13 @@
 -- ============ params ============
 -- Підіграй під свій обсяг
--- 100k orders, 30k disputes, в середньому ~6 подій на диспут
+-- 500k orders, 500k disputes, в середньому ~5 подій на диспут
 DO $$
 DECLARE
 ORDERS_CNT              int := 500000;
   DISPUTES_CNT            int := 500000;
   MAX_EVENTS_PER_DISPUTE  int := 10;      -- буде 3..(3+MAX)
-  DATE_FROM               timestamp := timestamp '2025-01-01';
-  DATE_TO                 timestamp := clock_timestamp();
+  DATE_FROM               timestamp := timestamp '2025-08-01';
+  DATE_TO                 timestamp := timestamp '2025-09-01';
 BEGIN
   -- Для генерації UUID
   PERFORM 1 FROM pg_extension WHERE extname='pgcrypto';

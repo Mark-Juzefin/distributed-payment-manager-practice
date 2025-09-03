@@ -54,4 +54,4 @@ INSERT INTO dispute_events (id, dispute_id, kind, provider_event_id, data, creat
 ('page_event_023', 'page_dispute_005', 'evidence_added', 'page_provider_023', '{"document_type": "warranty"}', '2024-03-01 11:40:00'),
 ('page_event_024', 'page_dispute_005', 'evidence_added', 'page_provider_024', '{"document_type": "correspondence"}', '2024-03-01 11:50:00'),
 ('page_event_025', 'page_dispute_005', 'evidence_submitted', 'page_provider_025', '{"submission_id": "sub_005"}', '2024-03-01 12:00:00')
-    ON CONFLICT (id) DO NOTHING;
+    ON CONFLICT (id, created_at) DO NOTHING;

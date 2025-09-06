@@ -126,6 +126,34 @@ func (h *OrderHandler) Hold(c *gin.Context) {
 	c.JSON(http.StatusOK, response)
 }
 
+func (h *OrderHandler) Capture(c *gin.Context) {
+	orderID := c.Param("order_id")
+	if orderID == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Missing order_id"})
+		return
+	}
+
+	var request order.CaptureRequest
+	if err := c.ShouldBindJSON(&request); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request body", "details": err.Error()})
+		return
+	}
+
+	response, err := h.service.CapturePayment(c, orderID, request)
+	if err != nil {
+		if errors.Is(err, apperror.ErrOrderNotFound) {
+			c.JSON(http.StatusNotFound, gin.H{"error": err.Error()})
+		} else if errors.Is(err, apperror.ErrOrderOnHold) || errors.Is(err, apperror.ErrOrderInFinalStatus) {
+			c.JSON(http.StatusConflict, gin.H{"error": err.Error()})
+		} else {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		}
+		return
+	}
+
+	c.JSON(http.StatusOK, response)
+}
+
 func (h *OrderHandler) createFilter(c *gin.Context) (*order.OrdersQuery, error) {
 	//var params FilterParams
 

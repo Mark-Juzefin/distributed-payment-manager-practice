@@ -72,12 +72,13 @@ func setupTestServer(t *testing.T) (*httptest.Server, *postgres.Postgres) {
 	disputeRepo := dispute_repo.NewPgDisputeRepo(pool)
 	eventSink := eventsink.NewPgEventRepo(pool.Pool, pool.Builder)
 
-	orderService := order.NewOrderService(orderRepo)
 	silvergateClient := silvergate.New(
 		cfg.SilvergateBaseURL,
 		cfg.SilvergateSubmitRepresentmentPath,
+		cfg.SilvergateCapturePath,
 		&http.Client{Timeout: cfg.HTTPSilvergateClientTimeout},
 	)
+	orderService := order.NewOrderService(orderRepo, silvergateClient)
 	disputeService := dispute.NewDisputeService(disputeRepo, silvergateClient, eventSink)
 
 	orderHandler := handlers.NewOrderHandler(orderService)
@@ -584,7 +585,7 @@ func TestSubmitDisputeFlow(t *testing.T) {
 
 func createOrderWithId(t *testing.T, server *httptest.Server, orderId string) {
 	createOrderPayload := map[string]interface{}{
-		"event_id":   "evt-order-evidence",
+		"event_id":   "evt-" + orderId, // Make event_id unique per order
 		"order_id":   orderId,
 		"user_id":    "55555555-5555-5555-5555-555555555555",
 		"status":     "created",
@@ -810,4 +811,61 @@ func TestOrderHoldFlow(t *testing.T) {
 	require.True(t, riskResp.OnHold)
 	require.NotNil(t, riskResp.Reason)
 	require.Equal(t, "risk", *riskResp.Reason)
+}
+
+func TestOrderCaptureFlow(t *testing.T) {
+	server, _ := setupTestServer(t)
+	defer server.Close()
+
+	orderID := "order-capture-test"
+
+	// Create order first
+	createOrderWithId(t, server, orderID)
+
+	// Verify order was created and is not on hold
+	initialOrder := getOrder(t, server, orderID)
+	require.Equal(t, "created", string(initialOrder.Status))
+	require.False(t, initialOrder.OnHold)
+
+	// Test successful capture
+	captureRequest := map[string]interface{}{
+		"amount":          100.50,
+		"currency":        "USD",
+		"idempotency_key": "capture-test-key-1",
+	}
+
+	captureResp := POST[order.CaptureResponse](t, server.URL, "/orders/"+orderID+"/capture", captureRequest, http.StatusOK)
+	require.Equal(t, orderID, captureResp.OrderID)
+	require.Equal(t, 100.50, captureResp.Amount)
+	require.Equal(t, "USD", captureResp.Currency)
+	require.Equal(t, "success", captureResp.Status)
+	require.Equal(t, "txn-capture-123", captureResp.ProviderTxID)
+	require.NotZero(t, captureResp.CapturedAt)
+
+	// Test capture on held order should fail
+	heldOrderID := "order-held-capture-test"
+	createOrderWithId(t, server, heldOrderID)
+
+	// Set order on hold
+	holdRequest := map[string]interface{}{
+		"action": "set",
+		"reason": "manual_review",
+	}
+	POST[order.HoldResponse](t, server.URL, "/orders/"+heldOrderID+"/hold", holdRequest, http.StatusOK)
+
+	// Try to capture held order - should fail with 409
+	heldCaptureRequest := map[string]interface{}{
+		"amount":          50.25,
+		"currency":        "USD",
+		"idempotency_key": "capture-held-key-1",
+	}
+
+	resp, err := http.Post(server.URL+"/orders/"+heldOrderID+"/capture", "application/json",
+		bytes.NewBuffer(func() []byte {
+			b, _ := json.Marshal(heldCaptureRequest)
+			return b
+		}()))
+	require.NoError(t, err)
+	require.NoError(t, resp.Body.Close())
+	require.Equal(t, http.StatusConflict, resp.StatusCode)
 }

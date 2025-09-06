@@ -1,0 +1,24 @@
+{
+  "request": {
+    "method": "POST",
+    "url": "/api/v1/capture",
+    "headers": {
+      "Content-Type": {
+        "equalTo": "application/json"
+      }
+    },
+    "bodyPatterns": [
+      { "matchesJsonPath": "$.order_id" },
+      { "matchesJsonPath": "$.amount" },
+      { "matchesJsonPath": "$.currency" },
+      { "matchesJsonPath": "$.idempotency_key" }
+    ]
+  },
+  "response": {
+    "status": 200,
+    "jsonBody": { 
+      "transaction_id": "txn-capture-123",
+      "status": "success"
+    }
+  }
+}

@@ -16,7 +16,7 @@ func orderService(t *testing.T) (*OrderService, *MockOrderRepo) {
 	t.Helper()
 
 	mockRepo := NewMockOrderRepo(gomock.NewController(t))
-	service := NewOrderService(mockRepo)
+	service := NewOrderService(mockRepo, nil)
 
 	return service, mockRepo
 }

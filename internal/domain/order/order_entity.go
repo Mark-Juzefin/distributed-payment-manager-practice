@@ -157,3 +157,18 @@ type UpdateOrderHoldRequest struct {
 	OnHold  bool
 	Reason  *string
 }
+
+type CaptureRequest struct {
+	Amount         float64 `json:"amount" binding:"required,min=1"`
+	Currency       string  `json:"currency" binding:"required,len=3"`
+	IdempotencyKey string  `json:"idempotency_key" binding:"required,min=1,max=255"`
+}
+
+type CaptureResponse struct {
+	OrderID      string    `json:"order_id"`
+	Amount       float64   `json:"amount"`
+	Currency     string    `json:"currency"`
+	Status       string    `json:"status"`
+	ProviderTxID string    `json:"provider_tx_id"`
+	CapturedAt   time.Time `json:"captured_at"`
+}

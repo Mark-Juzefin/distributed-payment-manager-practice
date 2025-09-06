@@ -33,12 +33,13 @@ func Run(cfg config.Config) {
 	disputeRepo := dispute_repo.NewPgDisputeRepo(pool)
 	eventSink := eventsink.NewPgEventRepo(pool.Pool, pool.Builder)
 
-	orderService := order.NewOrderService(orderRepo)
 	silvergateClient := silvergate.New(
 		cfg.SilvergateBaseURL,
 		cfg.SilvergateSubmitRepresentmentPath,
+		cfg.SilvergateCapturePath,
 		&http.Client{Timeout: cfg.HTTPSilvergateClientTimeout},
 	)
+	orderService := order.NewOrderService(orderRepo, silvergateClient)
 	disputeService := dispute.NewDisputeService(disputeRepo, silvergateClient, eventSink)
 
 	orderHandler := handlers.NewOrderHandler(orderService)

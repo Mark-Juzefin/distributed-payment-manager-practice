@@ -2,16 +2,22 @@ package order
 
 import (
 	"TestTaskJustPay/internal/controller/apperror"
+	"TestTaskJustPay/internal/domain/gateway"
 	"context"
 	"fmt"
+	"time"
 )
 
 type OrderService struct {
 	orderRepo OrderRepo
+	provider  gateway.Provider
 }
 
-func NewOrderService(orderRepo OrderRepo) *OrderService {
-	return &OrderService{orderRepo: orderRepo}
+func NewOrderService(orderRepo OrderRepo, provider gateway.Provider) *OrderService {
+	return &OrderService{
+		orderRepo: orderRepo,
+		provider:  provider,
+	}
 }
 
 func (s *OrderService) GetOrderByID(ctx context.Context, id string) (Order, error) {
@@ -126,6 +132,54 @@ func (s *OrderService) UpdateOrderHold(ctx context.Context, orderID string, requ
 			OnHold:    updatedOrder.OnHold,
 			Reason:    updatedOrder.HoldReason,
 			UpdatedAt: updatedOrder.UpdatedAt,
+		}
+		return nil
+	})
+
+	if err != nil {
+		return nil, err
+	}
+	return response, nil
+}
+
+func (s *OrderService) CapturePayment(ctx context.Context, orderID string, request CaptureRequest) (*CaptureResponse, error) {
+	var response *CaptureResponse
+	err := s.orderRepo.InTransaction(ctx, func(tx TxOrderRepo) error {
+		order, err := getOrderByID(ctx, tx, orderID)
+		if err != nil {
+			return fmt.Errorf("load order: %w", err)
+		}
+
+		// Check if order is on hold
+		if order.OnHold {
+			return apperror.ErrOrderOnHold
+		}
+
+		// Check if order is already in final status (success/failed)
+		if order.Status == StatusSuccess || order.Status == StatusFailed {
+			return apperror.ErrOrderInFinalStatus
+		}
+
+		// Call provider to capture payment
+		captureReq := gateway.CaptureRequest{
+			OrderID:        order.OrderId,
+			Amount:         request.Amount,
+			Currency:       request.Currency,
+			IdempotencyKey: request.IdempotencyKey,
+		}
+
+		result, err := s.provider.CapturePayment(ctx, captureReq)
+		if err != nil {
+			return fmt.Errorf("provider capture failed: %w", err)
+		}
+
+		response = &CaptureResponse{
+			OrderID:      order.OrderId,
+			Amount:       request.Amount,
+			Currency:     request.Currency,
+			Status:       string(result.Status),
+			ProviderTxID: result.ProviderTxID,
+			CapturedAt:   time.Now(),
 		}
 		return nil
 	})

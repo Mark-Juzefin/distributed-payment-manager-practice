@@ -7,6 +7,7 @@ import "context"
 // TODO: Add domain errors and return them from SubmitRepresentment. Describe each here
 type Provider interface {
 	SubmitRepresentment(ctx context.Context, req RepresentmentRequest) (RepresentmentResult, error)
+	CapturePayment(ctx context.Context, req CaptureRequest) (CaptureResult, error)
 }
 
 type RepresentmentRequest struct {
@@ -31,3 +32,22 @@ type EvidenceFile struct {
 type RepresentmentResult struct {
 	ProviderSubmissionID string
 }
+
+type CaptureRequest struct {
+	OrderID        string
+	Amount         float64
+	Currency       string
+	IdempotencyKey string
+}
+
+type CaptureResult struct {
+	ProviderTxID string
+	Status       CaptureStatus
+}
+
+type CaptureStatus string
+
+const (
+	CaptureStatusSuccess CaptureStatus = "success"
+	CaptureStatusFailed  CaptureStatus = "failed"
+)

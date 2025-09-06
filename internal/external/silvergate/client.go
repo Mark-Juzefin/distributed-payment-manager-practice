@@ -14,16 +14,18 @@ import (
 type Client struct {
 	BaseURL                string
 	SubmitRepresentmentUrl string
+	CaptureUrl             string
 	HTTP                   *http.Client
 }
 
-func New(baseURL string, submitRepresentmentPath string, httpClient *http.Client) *Client {
+func New(baseURL string, submitRepresentmentPath, capturePath string, httpClient *http.Client) *Client {
 	if httpClient == nil {
 		httpClient = &http.Client{Timeout: 10 * time.Second}
 	}
 	return &Client{
 		BaseURL:                baseURL,
 		SubmitRepresentmentUrl: baseURL + submitRepresentmentPath,
+		CaptureUrl:             baseURL + capturePath,
 		HTTP:                   httpClient,
 	}
 }
@@ -35,6 +37,18 @@ type createReq struct {
 
 type createResp struct {
 	ID string `json:"id,omitempty"`
+}
+
+type captureReq struct {
+	OrderID        string  `json:"order_id"`
+	Amount         float64 `json:"amount"`
+	Currency       string  `json:"currency"`
+	IdempotencyKey string  `json:"idempotency_key"`
+}
+
+type captureResp struct {
+	TransactionID string `json:"transaction_id"`
+	Status        string `json:"status"`
 }
 
 // todo: Integration tests with wiremock: validation, timeout
@@ -82,5 +96,59 @@ func (c *Client) SubmitRepresentment(ctx context.Context, req gateway.Representm
 
 	return gateway.RepresentmentResult{
 		ProviderSubmissionID: out.ID,
+	}, nil
+}
+
+func (c *Client) CapturePayment(ctx context.Context, req gateway.CaptureRequest) (gateway.CaptureResult, error) {
+	body := captureReq{
+		OrderID:        req.OrderID,
+		Amount:         req.Amount,
+		Currency:       req.Currency,
+		IdempotencyKey: req.IdempotencyKey,
+	}
+
+	j, err := json.Marshal(body)
+	if err != nil {
+		return gateway.CaptureResult{}, fmt.Errorf("marshal capture request: %w", err)
+	}
+
+	httpReq, err := http.NewRequestWithContext(
+		ctx,
+		http.MethodPost,
+		c.CaptureUrl,
+		bytes.NewReader(j),
+	)
+	if err != nil {
+		return gateway.CaptureResult{}, fmt.Errorf("create capture request: %w", err)
+	}
+	httpReq.Header.Set("Content-Type", "application/json")
+
+	resp, err := c.HTTP.Do(httpReq)
+	if err != nil {
+		return gateway.CaptureResult{}, fmt.Errorf("http capture request: %w", err)
+	}
+	defer resp.Body.Close()
+
+	raw, _ := io.ReadAll(resp.Body)
+
+	if resp.StatusCode/100 != 2 {
+		return gateway.CaptureResult{
+			Status: gateway.CaptureStatusFailed,
+		}, fmt.Errorf("capture provider %s: %s", resp.Status, string(raw))
+	}
+
+	var out captureResp
+	if err := json.Unmarshal(raw, &out); err != nil {
+		return gateway.CaptureResult{}, fmt.Errorf("unmarshal capture response: %w", err)
+	}
+
+	status := gateway.CaptureStatusFailed
+	if out.Status == "success" {
+		status = gateway.CaptureStatusSuccess
+	}
+
+	return gateway.CaptureResult{
+		ProviderTxID: out.TransactionID,
+		Status:       status,
 	}, nil
 }

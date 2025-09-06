@@ -100,6 +100,32 @@ type FilterParams struct {
 	SortOrder  string `form:"sort_order" binding:"omitempty,oneof=asc desc" default:"desc"`
 }
 
+func (h *OrderHandler) Hold(c *gin.Context) {
+	orderID := c.Param("order_id")
+	if orderID == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Missing order_id"})
+		return
+	}
+
+	var request order.HoldRequest
+	if err := c.ShouldBindJSON(&request); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request body", "details": err.Error()})
+		return
+	}
+
+	response, err := h.service.UpdateOrderHold(c, orderID, request)
+	if err != nil {
+		if errors.Is(err, apperror.ErrOrderNotFound) {
+			c.JSON(http.StatusNotFound, gin.H{"error": err.Error()})
+		} else {
+			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		}
+		return
+	}
+
+	c.JSON(http.StatusOK, response)
+}
+
 func (h *OrderHandler) createFilter(c *gin.Context) (*order.OrdersQuery, error) {
 	//var params FilterParams
 

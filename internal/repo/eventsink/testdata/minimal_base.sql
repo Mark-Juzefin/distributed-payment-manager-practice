@@ -2,12 +2,12 @@
 -- Contains 5 orders, 3 disputes, and 12 events - just enough for basic CRUD testing
 
 -- Insert minimal set of orders
-INSERT INTO orders (id, user_id, status, created_at, updated_at) VALUES
-('order_001', '550e8400-e29b-41d4-a716-446655440001', 'completed', '2024-01-15 10:00:00', '2024-01-15 10:30:00'),
-('order_002', '550e8400-e29b-41d4-a716-446655440002', 'completed', '2024-01-15 14:00:00', '2024-01-15 14:30:00'),
-('order_003', '550e8400-e29b-41d4-a716-446655440003', 'completed', '2024-01-16 09:00:00', '2024-01-16 09:30:00'),
-('order_004', '550e8400-e29b-41d4-a716-446655440004', 'completed', '2024-01-16 15:00:00', '2024-01-16 15:30:00'),
-('order_005', '550e8400-e29b-41d4-a716-446655440005', 'pending', '2024-01-17 11:00:00', '2024-01-17 11:00:00')
+INSERT INTO orders (id, user_id, status, on_hold, hold_reason, created_at, updated_at) VALUES
+('order_001', '550e8400-e29b-41d4-a716-446655440001', 'completed', false, NULL, '2024-01-15 10:00:00', '2024-01-15 10:30:00'),
+('order_002', '550e8400-e29b-41d4-a716-446655440002', 'completed', false, NULL, '2024-01-15 14:00:00', '2024-01-15 14:30:00'),
+('order_003', '550e8400-e29b-41d4-a716-446655440003', 'completed', false, NULL, '2024-01-16 09:00:00', '2024-01-16 09:30:00'),
+('order_004', '550e8400-e29b-41d4-a716-446655440004', 'completed', false, NULL, '2024-01-16 15:00:00', '2024-01-16 15:30:00'),
+('order_005', '550e8400-e29b-41d4-a716-446655440005', 'pending', true, 'manual_review', '2024-01-17 11:00:00', '2024-01-17 11:00:00')
     ON CONFLICT (id) DO NOTHING;
 
 -- Insert 3 disputes with different states

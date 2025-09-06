@@ -108,6 +108,77 @@ paths:
                 items: { $ref: '#/components/schemas/Event' }
         '404': { description: Order not found }
 
+  /orders/{order_id}/hold:
+    post:
+      summary: Set or clear hold status on an order
+      description: Internal action to set or clear hold status. When on_hold=true, capture operations are forbidden.
+      parameters:
+        - name: order_id
+          in: path
+          required: true
+          schema: { type: string }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/HoldRequest' }
+      responses:
+        '200':
+          description: Hold status updated successfully
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/HoldResponse' }
+        '400':
+          description: Invalid request
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+        '404':
+          description: Order not found
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+
+  /orders/{order_id}/capture:
+    post:
+      summary: Capture payment for an order
+      description: |
+        Calls provider to capture payment for the specified order. 
+        Forbidden if order is on_hold=true or status is already success/failed.
+        Idempotent by idempotency_key.
+      parameters:
+        - name: order_id
+          in: path
+          required: true
+          schema: { type: string }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/CaptureRequest' }
+      responses:
+        '200':
+          description: Capture completed successfully
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/CaptureResponse' }
+        '400':
+          description: Invalid request
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+        '404':
+          description: Order not found
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+        '409':
+          description: Order is on hold or already in final status (success/failed)
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+
+
   /disputes:
     get:
       summary: Retrieve a list of disputes
@@ -394,3 +465,69 @@ components:
         status:        { type: string, enum: [submitted, submission_error] }
         submitted_at:  { type: string, format: date-time }
         error:         { type: string }
+
+    HoldRequest:
+      type: object
+      required: [action]
+      properties:
+        action:
+          type: string
+          enum: [set, clear]
+          description: Set or clear the hold status
+        reason:
+          type: string
+          enum: [manual_review, risk]
+          description: Reason for setting/clearing hold (required when action is 'set')
+
+    HoldResponse:
+      type: object
+      properties:
+        order_id: { type: string }
+        on_hold: { type: boolean }
+        reason: { type: string }
+        updated_at: { type: string, format: date-time }
+
+    CaptureRequest:
+      type: object
+      required: [amount, currency, idempotency_key]
+      properties:
+        amount:
+          type: number
+          minimum: 1
+          description: Amount to capture in minor currency units
+        currency:
+          type: string
+          pattern: '^[A-Z]{3}$'
+          description: Three-letter currency code (ISO 4217)
+        idempotency_key:
+          type: string
+          minLength: 1
+          maxLength: 255
+          description: Unique key to ensure idempotency
+
+    CaptureResponse:
+      type: object
+      properties:
+        order_id: { type: string }
+        amount: { type: number }
+        currency: { type: string }
+        status: 
+          type: string
+          enum: [success, failed]
+        provider_tx_id: { type: string }
+        captured_at: { type: string, format: date-time }
+        error: { type: string }
+
+    ErrorResponse:
+      type: object
+      properties:
+        error:
+          type: string
+          description: Error code or type
+        message:
+          type: string
+          description: Human-readable error message
+        details:
+          type: object
+          additionalProperties: true
+          description: Additional error details

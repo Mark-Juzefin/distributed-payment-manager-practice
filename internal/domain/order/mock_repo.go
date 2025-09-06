@@ -126,6 +126,20 @@ func (mr *MockOrderRepoMockRecorder) UpdateOrder(ctx, event any) *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateOrder", reflect.TypeOf((*MockOrderRepo)(nil).UpdateOrder), ctx, event)
 }
 
+// UpdateOrderHold mocks base method.
+func (m *MockOrderRepo) UpdateOrderHold(ctx context.Context, request UpdateOrderHoldRequest) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "UpdateOrderHold", ctx, request)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// UpdateOrderHold indicates an expected call of UpdateOrderHold.
+func (mr *MockOrderRepoMockRecorder) UpdateOrderHold(ctx, request any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateOrderHold", reflect.TypeOf((*MockOrderRepo)(nil).UpdateOrderHold), ctx, request)
+}
+
 // MockTxOrderRepo is a mock of TxOrderRepo interface.
 type MockTxOrderRepo struct {
 	ctrl     *gomock.Controller
@@ -220,4 +234,18 @@ func (m *MockTxOrderRepo) UpdateOrder(ctx context.Context, event PaymentWebhook)
 func (mr *MockTxOrderRepoMockRecorder) UpdateOrder(ctx, event any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateOrder", reflect.TypeOf((*MockTxOrderRepo)(nil).UpdateOrder), ctx, event)
+}
+
+// UpdateOrderHold mocks base method.
+func (m *MockTxOrderRepo) UpdateOrderHold(ctx context.Context, request UpdateOrderHoldRequest) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "UpdateOrderHold", ctx, request)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// UpdateOrderHold indicates an expected call of UpdateOrderHold.
+func (mr *MockTxOrderRepoMockRecorder) UpdateOrderHold(ctx, request any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateOrderHold", reflect.TypeOf((*MockTxOrderRepo)(nil).UpdateOrderHold), ctx, request)
 }

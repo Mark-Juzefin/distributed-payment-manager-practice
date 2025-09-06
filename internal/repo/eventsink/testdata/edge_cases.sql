@@ -1,9 +1,9 @@
 -- Test data for edge cases and boundary conditions
 -- Contains minimal data for testing edge cases like empty results, single events, etc.
 
-INSERT INTO orders (id, user_id, status, created_at, updated_at) VALUES
-('edge_order_001', '550e8400-e29b-41d4-a716-446655440300', 'completed', '2024-04-01 10:00:00', '2024-04-01 10:30:00'),
-('edge_order_002', '550e8400-e29b-41d4-a716-446655440301', 'completed', '2024-04-01 11:00:00', '2024-04-01 11:30:00')
+INSERT INTO orders (id, user_id, status, on_hold, hold_reason, created_at, updated_at) VALUES
+('edge_order_001', '550e8400-e29b-41d4-a716-446655440300', 'completed', false, NULL, '2024-04-01 10:00:00', '2024-04-01 10:30:00'),
+('edge_order_002', '550e8400-e29b-41d4-a716-446655440301', 'completed', false, NULL, '2024-04-01 11:00:00', '2024-04-01 11:30:00')
     ON CONFLICT (id) DO NOTHING;
 
 INSERT INTO disputes (id, order_id, submitting_id, status, reason, amount, currency, opened_at, evidence_due_at, submitted_at, closed_at) VALUES

@@ -1,12 +1,12 @@
 -- Test data for pagination scenarios
 -- Creates 25 events across 5 disputes with predictable timestamps for testing cursor pagination
 
-INSERT INTO orders (id, user_id, status, created_at, updated_at) VALUES
-('page_order_001', '550e8400-e29b-41d4-a716-446655440100', 'completed', '2024-03-01 10:00:00', '2024-03-01 10:30:00'),
-('page_order_002', '550e8400-e29b-41d4-a716-446655440101', 'completed', '2024-03-01 11:00:00', '2024-03-01 11:30:00'),
-('page_order_003', '550e8400-e29b-41d4-a716-446655440102', 'completed', '2024-03-01 12:00:00', '2024-03-01 12:30:00'),
-('page_order_004', '550e8400-e29b-41d4-a716-446655440103', 'completed', '2024-03-01 13:00:00', '2024-03-01 13:30:00'),
-('page_order_005', '550e8400-e29b-41d4-a716-446655440104', 'completed', '2024-03-01 14:00:00', '2024-03-01 14:30:00')
+INSERT INTO orders (id, user_id, status, on_hold, hold_reason, created_at, updated_at) VALUES
+('page_order_001', '550e8400-e29b-41d4-a716-446655440100', 'completed', false, NULL, '2024-03-01 10:00:00', '2024-03-01 10:30:00'),
+('page_order_002', '550e8400-e29b-41d4-a716-446655440101', 'completed', false, NULL, '2024-03-01 11:00:00', '2024-03-01 11:30:00'),
+('page_order_003', '550e8400-e29b-41d4-a716-446655440102', 'completed', false, NULL, '2024-03-01 12:00:00', '2024-03-01 12:30:00'),
+('page_order_004', '550e8400-e29b-41d4-a716-446655440103', 'completed', false, NULL, '2024-03-01 13:00:00', '2024-03-01 13:30:00'),
+('page_order_005', '550e8400-e29b-41d4-a716-446655440104', 'completed', false, NULL, '2024-03-01 14:00:00', '2024-03-01 14:30:00')
     ON CONFLICT (id) DO NOTHING;
 
 INSERT INTO disputes (id, order_id, submitting_id, status, reason, amount, currency, opened_at, evidence_due_at, submitted_at, closed_at) VALUES

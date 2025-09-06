@@ -753,3 +753,61 @@ func findDisputeByOrderID(t *testing.T, baseURL, orderID string) *dispute.Disput
 	}
 	return nil
 }
+
+func TestOrderHoldFlow(t *testing.T) {
+	server, _ := setupTestServer(t)
+	defer server.Close()
+
+	orderID := "order-hold-test"
+
+	// Create order first
+	createOrderWithId(t, server, orderID)
+
+	// Verify order was created
+	initialOrder := getOrder(t, server, orderID)
+	assert.Equal(t, "created", string(initialOrder.Status))
+	require.False(t, initialOrder.OnHold)
+	require.Nil(t, initialOrder.HoldReason)
+
+	// Set order on hold with manual_review reason
+	holdRequest := map[string]interface{}{
+		"action": "set",
+		"reason": "manual_review",
+	}
+	holdResp := POST[order.HoldResponse](t, server.URL, "/orders/"+orderID+"/hold", holdRequest, http.StatusOK)
+	require.Equal(t, orderID, holdResp.OrderID)
+	require.True(t, holdResp.OnHold)
+	require.NotNil(t, holdResp.Reason)
+	require.Equal(t, "manual_review", *holdResp.Reason)
+
+	// Verify order is on hold
+	heldOrder := getOrder(t, server, orderID)
+	require.True(t, heldOrder.OnHold)
+	require.NotNil(t, heldOrder.HoldReason)
+	require.Equal(t, "manual_review", *heldOrder.HoldReason)
+
+	// Clear order hold
+	clearRequest := map[string]interface{}{
+		"action": "clear",
+	}
+	clearResp := POST[order.HoldResponse](t, server.URL, "/orders/"+orderID+"/hold", clearRequest, http.StatusOK)
+	require.Equal(t, orderID, clearResp.OrderID)
+	require.False(t, clearResp.OnHold)
+	require.Nil(t, clearResp.Reason)
+
+	// Verify order hold is cleared
+	clearedOrder := getOrder(t, server, orderID)
+	require.False(t, clearedOrder.OnHold)
+	require.Nil(t, clearedOrder.HoldReason)
+
+	// Test setting hold with risk reason
+	riskRequest := map[string]interface{}{
+		"action": "set",
+		"reason": "risk",
+	}
+	riskResp := POST[order.HoldResponse](t, server.URL, "/orders/"+orderID+"/hold", riskRequest, http.StatusOK)
+	require.Equal(t, orderID, riskResp.OrderID)
+	require.True(t, riskResp.OnHold)
+	require.NotNil(t, riskResp.Reason)
+	require.Equal(t, "risk", *riskResp.Reason)
+}

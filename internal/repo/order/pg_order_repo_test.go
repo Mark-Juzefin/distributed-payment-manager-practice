@@ -60,11 +60,11 @@ func TestGetOrders(t *testing.T) {
 			IDs: []string{"order-1", "order-2"},
 		}
 
-		rows := mock.NewRows([]string{"id", "user_id", "status", "created_at", "updated_at"}).
-			AddRow("order-1", userId, "created", expectedTime, expectedTime).
-			AddRow("order-2", userId, "updated", expectedTime, expectedTime)
+		rows := mock.NewRows([]string{"id", "user_id", "status", "on_hold", "hold_reason", "created_at", "updated_at"}).
+			AddRow("order-1", userId, "created", false, nil, expectedTime, expectedTime).
+			AddRow("order-2", userId, "updated", false, nil, expectedTime, expectedTime)
 
-		mock.ExpectQuery(`SELECT id, user_id, status, created_at, updated_at FROM orders WHERE id IN \(\$1,\$2\)`).
+		mock.ExpectQuery(`SELECT id, user_id, status, on_hold, hold_reason, created_at, updated_at FROM orders WHERE id IN \(\$1,\$2\)`).
 			WithArgs("order-1", "order-2").
 			WillReturnRows(rows)
 
@@ -404,5 +404,63 @@ func TestInTransaction(t *testing.T) {
 		require.Error(t, err)
 		// Should return the original function error, not the rollback error
 		assert.Equal(t, functionErr, err)
+	})
+}
+
+func TestUpdateOrderHold(t *testing.T) {
+	mock, err := pgxmock.NewPool()
+	require.NoError(t, err)
+	defer mock.Close()
+
+	repo := &repo{db: mock, builder: squirrel.StatementBuilder.PlaceholderFormat(squirrel.Dollar)}
+	ctx := context.Background()
+
+	t.Run("should set order on hold successfully", func(t *testing.T) {
+		reason := "manual_review"
+		request := order.UpdateOrderHoldRequest{
+			OrderID: "order-1",
+			OnHold:  true,
+			Reason:  &reason,
+		}
+
+		mock.ExpectExec(`UPDATE orders SET on_hold = \$1, hold_reason = \$2, updated_at = \$3 WHERE id = \$4`).
+			WithArgs(true, &reason, "NOW()", "order-1").
+			WillReturnResult(pgxmock.NewResult("UPDATE", 1))
+
+		err := repo.UpdateOrderHold(ctx, request)
+
+		require.NoError(t, err)
+	})
+
+	t.Run("should clear order hold successfully", func(t *testing.T) {
+		request := order.UpdateOrderHoldRequest{
+			OrderID: "order-1",
+			OnHold:  false,
+			Reason:  nil,
+		}
+
+		mock.ExpectExec(`UPDATE orders SET on_hold = \$1, hold_reason = \$2, updated_at = \$3 WHERE id = \$4`).
+			WithArgs(false, (*string)(nil), "NOW()", "order-1").
+			WillReturnResult(pgxmock.NewResult("UPDATE", 1))
+
+		err := repo.UpdateOrderHold(ctx, request)
+
+		require.NoError(t, err)
+	})
+
+	t.Run("should handle database error", func(t *testing.T) {
+		request := order.UpdateOrderHoldRequest{
+			OrderID: "order-1",
+			OnHold:  true,
+			Reason:  nil,
+		}
+
+		mock.ExpectExec(`UPDATE orders SET on_hold = \$1, hold_reason = \$2, updated_at = \$3 WHERE id = \$4`).
+			WillReturnError(assert.AnError)
+
+		err := repo.UpdateOrderHold(ctx, request)
+
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "update order hold")
 	})
 }

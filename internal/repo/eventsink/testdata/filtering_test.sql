@@ -1,10 +1,10 @@
 -- Test data for filtering scenarios
 -- Creates events across different time periods and event kinds for filtering tests
 
-INSERT INTO orders (id, user_id, status, created_at, updated_at) VALUES
-('filter_order_001', '550e8400-e29b-41d4-a716-446655440200', 'completed', '2024-02-01 10:00:00', '2024-02-01 10:30:00'),
-('filter_order_002', '550e8400-e29b-41d4-a716-446655440201', 'completed', '2024-02-02 10:00:00', '2024-02-02 10:30:00'),
-('filter_order_003', '550e8400-e29b-41d4-a716-446655440202', 'completed', '2024-02-03 10:00:00', '2024-02-03 10:30:00')
+INSERT INTO orders (id, user_id, status, on_hold, hold_reason, created_at, updated_at) VALUES
+('filter_order_001', '550e8400-e29b-41d4-a716-446655440200', 'completed', false, NULL, '2024-02-01 10:00:00', '2024-02-01 10:30:00'),
+('filter_order_002', '550e8400-e29b-41d4-a716-446655440201', 'completed', false, NULL, '2024-02-02 10:00:00', '2024-02-02 10:30:00'),
+('filter_order_003', '550e8400-e29b-41d4-a716-446655440202', 'completed', false, NULL, '2024-02-03 10:00:00', '2024-02-03 10:30:00')
     ON CONFLICT (id) DO NOTHING;
 
 INSERT INTO disputes (id, order_id, submitting_id, status, reason, amount, currency, opened_at, evidence_due_at, submitted_at, closed_at) VALUES

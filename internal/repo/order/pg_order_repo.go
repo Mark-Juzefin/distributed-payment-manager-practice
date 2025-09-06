@@ -75,6 +75,24 @@ func (r *repo) UpdateOrder(ctx context.Context, event order.PaymentWebhook) erro
 	return nil
 }
 
+func (r *repo) UpdateOrderHold(ctx context.Context, request order.UpdateOrderHoldRequest) error {
+	query, args, err := r.builder.Update("orders").
+		Set("on_hold", request.OnHold).
+		Set("hold_reason", request.Reason).
+		Set("updated_at", "NOW()").
+		Where(squirrel.Eq{"id": request.OrderID}).
+		ToSql()
+	if err != nil {
+		return fmt.Errorf("build update hold query: %w", err)
+	}
+
+	_, err = r.db.Exec(ctx, query, args...)
+	if err != nil {
+		return fmt.Errorf("update order hold: %w", err)
+	}
+	return nil
+}
+
 func (r *repo) CreateEvent(ctx context.Context, event order.PaymentWebhook) error {
 	query, args, err := r.builder.Insert("order_events").
 		Columns("id", "order_id", "user_id", "status", "created_at", "updated_at", "meta").
@@ -111,7 +129,7 @@ func (r *repo) CreateOrderByEvent(ctx context.Context, event order.PaymentWebhoo
 }
 
 func (r *repo) buildOrdersQuery(q *order.OrdersQuery) (string, []interface{}) {
-	query := r.builder.Select("id", "user_id", "status", "created_at", "updated_at").
+	query := r.builder.Select("id", "user_id", "status", "on_hold", "hold_reason", "created_at", "updated_at").
 		From("orders")
 
 	// Add WHERE conditions
@@ -170,7 +188,7 @@ func parseOrderRows(rows pgx.Rows) ([]order.Order, error) {
 	for rows.Next() {
 		var o order.Order
 		var rawStatus string
-		err := rows.Scan(&o.OrderId, &o.UserId, &rawStatus, &o.CreatedAt, &o.UpdatedAt)
+		err := rows.Scan(&o.OrderId, &o.UserId, &rawStatus, &o.OnHold, &o.HoldReason, &o.CreatedAt, &o.UpdatedAt)
 		if err != nil {
 			return nil, fmt.Errorf("scan order row: %w", err)
 		}

@@ -11,11 +11,13 @@ import (
 )
 
 type Order struct {
-	OrderId   string    `json:"order_id"`
-	UserId    uuid.UUID `json:"user_id"`
-	Status    Status    `json:"status"`
-	CreatedAt time.Time `json:"created_at"`
-	UpdatedAt time.Time `json:"updated_at"`
+	OrderId    string    `json:"order_id"`
+	UserId     uuid.UUID `json:"user_id"`
+	Status     Status    `json:"status"`
+	OnHold     bool      `json:"on_hold"`
+	HoldReason *string   `json:"hold_reason,omitempty"`
+	CreatedAt  time.Time `json:"created_at"`
+	UpdatedAt  time.Time `json:"updated_at"`
 }
 
 type Status string
@@ -115,4 +117,43 @@ func (b *OrdersQueryBuilder) WithSort(sortBy, sortOrder string) *OrdersQueryBuil
 func (b *OrdersQueryBuilder) WithPagination(pagination Pagination) *OrdersQueryBuilder {
 	b.query.Pagination = &pagination
 	return b
+}
+
+type HoldAction string
+
+const (
+	HoldActionSet   HoldAction = "set"
+	HoldActionClear HoldAction = "clear"
+)
+
+type HoldReason string
+
+const (
+	HoldReasonManualReview HoldReason = "manual_review"
+	HoldReasonRisk         HoldReason = "risk"
+)
+
+type HoldRequest struct {
+	Action HoldAction  `json:"action" binding:"required,oneof=set clear"`
+	Reason *HoldReason `json:"reason,omitempty" binding:"omitempty,oneof=manual_review risk"`
+}
+
+func (hr *HoldRequest) Validate() error {
+	if hr.Action == HoldActionSet && hr.Reason == nil {
+		return errors.New("reason is required when action is 'set'")
+	}
+	return nil
+}
+
+type HoldResponse struct {
+	OrderID   string    `json:"order_id"`
+	OnHold    bool      `json:"on_hold"`
+	Reason    *string   `json:"reason,omitempty"`
+	UpdatedAt time.Time `json:"updated_at"`
+}
+
+type UpdateOrderHoldRequest struct {
+	OrderID string
+	OnHold  bool
+	Reason  *string
 }

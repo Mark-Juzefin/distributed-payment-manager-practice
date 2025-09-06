@@ -81,3 +81,57 @@ func (s *OrderService) GetEvents(ctx context.Context, orderID string) ([]Payment
 	}
 	return events, nil
 }
+
+func (s *OrderService) UpdateOrderHold(ctx context.Context, orderID string, request HoldRequest) (*HoldResponse, error) {
+	if err := request.Validate(); err != nil {
+		return nil, fmt.Errorf("invalid hold request: %w", err)
+	}
+
+	var response *HoldResponse
+	err := s.orderRepo.InTransaction(ctx, func(tx TxOrderRepo) error {
+		order, err := getOrderByID(ctx, tx, orderID)
+		if err != nil {
+			return fmt.Errorf("load order: %w", err)
+		}
+
+		var onHold bool
+		var reason *string
+
+		switch request.Action {
+		case HoldActionSet:
+			onHold = true
+			reasonStr := string(*request.Reason)
+			reason = &reasonStr
+		case HoldActionClear:
+			onHold = false
+			reason = nil
+		}
+
+		err = tx.UpdateOrderHold(ctx, UpdateOrderHoldRequest{
+			OrderID: order.OrderId,
+			OnHold:  onHold,
+			Reason:  reason,
+		})
+		if err != nil {
+			return fmt.Errorf("update order hold status: %w", err)
+		}
+
+		updatedOrder, err := getOrderByID(ctx, tx, order.OrderId)
+		if err != nil {
+			return fmt.Errorf("get updated order: %w", err)
+		}
+
+		response = &HoldResponse{
+			OrderID:   updatedOrder.OrderId,
+			OnHold:    updatedOrder.OnHold,
+			Reason:    updatedOrder.HoldReason,
+			UpdatedAt: updatedOrder.UpdatedAt,
+		}
+		return nil
+	})
+
+	if err != nil {
+		return nil, err
+	}
+	return response, nil
+}

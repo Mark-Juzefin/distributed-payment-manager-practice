@@ -27,7 +27,7 @@ test:
 	go test -race ./...
 
 INTEGRATION_DIRS = \
-	./internal/repo/eventsink \
+	./internal/repo/dispute_eventsink \
 	./integration-test/...
 
 integration-test: start_containers

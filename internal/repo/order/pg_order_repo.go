@@ -1,7 +1,6 @@
 package order_repo
 
 import (
-	"TestTaskJustPay/internal/controller/apperror"
 	"TestTaskJustPay/internal/domain/order"
 	"TestTaskJustPay/pkg/postgres"
 	"context"
@@ -47,17 +46,6 @@ func (r *repo) GetOrders(ctx context.Context, query *order.OrdersQuery) ([]order
 	return parseOrderRows(rows)
 }
 
-func (r *repo) GetEvents(ctx context.Context, query *order.EventQuery) ([]order.PaymentWebhook, error) {
-	sql, args := r.buildEventsQuery(query)
-	rows, err := r.db.Query(ctx, sql, args...)
-	if err != nil {
-		return nil, fmt.Errorf("query events: %w", err)
-	}
-	defer rows.Close()
-
-	return parseEventRows(rows)
-}
-
 func (r *repo) UpdateOrder(ctx context.Context, event order.PaymentWebhook) error {
 	query, args, err := r.builder.Update("orders").
 		Set("status", event.Status).
@@ -93,26 +81,7 @@ func (r *repo) UpdateOrderHold(ctx context.Context, request order.UpdateOrderHol
 	return nil
 }
 
-func (r *repo) CreateEvent(ctx context.Context, event order.PaymentWebhook) error {
-	query, args, err := r.builder.Insert("order_events").
-		Columns("id", "order_id", "user_id", "status", "created_at", "updated_at", "meta").
-		Values(event.EventId, event.OrderId, event.UserId, event.Status, event.CreatedAt, event.UpdatedAt, event.Meta).
-		ToSql()
-	if err != nil {
-		return fmt.Errorf("build insert query: %w", err)
-	}
-
-	_, err = r.db.Exec(ctx, query, args...)
-	if postgres.IsPgErrorUniqueViolation(err) {
-		return apperror.ErrEventAlreadyStored
-	}
-	if err != nil {
-		return fmt.Errorf("create event: %w", err)
-	}
-	return nil
-}
-
-func (r *repo) CreateOrderByEvent(ctx context.Context, event order.PaymentWebhook) error {
+func (r *repo) CreateOrder(ctx context.Context, event order.PaymentWebhook) error {
 	query, args, err := r.builder.Insert("orders").
 		Columns("id", "user_id", "status", "created_at", "updated_at").
 		Values(event.OrderId, event.UserId, event.Status, event.CreatedAt, event.UpdatedAt).
@@ -214,7 +183,7 @@ func parseEventRows(rows pgx.Rows) ([]order.PaymentWebhook, error) {
 	for rows.Next() {
 		var e order.PaymentWebhook
 		var rawStatus string
-		err := rows.Scan(&e.EventId, &e.OrderId, &e.UserId, &rawStatus, &e.CreatedAt, &e.UpdatedAt)
+		err := rows.Scan(&e.ProviderEventID, &e.OrderId, &e.UserId, &rawStatus, &e.CreatedAt, &e.UpdatedAt)
 		if err != nil {
 			return nil, fmt.Errorf("scan event row: %w", err)
 		}

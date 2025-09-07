@@ -3,13 +3,13 @@ package order
 import "time"
 
 type PaymentWebhook struct {
-	EventId   string            `json:"event_id"`
-	OrderId   string            `json:"order_id"`
-	UserId    string            `json:"user_id"`
-	Status    Status            `json:"status"`
-	UpdatedAt time.Time         `json:"updated_at"`
-	CreatedAt time.Time         `json:"created_at"`
-	Meta      map[string]string `json:"meta"`
+	ProviderEventID string            `json:"provider_event_id"`
+	OrderId         string            `json:"order_id"`
+	UserId          string            `json:"user_id"`
+	Status          Status            `json:"status"`
+	UpdatedAt       time.Time         `json:"updated_at"`
+	CreatedAt       time.Time         `json:"created_at"`
+	Meta            map[string]string `json:"meta"`
 }
 
 type EventQuery struct {

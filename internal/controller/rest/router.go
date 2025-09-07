@@ -18,7 +18,7 @@ func (r *Router) SetUp(engine *gin.Engine) {
 
 	engine.GET("/orders", r.order.Filter)
 	engine.GET("/orders/:order_id", r.order.Get)
-	engine.GET("/orders/:order_id/events", r.order.GetEvents)
+	engine.GET("/orders/events", r.order.GetEvents)
 	engine.POST("/orders/:order_id/hold", r.order.Hold)
 	engine.POST("/orders/:order_id/capture", r.order.Capture)
 

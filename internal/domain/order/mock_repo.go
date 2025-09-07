@@ -55,9 +55,9 @@ func (mr *MockOrderRepoMockRecorder) CreateEvent(ctx, event any) *gomock.Call {
 }
 
 // CreateOrderByEvent mocks base method.
-func (m *MockOrderRepo) CreateOrderByEvent(ctx context.Context, event PaymentWebhook) error {
+func (m *MockOrderRepo) CreateOrder(ctx context.Context, event PaymentWebhook) error {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "CreateOrderByEvent", ctx, event)
+	ret := m.ctrl.Call(m, "CreateOrder", ctx, event)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
@@ -65,7 +65,7 @@ func (m *MockOrderRepo) CreateOrderByEvent(ctx context.Context, event PaymentWeb
 // CreateOrderByEvent indicates an expected call of CreateOrderByEvent.
 func (mr *MockOrderRepoMockRecorder) CreateOrderByEvent(ctx, event any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CreateOrderByEvent", reflect.TypeOf((*MockOrderRepo)(nil).CreateOrderByEvent), ctx, event)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CreateOrder", reflect.TypeOf((*MockOrderRepo)(nil).CreateOrder), ctx, event)
 }
 
 // GetEvents mocks base method.
@@ -179,9 +179,9 @@ func (mr *MockTxOrderRepoMockRecorder) CreateEvent(ctx, event any) *gomock.Call 
 }
 
 // CreateOrderByEvent mocks base method.
-func (m *MockTxOrderRepo) CreateOrderByEvent(ctx context.Context, event PaymentWebhook) error {
+func (m *MockTxOrderRepo) CreateOrder(ctx context.Context, event PaymentWebhook) error {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "CreateOrderByEvent", ctx, event)
+	ret := m.ctrl.Call(m, "CreateOrder", ctx, event)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
@@ -189,7 +189,7 @@ func (m *MockTxOrderRepo) CreateOrderByEvent(ctx context.Context, event PaymentW
 // CreateOrderByEvent indicates an expected call of CreateOrderByEvent.
 func (mr *MockTxOrderRepoMockRecorder) CreateOrderByEvent(ctx, event any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CreateOrderByEvent", reflect.TypeOf((*MockTxOrderRepo)(nil).CreateOrderByEvent), ctx, event)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CreateOrder", reflect.TypeOf((*MockTxOrderRepo)(nil).CreateOrder), ctx, event)
 }
 
 // GetEvents mocks base method.

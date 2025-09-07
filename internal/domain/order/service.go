@@ -4,6 +4,7 @@ import (
 	"TestTaskJustPay/internal/controller/apperror"
 	"TestTaskJustPay/internal/domain/gateway"
 	"context"
+	"encoding/json"
 	"fmt"
 	"time"
 )
@@ -11,12 +12,14 @@ import (
 type OrderService struct {
 	orderRepo OrderRepo
 	provider  gateway.Provider
+	eventSink EventSink
 }
 
-func NewOrderService(orderRepo OrderRepo, provider gateway.Provider) *OrderService {
+func NewOrderService(orderRepo OrderRepo, provider gateway.Provider, eventSink EventSink) *OrderService {
 	return &OrderService{
 		orderRepo: orderRepo,
 		provider:  provider,
+		eventSink: eventSink,
 	}
 }
 
@@ -48,9 +51,9 @@ func (s *OrderService) GetOrders(ctx context.Context, query OrdersQuery) ([]Orde
 }
 
 func (s *OrderService) ProcessPaymentWebhook(ctx context.Context, event PaymentWebhook) error {
-	return s.orderRepo.InTransaction(ctx, func(tx TxOrderRepo) error {
+	err := s.orderRepo.InTransaction(ctx, func(tx TxOrderRepo) error {
 		if event.Status == StatusCreated {
-			if err := tx.CreateOrderByEvent(ctx, event); err != nil {
+			if err := tx.CreateOrder(ctx, event); err != nil {
 				return fmt.Errorf("create order from event: %w", err)
 			}
 		} else {
@@ -68,24 +71,30 @@ func (s *OrderService) ProcessPaymentWebhook(ctx context.Context, event PaymentW
 			}
 		}
 
-		if err := tx.CreateEvent(ctx, event); err != nil {
-			return fmt.Errorf("store event: %w", err)
-		}
 		return nil
 
 	})
+	if err != nil {
+		return err
+	}
+
+	if err := s.createWebhookReceivedEvent(ctx, event); err != nil {
+		fmt.Printf("Failed to create webhook event: %v\n", err)
+	}
+
+	return nil
 }
 
-func (s *OrderService) GetEvents(ctx context.Context, orderID string) ([]PaymentWebhook, error) {
-	query := NewEventQueryBuilder().
-		WithOrderIDs(orderID).
-		Build()
-
-	events, err := s.orderRepo.GetEvents(ctx, query)
-	if err != nil {
-		return nil, fmt.Errorf("get events for order %s: %w", orderID, err)
+func (s *OrderService) GetEvents(ctx context.Context, query OrderEventQuery) (OrderEventPage, error) {
+	if query.Limit <= 0 {
+		query.Limit = 10
 	}
-	return events, nil
+
+	eventPage, err := s.eventSink.GetOrderEvents(ctx, query)
+	if err != nil {
+		return OrderEventPage{}, fmt.Errorf("get order events: %w", err)
+	}
+	return eventPage, nil
 }
 
 func (s *OrderService) UpdateOrderHold(ctx context.Context, orderID string, request HoldRequest) (*HoldResponse, error) {
@@ -139,6 +148,16 @@ func (s *OrderService) UpdateOrderHold(ctx context.Context, orderID string, requ
 	if err != nil {
 		return nil, err
 	}
+
+	// Create hold event after successful transaction
+	eventKind := OrderEventHoldSet
+	if request.Action == HoldActionClear {
+		eventKind = OrderEventHoldCleared
+	}
+	if err := s.createHoldEvent(ctx, orderID, eventKind, request); err != nil {
+		fmt.Printf("Failed to create hold event: %v\n", err)
+	}
+
 	return response, nil
 }
 
@@ -187,5 +206,80 @@ func (s *OrderService) CapturePayment(ctx context.Context, orderID string, reque
 	if err != nil {
 		return nil, err
 	}
+
+	// Create capture events after successful transaction
+	if err := s.createCaptureRequestedEvent(ctx, orderID, request); err != nil {
+		fmt.Printf("Failed to create capture requested event: %v\n", err)
+	}
+
+	eventKind := OrderEventCaptureCompleted
+	if response.Status == "failed" {
+		eventKind = OrderEventCaptureFailed
+	}
+	if err := s.createCaptureResultEvent(ctx, orderID, eventKind, *response); err != nil {
+		fmt.Printf("Failed to create capture result event: %v\n", err)
+	}
+
 	return response, nil
+}
+
+// Event creation helper methods
+func (s *OrderService) createWebhookReceivedEvent(ctx context.Context, webhook PaymentWebhook) error {
+	payload, _ := json.Marshal(webhook)
+
+	orderEvent := NewOrderEvent{
+		OrderID:         webhook.OrderId,
+		Kind:            OrderEventWebhookReceived,
+		ProviderEventID: webhook.ProviderEventID,
+		Data:            payload,
+		CreatedAt:       time.Now(),
+	}
+
+	_, err := s.eventSink.CreateOrderEvent(ctx, orderEvent)
+	return err
+}
+
+func (s *OrderService) createHoldEvent(ctx context.Context, orderID string, kind OrderEventKind, request HoldRequest) error {
+	payload, _ := json.Marshal(request)
+
+	orderEvent := NewOrderEvent{
+		OrderID:         orderID,
+		Kind:            kind,
+		ProviderEventID: "", // No provider event for internal hold operations
+		Data:            payload,
+		CreatedAt:       time.Now(),
+	}
+
+	_, err := s.eventSink.CreateOrderEvent(ctx, orderEvent)
+	return err
+}
+
+func (s *OrderService) createCaptureRequestedEvent(ctx context.Context, orderID string, request CaptureRequest) error {
+	payload, _ := json.Marshal(request)
+
+	orderEvent := NewOrderEvent{
+		OrderID:         orderID,
+		Kind:            OrderEventCaptureRequested,
+		ProviderEventID: request.IdempotencyKey, // Use idempotency key as provider event ID
+		Data:            payload,
+		CreatedAt:       time.Now(),
+	}
+
+	_, err := s.eventSink.CreateOrderEvent(ctx, orderEvent)
+	return err
+}
+
+func (s *OrderService) createCaptureResultEvent(ctx context.Context, orderID string, kind OrderEventKind, response CaptureResponse) error {
+	payload, _ := json.Marshal(response)
+
+	orderEvent := NewOrderEvent{
+		OrderID:         orderID,
+		Kind:            kind,
+		ProviderEventID: response.ProviderTxID,
+		Data:            payload,
+		CreatedAt:       time.Now(),
+	}
+
+	_, err := s.eventSink.CreateOrderEvent(ctx, orderEvent)
+	return err
 }

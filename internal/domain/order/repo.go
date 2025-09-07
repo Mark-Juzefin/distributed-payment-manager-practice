@@ -10,11 +10,9 @@ type OrderRepo interface {
 }
 
 type TxOrderRepo interface {
+	CreateOrder(ctx context.Context, payload PaymentWebhook) error
 	GetOrders(ctx context.Context, filter *OrdersQuery) ([]Order, error)
-	GetEvents(ctx context.Context, query *EventQuery) ([]PaymentWebhook, error)
 
 	UpdateOrder(ctx context.Context, event PaymentWebhook) error
 	UpdateOrderHold(ctx context.Context, request UpdateOrderHoldRequest) error
-	CreateEvent(ctx context.Context, event PaymentWebhook) error
-	CreateOrderByEvent(ctx context.Context, event PaymentWebhook) error
 }

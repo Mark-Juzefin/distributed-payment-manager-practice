@@ -270,7 +270,7 @@ func (s *DisputeService) saveWebhookEvent(ctx context.Context, dispute Dispute, 
 	disputeEvent := NewDisputeEvent{
 		DisputeID:       dispute.ID,
 		Kind:            deriveKindFromChargebackStatus(webhook.Status),
-		ProviderEventID: webhook.DisputeID,
+		ProviderEventID: webhook.ProviderEventID,
 		Data:            payload,
 		CreatedAt:       time.Now(),
 	}

@@ -1,11 +1,11 @@
 //go:build integration
 // +build integration
 
-package eventsink_test
+package dispute_eventsink_test
 
 import (
 	"TestTaskJustPay/internal/domain/dispute"
-	"TestTaskJustPay/internal/repo/eventsink"
+	"TestTaskJustPay/internal/repo/dispute_eventsink"
 	"TestTaskJustPay/pkg/postgres"
 	"context"
 	_ "embed"
@@ -61,7 +61,7 @@ func TestCreateDisputeEventIntegration(t *testing.T) {
 			seed: func(t *testing.T, tx postgres.Executor) {
 				applyBaseFixture(t, tx)
 				// First, create one event
-				repo := eventsink.NewPgEventRepo(tx, pool.Builder)
+				repo := dispute_eventsink.NewPgEventRepo(tx, pool.Builder)
 				firstEvent := dispute.NewDisputeEvent{
 					DisputeID:       "dispute_001",
 					Kind:            dispute.DisputeEventEvidenceAdded,
@@ -88,7 +88,7 @@ func TestCreateDisputeEventIntegration(t *testing.T) {
 			err := pool.SandboxTransaction(ctx, func(tx postgres.Executor) error {
 				tt.seed(t, tx)
 
-				repo := eventsink.NewPgEventRepo(tx, pool.Builder)
+				repo := dispute_eventsink.NewPgEventRepo(tx, pool.Builder)
 				createdEvent, err := repo.CreateDisputeEvent(ctx, tt.event)
 
 				if tt.expectError {
@@ -177,7 +177,7 @@ func TestGetDisputeEventByIDIntegration(t *testing.T) {
 			err := pool.SandboxTransaction(ctx, func(tx postgres.Executor) error {
 				tt.seed(t, tx)
 
-				repo := eventsink.NewPgEventRepo(tx, pool.Builder)
+				repo := dispute_eventsink.NewPgEventRepo(tx, pool.Builder)
 				event, err := repo.GetDisputeEventByID(ctx, tt.eventID)
 
 				if tt.expectError {
@@ -332,7 +332,7 @@ func TestGetDisputeEventsIntegration(t *testing.T) {
 			err := pool.SandboxTransaction(ctx, func(tx postgres.Executor) error {
 				tt.seed(t, tx)
 
-				repo := eventsink.NewPgEventRepo(tx, pool.Builder)
+				repo := dispute_eventsink.NewPgEventRepo(tx, pool.Builder)
 				result, err := repo.GetDisputeEvents(ctx, tt.query)
 
 				if tt.expectError {

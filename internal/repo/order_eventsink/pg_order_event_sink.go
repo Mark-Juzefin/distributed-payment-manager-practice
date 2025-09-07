@@ -1,7 +1,7 @@
-package eventsink
+package order_eventsink
 
 import (
-	"TestTaskJustPay/internal/domain/dispute"
+	"TestTaskJustPay/internal/domain/order"
 	"TestTaskJustPay/pkg/postgres"
 	"context"
 	"encoding/base64"
@@ -14,26 +14,26 @@ import (
 	"github.com/jackc/pgx/v5"
 )
 
-type PgDisputeEventRepo struct {
+type PgOrderEventRepo struct {
 	db      postgres.Executor
 	builder squirrel.StatementBuilderType
 }
 
-var _ dispute.EventSink = (*PgDisputeEventRepo)(nil)
+var _ order.EventSink = (*PgOrderEventRepo)(nil)
 
-func NewPgEventRepo(db postgres.Executor, builder squirrel.StatementBuilderType) *PgDisputeEventRepo {
-	return &PgDisputeEventRepo{
+func NewPgOrderEventRepo(db postgres.Executor, builder squirrel.StatementBuilderType) *PgOrderEventRepo {
+	return &PgOrderEventRepo{
 		db:      db,
 		builder: builder,
 	}
 }
 
-func (r *PgDisputeEventRepo) CreateDisputeEvent(ctx context.Context, event dispute.NewDisputeEvent) (*dispute.DisputeEvent, error) {
+func (r *PgOrderEventRepo) CreateOrderEvent(ctx context.Context, event order.NewOrderEvent) (*order.OrderEvent, error) {
 	id := uuid.New().String()
 
-	query, args, err := r.builder.Insert("dispute_events").
-		Columns("id", "dispute_id", "kind", "provider_event_id", "data", "created_at").
-		Values(id, event.DisputeID, event.Kind, event.ProviderEventID, event.Data, event.CreatedAt).
+	query, args, err := r.builder.Insert("order_events").
+		Columns("id", "order_id", "kind", "provider_event_id", "data", "created_at").
+		Values(id, event.OrderID, event.Kind, event.ProviderEventID, event.Data, event.CreatedAt).
 		ToSql()
 	if err != nil {
 		return nil, fmt.Errorf("build insert query: %w", err)
@@ -41,46 +41,46 @@ func (r *PgDisputeEventRepo) CreateDisputeEvent(ctx context.Context, event dispu
 
 	_, err = r.db.Exec(ctx, query, args...)
 	if postgres.IsPgErrorUniqueViolation(err) {
-		return nil, fmt.Errorf("dispute event already exists: %w", err)
+		return nil, fmt.Errorf("order event already exists: %w", err)
 	}
 	if err != nil {
-		return nil, fmt.Errorf("create dispute event: %w", err)
+		return nil, fmt.Errorf("create order event: %w", err)
 	}
 
-	return &dispute.DisputeEvent{
-		EventID:         id,
-		NewDisputeEvent: event,
+	return &order.OrderEvent{
+		EventID:       id,
+		NewOrderEvent: event,
 	}, nil
 }
 
-func (r *PgDisputeEventRepo) GetDisputeEventByID(ctx context.Context, eventID string) (*dispute.DisputeEvent, error) {
-	query, args, err := r.builder.Select("id", "dispute_id", "kind", "provider_event_id", "data", "created_at").
-		From("dispute_events").
+func (r *PgOrderEventRepo) GetOrderEventByID(ctx context.Context, eventID string) (*order.OrderEvent, error) {
+	query, args, err := r.builder.Select("id", "order_id", "kind", "provider_event_id", "data", "created_at").
+		From("order_events").
 		Where(squirrel.Eq{"id": eventID}).
 		ToSql()
 	if err != nil {
-		return nil, fmt.Errorf("build get dispute event by id query: %w", err)
+		return nil, fmt.Errorf("build get order event by id query: %w", err)
 	}
 
 	rows, err := r.db.Query(ctx, query, args...)
 	if err != nil {
-		return nil, fmt.Errorf("query dispute event by id: %w", err)
+		return nil, fmt.Errorf("query order event by id: %w", err)
 	}
 	defer rows.Close()
 
-	events, err := parseDisputeEventRows(rows)
+	events, err := parseOrderEventRows(rows)
 	if err != nil {
-		return nil, fmt.Errorf("parse dispute event: %w", err)
+		return nil, fmt.Errorf("parse order event: %w", err)
 	}
 
 	if len(events) == 0 {
-		return nil, fmt.Errorf("dispute event not found")
+		return nil, fmt.Errorf("order event not found")
 	}
 
 	return &events[0], nil
 }
 
-func (r *PgDisputeEventRepo) GetDisputeEvents(ctx context.Context, query dispute.DisputeEventQuery) (dispute.DisputeEventPage, error) {
+func (r *PgOrderEventRepo) GetOrderEvents(ctx context.Context, query order.OrderEventQuery) (order.OrderEventPage, error) {
 	if query.Limit <= 0 {
 		query.Limit = 10
 	}
@@ -88,20 +88,20 @@ func (r *PgDisputeEventRepo) GetDisputeEvents(ctx context.Context, query dispute
 		query.Limit = 1000
 	}
 
-	sqlQuery, args, err := r.buildDisputeEventPageQuery(query)
+	sqlQuery, args, err := r.buildOrderEventPageQuery(query)
 	if err != nil {
-		return dispute.DisputeEventPage{}, fmt.Errorf("build dispute event query: %w", err)
+		return order.OrderEventPage{}, fmt.Errorf("build order event query: %w", err)
 	}
 
 	rows, err := r.db.Query(ctx, sqlQuery, args...)
 	if err != nil {
-		return dispute.DisputeEventPage{}, fmt.Errorf("query dispute events: %w", err)
+		return order.OrderEventPage{}, fmt.Errorf("query order events: %w", err)
 	}
 	defer rows.Close()
 
-	items, err := parseDisputeEventRows(rows)
+	items, err := parseOrderEventRows(rows)
 	if err != nil {
-		return dispute.DisputeEventPage{}, fmt.Errorf("parse dispute events: %w", err)
+		return order.OrderEventPage{}, fmt.Errorf("parse order events: %w", err)
 	}
 
 	hasMore := len(items) > query.Limit
@@ -118,7 +118,7 @@ func (r *PgDisputeEventRepo) GetDisputeEvents(ctx context.Context, query dispute
 		})
 	}
 
-	return dispute.DisputeEventPage{
+	return order.OrderEventPage{
 		Items:      items,
 		NextCursor: nextCursor,
 		HasMore:    hasMore,
@@ -143,10 +143,10 @@ func decodeEventCursor(s string) (eventCursor, error) {
 	return c, json.Unmarshal(b, &c)
 }
 
-// SELECT id, dispute_id, kind, created_at FROM dispute_events
+// SELECT id, order_id, kind, created_at FROM order_events
 // WHERE
 //
-//	dispute_id IN @DisputeIDs
+//	order_id IN @OrderIDs
 //	AND kind IN @Kinds
 //	AND created_at >= @TimeFrom
 //	AND created_at < @TimeTo
@@ -154,12 +154,12 @@ func decodeEventCursor(s string) (eventCursor, error) {
 //
 // ORDER BY created_at DESC/ASC, id DESC/ASC
 // LIMIT @Limit+1
-func (r *PgDisputeEventRepo) buildDisputeEventPageQuery(q dispute.DisputeEventQuery) (string, []interface{}, error) {
-	b := r.builder.Select("id", "dispute_id", "kind", "provider_event_id", "data", "created_at").
-		From("dispute_events")
+func (r *PgOrderEventRepo) buildOrderEventPageQuery(q order.OrderEventQuery) (string, []interface{}, error) {
+	b := r.builder.Select("id", "order_id", "kind", "provider_event_id", "data", "created_at").
+		From("order_events")
 
-	if len(q.DisputeIDs) > 0 {
-		b = b.Where(squirrel.Eq{"dispute_id": q.DisputeIDs})
+	if len(q.OrderIDs) > 0 {
+		b = b.Where(squirrel.Eq{"order_id": q.OrderIDs})
 	}
 
 	if len(q.Kinds) > 0 {
@@ -199,22 +199,22 @@ func (r *PgDisputeEventRepo) buildDisputeEventPageQuery(q dispute.DisputeEventQu
 	return sql, args, nil
 }
 
-func parseDisputeEventRows(rows pgx.Rows) ([]dispute.DisputeEvent, error) {
-	var events []dispute.DisputeEvent
+func parseOrderEventRows(rows pgx.Rows) ([]order.OrderEvent, error) {
+	var events []order.OrderEvent
 	for rows.Next() {
-		var e dispute.DisputeEvent
+		var e order.OrderEvent
 		var rawKind string
-		err := rows.Scan(&e.EventID, &e.DisputeID, &rawKind, &e.ProviderEventID, &e.Data, &e.CreatedAt)
+		err := rows.Scan(&e.EventID, &e.OrderID, &rawKind, &e.ProviderEventID, &e.Data, &e.CreatedAt)
 		if err != nil {
-			return nil, fmt.Errorf("scan dispute event row: %w", err)
+			return nil, fmt.Errorf("scan order event row: %w", err)
 		}
 
-		e.Kind = dispute.DisputeEventKind(rawKind)
+		e.Kind = order.OrderEventKind(rawKind)
 		events = append(events, e)
 	}
 
 	if err := rows.Err(); err != nil {
-		return nil, fmt.Errorf("iterate dispute event rows: %w", err)
+		return nil, fmt.Errorf("iterate order event rows: %w", err)
 	}
 
 	return events, nil

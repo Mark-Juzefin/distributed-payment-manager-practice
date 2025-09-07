@@ -1,7 +1,6 @@
 package order_repo
 
 import (
-	"TestTaskJustPay/internal/controller/apperror"
 	"TestTaskJustPay/internal/domain/order"
 	"TestTaskJustPay/pkg/postgres"
 	"context"
@@ -11,7 +10,6 @@ import (
 
 	"github.com/Masterminds/squirrel"
 	"github.com/google/uuid"
-	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/pashagolub/pgxmock/v4"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -79,72 +77,6 @@ func TestGetOrders(t *testing.T) {
 	})
 }
 
-func TestGetEvents(t *testing.T) {
-	mock, err := pgxmock.NewPool()
-	require.NoError(t, err)
-	defer mock.Close()
-
-	repo := &repo{db: mock, builder: squirrel.StatementBuilder.PlaceholderFormat(squirrel.Dollar)}
-	ctx := context.Background()
-
-	t.Run("should return events with filters", func(t *testing.T) {
-		userId := uuid.NewString()
-		expectedTime := time.Now()
-
-		query := &order.EventQuery{
-			OrderIDs: []string{"order-1"},
-			UserIDs:  []string{userId},
-			Statuses: []order.Status{order.StatusCreated},
-		}
-
-		rows := mock.NewRows([]string{"id", "order_id", "user_id", "status", "created_at", "updated_at"}).
-			AddRow("event-1", "order-1", userId, "created", expectedTime, expectedTime)
-
-		mock.ExpectQuery(`SELECT id, order_id, user_id, status, created_at, updated_at FROM order_events WHERE order_id IN \(\$1\) AND user_id IN \(\$2\) AND status IN \(\$3\) ORDER BY created_at DESC`).
-			WithArgs("order-1", userId, order.StatusCreated).
-			WillReturnRows(rows)
-
-		result, err := repo.GetEvents(ctx, query)
-
-		require.NoError(t, err)
-		assert.Len(t, result, 1)
-		assert.Equal(t, "event-1", result[0].EventId)
-		assert.Equal(t, "order-1", result[0].OrderId)
-		assert.Equal(t, order.StatusCreated, result[0].Status)
-	})
-
-	t.Run("should return events without filters", func(t *testing.T) {
-		userId := uuid.NewString()
-		expectedTime := time.Now()
-
-		query := &order.EventQuery{}
-
-		rows := mock.NewRows([]string{"id", "order_id", "user_id", "status", "created_at", "updated_at"}).
-			AddRow("event-1", "order-1", userId, "created", expectedTime, expectedTime)
-
-		mock.ExpectQuery(`SELECT id, order_id, user_id, status, created_at, updated_at FROM order_events ORDER BY created_at DESC`).
-			WillReturnRows(rows)
-
-		result, err := repo.GetEvents(ctx, query)
-
-		require.NoError(t, err)
-		assert.Len(t, result, 1)
-	})
-
-	t.Run("should handle database error", func(t *testing.T) {
-		query := &order.EventQuery{}
-
-		mock.ExpectQuery(`SELECT id, order_id, user_id, status, created_at, updated_at FROM order_events ORDER BY created_at DESC`).
-			WillReturnError(assert.AnError)
-
-		result, err := repo.GetEvents(ctx, query)
-
-		require.Error(t, err)
-		assert.Nil(t, result)
-		assert.Contains(t, err.Error(), "query events")
-	})
-}
-
 func TestUpdateOrder(t *testing.T) {
 	mock, err := pgxmock.NewPool()
 	require.NoError(t, err)
@@ -193,89 +125,6 @@ func TestUpdateOrder(t *testing.T) {
 	})
 }
 
-func TestCreateEvent(t *testing.T) {
-	mock, err := pgxmock.NewPool()
-	require.NoError(t, err)
-	defer mock.Close()
-
-	repo := &repo{db: mock, builder: squirrel.StatementBuilder.PlaceholderFormat(squirrel.Dollar)}
-	ctx := context.Background()
-
-	t.Run("should create event successfully", func(t *testing.T) {
-		userId := uuid.NewString()
-		createdAt := time.Now()
-		updatedAt := time.Now()
-
-		event := order.PaymentWebhook{
-			EventId:   "event-1",
-			OrderId:   "order-1",
-			UserId:    userId,
-			Status:    order.StatusCreated,
-			CreatedAt: createdAt,
-			UpdatedAt: updatedAt,
-			Meta:      map[string]string{"key": "value"},
-		}
-
-		mock.ExpectExec(`INSERT INTO order_events \(id,order_id,user_id,status,created_at,updated_at,meta\) VALUES \(\$1,\$2,\$3,\$4,\$5,\$6,\$7\)`).
-			WithArgs("event-1", "order-1", userId, order.StatusCreated, createdAt, updatedAt, event.Meta).
-			WillReturnResult(pgxmock.NewResult("INSERT", 1))
-
-		err := repo.CreateEvent(ctx, event)
-
-		require.NoError(t, err)
-	})
-
-	t.Run("should handle unique violation error", func(t *testing.T) {
-		userId := uuid.NewString()
-		createdAt := time.Now()
-		updatedAt := time.Now()
-
-		event := order.PaymentWebhook{
-			EventId:   "event-1",
-			OrderId:   "order-1",
-			UserId:    userId,
-			Status:    order.StatusCreated,
-			CreatedAt: createdAt,
-			UpdatedAt: updatedAt,
-			Meta:      map[string]string{},
-		}
-
-		// Mock PostgreSQL unique violation error
-		pgErr := &pgconn.PgError{
-			Code: "23505", // unique_violation
-		}
-
-		mock.ExpectExec(`INSERT INTO order_events \(id,order_id,user_id,status,created_at,updated_at,meta\) VALUES \(\$1,\$2,\$3,\$4,\$5,\$6,\$7\)`).
-			WithArgs("event-1", "order-1", userId, order.StatusCreated, createdAt, updatedAt, event.Meta).
-			WillReturnError(pgErr)
-
-		err := repo.CreateEvent(ctx, event)
-
-		require.Error(t, err)
-		assert.Equal(t, apperror.ErrEventAlreadyStored, err)
-	})
-
-	t.Run("should handle other database errors", func(t *testing.T) {
-		userId := uuid.NewString()
-
-		event := order.PaymentWebhook{
-			EventId: "event-1",
-			OrderId: "order-1",
-			UserId:  userId,
-			Status:  order.StatusCreated,
-		}
-
-		mock.ExpectExec(`INSERT INTO order_events \(id,order_id,user_id,status,created_at,updated_at,meta\) VALUES \(\$1,\$2,\$3,\$4,\$5,\$6,\$7\)`).
-			WillReturnError(assert.AnError)
-
-		err := repo.CreateEvent(ctx, event)
-
-		require.Error(t, err)
-		assert.Contains(t, err.Error(), "create event")
-		assert.NotEqual(t, apperror.ErrEventAlreadyStored, err)
-	})
-}
-
 func TestCreateOrderByEvent(t *testing.T) {
 	mock, err := pgxmock.NewPool()
 	require.NoError(t, err)
@@ -301,7 +150,7 @@ func TestCreateOrderByEvent(t *testing.T) {
 			WithArgs("order-1", userId, order.StatusCreated, createdAt, updatedAt).
 			WillReturnResult(pgxmock.NewResult("INSERT", 1))
 
-		err := repo.CreateOrderByEvent(ctx, event)
+		err := repo.CreateOrder(ctx, event)
 
 		require.NoError(t, err)
 	})
@@ -318,7 +167,7 @@ func TestCreateOrderByEvent(t *testing.T) {
 		mock.ExpectExec(`INSERT INTO orders \(id,user_id,status,created_at,updated_at\) VALUES \(\$1,\$2,\$3,\$4,\$5\)`).
 			WillReturnError(assert.AnError)
 
-		err := repo.CreateOrderByEvent(ctx, event)
+		err := repo.CreateOrder(ctx, event)
 
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "create order by event")

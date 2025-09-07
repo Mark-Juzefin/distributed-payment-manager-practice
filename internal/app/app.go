@@ -8,8 +8,9 @@ import (
 	"TestTaskJustPay/internal/domain/order"
 	"TestTaskJustPay/internal/external/silvergate"
 	dispute_repo "TestTaskJustPay/internal/repo/dispute"
-	"TestTaskJustPay/internal/repo/eventsink"
+	"TestTaskJustPay/internal/repo/dispute_eventsink"
 	order_repo "TestTaskJustPay/internal/repo/order"
+	"TestTaskJustPay/internal/repo/order_eventsink"
 	"TestTaskJustPay/pkg/logger"
 	"TestTaskJustPay/pkg/postgres"
 	"embed"
@@ -31,7 +32,8 @@ func Run(cfg config.Config) {
 	}
 	orderRepo := order_repo.NewPgOrderRepo(pool)
 	disputeRepo := dispute_repo.NewPgDisputeRepo(pool)
-	eventSink := eventsink.NewPgEventRepo(pool.Pool, pool.Builder)
+	disputeEventSink := dispute_eventsink.NewPgEventRepo(pool.Pool, pool.Builder)
+	orderEventSink := order_eventsink.NewPgOrderEventRepo(pool.Pool, pool.Builder)
 
 	silvergateClient := silvergate.New(
 		cfg.SilvergateBaseURL,
@@ -39,8 +41,8 @@ func Run(cfg config.Config) {
 		cfg.SilvergateCapturePath,
 		&http.Client{Timeout: cfg.HTTPSilvergateClientTimeout},
 	)
-	orderService := order.NewOrderService(orderRepo, silvergateClient)
-	disputeService := dispute.NewDisputeService(disputeRepo, silvergateClient, eventSink)
+	orderService := order.NewOrderService(orderRepo, silvergateClient, orderEventSink)
+	disputeService := dispute.NewDisputeService(disputeRepo, silvergateClient, disputeEventSink)
 
 	orderHandler := handlers.NewOrderHandler(orderService)
 	chargebackHandler := handlers.NewChargebackHandler(disputeService)

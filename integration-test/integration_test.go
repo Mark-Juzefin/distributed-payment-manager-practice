@@ -12,8 +12,9 @@ import (
 	"TestTaskJustPay/internal/domain/order"
 	"TestTaskJustPay/internal/external/silvergate"
 	dispute_repo "TestTaskJustPay/internal/repo/dispute"
-	"TestTaskJustPay/internal/repo/eventsink"
+	"TestTaskJustPay/internal/repo/dispute_eventsink"
 	order_repo "TestTaskJustPay/internal/repo/order"
+	"TestTaskJustPay/internal/repo/order_eventsink"
 	"TestTaskJustPay/pkg/logger"
 	"TestTaskJustPay/pkg/postgres"
 	"bytes"
@@ -70,7 +71,8 @@ func setupTestServer(t *testing.T) (*httptest.Server, *postgres.Postgres) {
 
 	orderRepo := order_repo.NewPgOrderRepo(pool)
 	disputeRepo := dispute_repo.NewPgDisputeRepo(pool)
-	eventSink := eventsink.NewPgEventRepo(pool.Pool, pool.Builder)
+	disputeEventSink := dispute_eventsink.NewPgEventRepo(pool.Pool, pool.Builder)
+	orderEventSink := order_eventsink.NewPgOrderEventRepo(pool.Pool, pool.Builder)
 
 	silvergateClient := silvergate.New(
 		cfg.SilvergateBaseURL,
@@ -78,8 +80,8 @@ func setupTestServer(t *testing.T) (*httptest.Server, *postgres.Postgres) {
 		cfg.SilvergateCapturePath,
 		&http.Client{Timeout: cfg.HTTPSilvergateClientTimeout},
 	)
-	orderService := order.NewOrderService(orderRepo, silvergateClient)
-	disputeService := dispute.NewDisputeService(disputeRepo, silvergateClient, eventSink)
+	orderService := order.NewOrderService(orderRepo, silvergateClient, orderEventSink)
+	disputeService := dispute.NewDisputeService(disputeRepo, silvergateClient, disputeEventSink)
 
 	orderHandler := handlers.NewOrderHandler(orderService)
 	chargebackHandler := handlers.NewChargebackHandler(disputeService)
@@ -257,12 +259,12 @@ func TestChargebackFlow(t *testing.T) {
 	orderID := "order-chargeback-1"
 
 	createOrderPayload := map[string]interface{}{
-		"event_id":   "evt-order-1",
-		"order_id":   orderID,
-		"user_id":    "44444444-4444-4444-4444-444444444444",
-		"status":     "created",
-		"updated_at": time.Now().Format(time.RFC3339),
-		"created_at": time.Now().Format(time.RFC3339),
+		"provider_event_id": "evt-order-1",
+		"order_id":          orderID,
+		"user_id":           "44444444-4444-4444-4444-444444444444",
+		"status":            "created",
+		"updated_at":        time.Now().Format(time.RFC3339),
+		"created_at":        time.Now().Format(time.RFC3339),
 		"meta": map[string]string{
 			"amount":   "100.50",
 			"currency": "USD",
@@ -302,7 +304,7 @@ func TestChargebackFlow(t *testing.T) {
 	closeChargeback := map[string]interface{}{
 		"provider_event_id": "evt-2",
 		"order_id":          orderID,
-		"transaction_id":    "txn-chargeback-1",
+		"transaction_id":    "txn-chargeback-1", //TODO
 		"status":            "closed",
 		"reason":            "fraud",
 		"amount":            100.50,
@@ -338,24 +340,24 @@ func TestCreateOrdersFlow(t *testing.T) {
 	// Create multiple orders via webhook
 	orders := []map[string]interface{}{
 		{
-			"event_id":   "evt-1",
-			"order_id":   "order-1",
-			"user_id":    "11111111-1111-1111-1111-111111111111",
-			"status":     "created",
-			"updated_at": time.Now().Format(time.RFC3339),
-			"created_at": time.Now().Format(time.RFC3339),
+			"provider_event_id": "evt-1",
+			"order_id":          "order-1",
+			"user_id":           "11111111-1111-1111-1111-111111111111",
+			"status":            "created",
+			"updated_at":        time.Now().Format(time.RFC3339),
+			"created_at":        time.Now().Format(time.RFC3339),
 			"meta": map[string]string{
 				"amount":   "100.50",
 				"currency": "USD",
 			},
 		},
 		{
-			"event_id":   "evt-2",
-			"order_id":   "order-2",
-			"user_id":    "22222222-2222-2222-2222-222222222222",
-			"status":     "created",
-			"updated_at": time.Now().Format(time.RFC3339),
-			"created_at": time.Now().Format(time.RFC3339),
+			"provider_event_id": "evt-2",
+			"order_id":          "order-2",
+			"user_id":           "22222222-2222-2222-2222-222222222222",
+			"status":            "created",
+			"updated_at":        time.Now().Format(time.RFC3339),
+			"created_at":        time.Now().Format(time.RFC3339),
 			"meta": map[string]string{
 				"amount":   "200.75",
 				"currency": "EUR",
@@ -374,6 +376,14 @@ func TestCreateOrdersFlow(t *testing.T) {
 	if len(result) < 2 {
 		t.Errorf("Expected at least 2 orders, got %d", len(result))
 	}
+
+	// Verify webhook_received events were created for both orders
+	eventsPage := getOrderEvents(t, server.URL, order.OrderEventQuery{
+		OrderIDs: []string{"order-1", "order-2"},
+		Kinds:    []order.OrderEventKind{order.OrderEventWebhookReceived},
+		Limit:    10,
+	})
+	assert.Len(t, eventsPage.Items, 2, "Should have webhook_received events for both orders")
 }
 
 func TestUpdateOrderFlow(t *testing.T) {
@@ -384,12 +394,12 @@ func TestUpdateOrderFlow(t *testing.T) {
 
 	// Create initial order
 	initialOrder := map[string]interface{}{
-		"event_id":   "evt-create",
-		"order_id":   orderID,
-		"user_id":    "33333333-3333-3333-3333-333333333333",
-		"status":     "created",
-		"updated_at": time.Now().Format(time.RFC3339),
-		"created_at": time.Now().Format(time.RFC3339),
+		"provider_event_id": "evt-create",
+		"order_id":          orderID,
+		"user_id":           "33333333-3333-3333-3333-333333333333",
+		"status":            "created",
+		"updated_at":        time.Now().Format(time.RFC3339),
+		"created_at":        time.Now().Format(time.RFC3339),
 		"meta": map[string]string{
 			"amount":   "150.25",
 			"currency": "USD",
@@ -407,12 +417,12 @@ func TestUpdateOrderFlow(t *testing.T) {
 
 	// Update the order
 	updatedOrder := map[string]interface{}{
-		"event_id":   "evt-update",
-		"order_id":   orderID,
-		"user_id":    "33333333-3333-3333-3333-333333333333",
-		"status":     "updated",
-		"updated_at": time.Now().Format(time.RFC3339),
-		"created_at": time.Now().Add(-time.Hour).Format(time.RFC3339), // Earlier creation time
+		"provider_event_id": "evt-update",
+		"order_id":          orderID,
+		"user_id":           "33333333-3333-3333-3333-333333333333",
+		"status":            "updated",
+		"updated_at":        time.Now().Format(time.RFC3339),
+		"created_at":        time.Now().Add(-time.Hour).Format(time.RFC3339), // Earlier creation time
 		"meta": map[string]string{
 			"amount":   "150.25",
 			"currency": "USD",
@@ -585,12 +595,12 @@ func TestSubmitDisputeFlow(t *testing.T) {
 
 func createOrderWithId(t *testing.T, server *httptest.Server, orderId string) {
 	createOrderPayload := map[string]interface{}{
-		"event_id":   "evt-" + orderId, // Make event_id unique per order
-		"order_id":   orderId,
-		"user_id":    "55555555-5555-5555-5555-555555555555",
-		"status":     "created",
-		"updated_at": time.Now().Format(time.RFC3339),
-		"created_at": time.Now().Format(time.RFC3339),
+		"provider_event_id": "evt-" + orderId, // Make provider_event_id unique per order
+		"order_id":          orderId,
+		"user_id":           "55555555-5555-5555-5555-555555555555",
+		"status":            "created",
+		"updated_at":        time.Now().Format(time.RFC3339),
+		"created_at":        time.Now().Format(time.RFC3339),
 		"meta": map[string]string{
 			"amount":   "250.75",
 			"currency": "USD",
@@ -697,6 +707,11 @@ func getDisputes(t *testing.T, baseURL string) []dispute.Dispute {
 
 func getDisputeEvents(t *testing.T, baseURL string, query dispute.DisputeEventQuery) dispute.DisputeEventPage {
 	page := GET[dispute.DisputeEventPage](t, baseURL, "/disputes/events", query, http.StatusOK)
+	return page
+}
+
+func getOrderEvents(t *testing.T, baseURL string, query order.OrderEventQuery) order.OrderEventPage {
+	page := GET[order.OrderEventPage](t, baseURL, "/orders/events", query, http.StatusOK)
 	return page
 }
 
@@ -811,6 +826,21 @@ func TestOrderHoldFlow(t *testing.T) {
 	require.True(t, riskResp.OnHold)
 	require.NotNil(t, riskResp.Reason)
 	require.Equal(t, "risk", *riskResp.Reason)
+
+	// Verify hold-related events were created: webhook_received, hold_set, hold_cleared, hold_set
+	eventsPage := getOrderEvents(t, server.URL, order.OrderEventQuery{
+		OrderIDs: []string{orderID},
+		Limit:    10,
+	})
+	require.Len(t, eventsPage.Items, 4, "Should have 4 events: webhook_received, hold_set, hold_cleared, hold_set")
+
+	// Verify we have the expected event kinds
+	eventKinds := make([]string, len(eventsPage.Items))
+	for i, event := range eventsPage.Items {
+		eventKinds[i] = string(event.Kind)
+	}
+	expectedKinds := []string{"webhook_received", "hold_set", "hold_cleared", "hold_set"}
+	assert.ElementsMatch(t, expectedKinds, eventKinds)
 }
 
 func TestOrderCaptureFlow(t *testing.T) {
@@ -842,6 +872,21 @@ func TestOrderCaptureFlow(t *testing.T) {
 	require.Equal(t, "txn-capture-123", captureResp.ProviderTxID)
 	require.NotZero(t, captureResp.CapturedAt)
 
+	// Verify capture events were created: webhook_received, capture_requested, capture_completed
+	eventsPage := getOrderEvents(t, server.URL, order.OrderEventQuery{
+		OrderIDs: []string{orderID},
+		Limit:    10,
+	})
+	require.Len(t, eventsPage.Items, 3, "Should have 3 events: webhook_received, capture_requested, capture_completed")
+
+	// Verify we have the expected event kinds
+	eventKinds := make([]string, len(eventsPage.Items))
+	for i, event := range eventsPage.Items {
+		eventKinds[i] = string(event.Kind)
+	}
+	expectedKinds := []string{"webhook_received", "capture_requested", "capture_completed"}
+	assert.ElementsMatch(t, expectedKinds, eventKinds)
+
 	// Test capture on held order should fail
 	heldOrderID := "order-held-capture-test"
 	createOrderWithId(t, server, heldOrderID)
@@ -868,4 +913,113 @@ func TestOrderCaptureFlow(t *testing.T) {
 	require.NoError(t, err)
 	require.NoError(t, resp.Body.Close())
 	require.Equal(t, http.StatusConflict, resp.StatusCode)
+}
+
+func TestOrderEventsFlow(t *testing.T) {
+	server, _ := setupTestServer(t)
+	defer server.Close()
+
+	t.Run("Order events pagination and filtering", func(t *testing.T) {
+		// Create multiple orders with different operations
+		orderIDs := []string{"order-events-1", "order-events-2", "order-events-3"}
+
+		for _, oid := range orderIDs {
+			createOrderWithId(t, server, oid)
+
+			// Set and clear hold for each order
+			holdRequest := map[string]interface{}{
+				"action": "set",
+				"reason": "risk",
+			}
+			POST[order.HoldResponse](t, server.URL, "/orders/"+oid+"/hold", holdRequest, http.StatusOK)
+
+			clearRequest := map[string]interface{}{
+				"action": "clear",
+			}
+			POST[order.HoldResponse](t, server.URL, "/orders/"+oid+"/hold", clearRequest, http.StatusOK)
+		}
+
+		// Test filtering by event kind
+		holdEventsPage := getOrderEvents(t, server.URL, order.OrderEventQuery{
+			OrderIDs: orderIDs,
+			Kinds:    []order.OrderEventKind{order.OrderEventHoldSet},
+			Limit:    10,
+		})
+
+		// Should have 3 hold_set events (one for each order)
+		assert.Len(t, holdEventsPage.Items, 3)
+		for _, event := range holdEventsPage.Items {
+			assert.Equal(t, order.OrderEventHoldSet, event.Kind)
+		}
+
+		// Test pagination with small limit
+		allEventsPage := getOrderEvents(t, server.URL, order.OrderEventQuery{
+			OrderIDs: orderIDs,
+			Limit:    5, // Should require pagination for 9 total events (3 orders × 3 events each)
+		})
+
+		assert.Len(t, allEventsPage.Items, 5)
+		assert.True(t, allEventsPage.HasMore)
+		assert.NotEmpty(t, allEventsPage.NextCursor)
+
+		// Get second page
+		nextPage := getOrderEvents(t, server.URL, order.OrderEventQuery{
+			OrderIDs: orderIDs,
+			Limit:    5,
+			Cursor:   allEventsPage.NextCursor,
+		})
+
+		assert.Len(t, nextPage.Items, 4) // Remaining 4 events
+		assert.False(t, nextPage.HasMore)
+		assert.Empty(t, nextPage.NextCursor)
+	})
+
+	t.Run("Order events sorting", func(t *testing.T) {
+		orderID := "order-events-sort-test"
+		createOrderWithId(t, server, orderID)
+
+		// Create some operations with small delays to ensure different timestamps
+		time.Sleep(10 * time.Millisecond)
+		holdRequest := map[string]interface{}{
+			"action": "set",
+			"reason": "manual_review",
+		}
+		POST[order.HoldResponse](t, server.URL, "/orders/"+orderID+"/hold", holdRequest, http.StatusOK)
+
+		time.Sleep(10 * time.Millisecond)
+		clearRequest := map[string]interface{}{
+			"action": "clear",
+		}
+		POST[order.HoldResponse](t, server.URL, "/orders/"+orderID+"/hold", clearRequest, http.StatusOK)
+
+		// Test ascending sort
+		ascPage := getOrderEvents(t, server.URL, order.OrderEventQuery{
+			OrderIDs: []string{orderID},
+			SortAsc:  true,
+			Limit:    10,
+		})
+
+		// Verify events are sorted by creation time ASC
+		for i := 1; i < len(ascPage.Items); i++ {
+			assert.True(t,
+				ascPage.Items[i-1].CreatedAt.Before(ascPage.Items[i].CreatedAt) ||
+					ascPage.Items[i-1].CreatedAt.Equal(ascPage.Items[i].CreatedAt),
+				"Events should be ordered by creation time ASC")
+		}
+
+		// Test descending sort (default)
+		descPage := getOrderEvents(t, server.URL, order.OrderEventQuery{
+			OrderIDs: []string{orderID},
+			SortAsc:  false,
+			Limit:    10,
+		})
+
+		// Verify events are sorted by creation time DESC
+		for i := 1; i < len(descPage.Items); i++ {
+			assert.True(t,
+				descPage.Items[i-1].CreatedAt.After(descPage.Items[i].CreatedAt) ||
+					descPage.Items[i-1].CreatedAt.Equal(descPage.Items[i].CreatedAt),
+				"Events should be ordered by creation time DESC")
+		}
+	})
 }

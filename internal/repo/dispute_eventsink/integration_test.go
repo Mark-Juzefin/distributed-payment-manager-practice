@@ -1,7 +1,7 @@
 //go:build integration
 // +build integration
 
-package eventsink_test
+package dispute_eventsink_test
 
 import (
 	"TestTaskJustPay/internal/app"

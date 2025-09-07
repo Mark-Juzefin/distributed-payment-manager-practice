@@ -6,10 +6,10 @@ import (
 )
 
 type ChargebackWebhook struct {
-	DisputeID string           `json:"dispute_id"`
-	OrderID   string           `json:"order_id"`
-	Status    ChargebackStatus `json:"status"`
-	Reason    string           `json:"reason"`
+	ProviderEventID string           `json:"provider_event_id"`
+	OrderID         string           `json:"order_id"`
+	Status          ChargebackStatus `json:"status"`
+	Reason          string           `json:"reason"`
 	Money
 	OccurredAt    time.Time         `json:"occurred_at"`
 	EvidenceDueAt *time.Time        `json:"evidence_due_at,omitempty"`

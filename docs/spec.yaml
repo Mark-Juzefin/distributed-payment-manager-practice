@@ -88,24 +88,59 @@ paths:
               schema: { $ref: '#/components/schemas/Order' }
         '404': { description: Order not found }
 
-  /orders/{order_id}/events:
+  /orders/events:
     get:
-      summary: Retrieve events for a specific order.
+      summary: Retrieve events for orders
       parameters:
-        - name: order_id
-          in: path
-          required: true
+        - name: order_ids
+          in: query
           schema:
+            type: array
+            items:
+              type: string
+        - name: kinds
+          in: query
+          required: false
+          schema:
+            type: array
+            items:
+              type: string
+          description: Comma-separated list of event kinds
+        - name: limit
+          in: query
+          required: false
+          schema: 
+            type: integer
+            minimum: 1
+            maximum: 1000
+            default: 100
+        - name: cursor
+          in: query
+          required: false
+          schema: { type: string }
+        - name: time_from
+          in: query
+          required: false
+          schema: 
             type: string
-
+            format: date-time
+        - name: time_to
+          in: query
+          required: false
+          schema: 
+            type: string
+            format: date-time
+        - name: sort_asc
+          in: query
+          required: false
+          schema: { type: boolean }
       responses:
         '200':
-          description: List of events for the order
+          description: Paginated order events
           content:
             application/json:
               schema:
-                type: array
-                items: { $ref: '#/components/schemas/Event' }
+                $ref: '#/components/schemas/OrderEventPage'
         '404': { description: Order not found }
 
   /orders/{order_id}/hold:
@@ -322,9 +357,9 @@ components:
   schemas:
     OrderEventIn:
       type: object
-      required: [event_id, order_id, user_id, status, created_at, updated_at]
+      required: [provider_event_id, order_id, user_id, status, created_at, updated_at]
       properties:
-        event_id:   { type: string }
+        provider_event_id:   { type: string }
         order_id:   { type: string }
         user_id:    { type: string }
         status:     { type: string, enum: [created, updated, failed, success] }
@@ -426,6 +461,27 @@ components:
         items:
           type: array
           items: { $ref: '#/components/schemas/DisputeEvent' }
+        next_cursor: { type: string }
+        has_more: { type: boolean }
+
+    OrderEvent:
+      type: object
+      properties:
+        event_id:   { type: string }
+        order_id: { type: string }
+        kind:
+          type: string
+          enum: [webhook_received, hold_set, hold_cleared, capture_requested, capture_completed, capture_failed]
+        provider_event_id: { type: string }
+        data: { type: object, additionalProperties: true }
+        created_at: { type: string, format: date-time }
+
+    OrderEventPage:
+      type: object
+      properties:
+        items:
+          type: array
+          items: { $ref: '#/components/schemas/OrderEvent' }
         next_cursor: { type: string }
         has_more: { type: boolean }
 

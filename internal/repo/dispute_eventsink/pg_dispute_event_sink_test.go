@@ -1,4 +1,4 @@
-package eventsink
+package dispute_eventsink
 
 import (
 	"TestTaskJustPay/internal/domain/dispute"

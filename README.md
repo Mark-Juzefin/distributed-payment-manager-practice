@@ -28,6 +28,7 @@ Currently working on **webhook ingestion with Kafka**.
 
 # Roadmap
 
+(TODO: add notes on domain logic and testing)
 
 ## Step 1: Webhooks ingestion with Kafka
 
@@ -109,5 +110,31 @@ flowchart LR
 
 
 ## Step 2: Outbox pattern → CDC → Analytics
+- Implement outbox tables per shard.
+- Use Debezium/CDC to stream events into OpenSearch or ClickHouse.
+- Practice: event-driven consistency, projections, analytical indexing.
+
 
 ## Step 3: Sharding experiments
+- Split orders/disputes across multiple Postgres shards by hash(user_id).
+- Practice: routing, rebalancing, joins across shards.
+
+## Step 4: Analytics & Observability
+- Explore metrics, dashboards, and query analytics in OpenSearch / ClickHouse.
+- Benchmark queries across partitions and shards.
+- Practice: metrics collection, Grafana dashboards, query optimization.
+
+## Step 5: Microservices & Infrastructure
+- Break monolith into small services (Orders, Disputes, Ingest, Analytics).
+- Practice: service boundaries, API contracts, inter-service communication.
+
+## Step 6: Deployment
+- Run the system on Kubernetes (local k3s or Minikube).
+- Experiment with horizontal scaling, liveness/readiness probes.
+- Later, deploy a minimal setup to a cheap VPS.
+- Practice: infra basics, container orchestration, ops skills.
+
+
+## Step 7: Simple Frontend (HTMX)
+- Build a lightweight dashboard to view orders, disputes, and events.
+- Practice: HTMX, server-side rendering, integrating with APIs.

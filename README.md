@@ -47,17 +47,25 @@ flowchart LR
   %% ==== Sharded Postgres (by hash(user_id)) ====
   subgraph SHARDS["Sharded Postgres Cluster (by hash(user_id))"]
     direction LR
-    A_Primary["(PG Shard A - Primary<br/>orders / order_events (partitioned)<br/>disputes / dispute_events (partitioned))"]
-    B_Primary["(PG Shard B - Primary<br/>orders / order_events (partitioned)<br/>disputes / dispute_events (partitioned))"]
+    subgraph SHARD_A["PG Shard A • primary"]
+      direction TB
+      A_ORD["orders<br/>order_events (partitioned)"]
+      A_DIS["disputes<br/>dispute_events (partitioned)"]
+    end
+    subgraph SHARD_B["PG Shard B • primary"]
+      direction TB
+      B_ORD["orders<br/>order_events (partitioned)"]
+      B_DIS["disputes<br/>dispute_events (partitioned)"]
+    end
   end
 
   %% ==== Services & consumers (1 worker per partition) ====
   subgraph ORDER_SVC["Order Service"]
     direction TB
     subgraph CGO["Consumer Group: orders.webhooks"]
-      O0["Worker P0"] -->|"writes to shard (P0 % N)"| A_Primary
-      O1["Worker P1"] -->|"writes to shard (P1 % N)"| B_Primary
-      O2["Worker P2"] -->|"writes to shard (P2 % N)"| A_Primary
+      O0["Worker P0"] -->|"writes to shard (P0 % N)"| A_ORD
+      O1["Worker P1"] -->|"writes to shard (P1 % N)"| B_ORD
+      O2["Worker P2"] -->|"writes to shard (P2 % N)"| A_ORD
     end
   end
   TOP_O --> O0
@@ -67,8 +75,8 @@ flowchart LR
   subgraph DISPUTE_SVC["Dispute Service"]
     direction TB
     subgraph CGD["Consumer Group: disputes.webhooks"]
-      D0["Worker P0"] -->|"writes to shard (P0 % N)"| A_Primary
-      D1["Worker P1"] -->|"writes to shard (P1 % N)"| B_Primary
+      D0["Worker P0"] -->|"writes to shard (P0 % N)"| A_DIS
+      D1["Worker P1"] -->|"writes to shard (P1 % N)"| B_DIS
     end
   end
   TOP_D --> D0

@@ -124,9 +124,15 @@ flowchart LR
 - Benchmark queries across partitions and shards.
 - Practice: metrics collection, Grafana dashboards, query optimization.
 
-## Step 5: Microservices & Infrastructure
-- Break monolith into small services (Orders, Disputes, Ingest, Analytics).
-- Practice: service boundaries, API contracts, inter-service communication.
+### Step 5: Infrastructure (Microservices, Kubernetes, API Gateway)
+- Break monolith into services (Ingest, Orders, Disputes, Analytics API).
+- **Kubernetes**: deploy services, HPA, liveness/readiness, ConfigMaps/Secrets.
+- **API Gateway**: ingress (NGINX/Traefik/Kong), routing, rate limiting, authn/z.
+- **Service-to-service**: gRPC/HTTP, retries/timeouts, circuit breakers (e.g., Envoy/Istio-lite later).
+- **Postgres access**: PgBouncer per service, connection limits, migration strategy.
+- **CI/CD**: build pipelines, image tagging, per-env configs.
+- **Platform ops**: centralized logs, metrics (Prometheus), tracing (OTel/Jaeger).
+- Practice: service boundaries, platform primitives, reliability patterns.
 
 ## Step 6: Deployment
 - Run the system on Kubernetes (local k3s or Minikube).

@@ -85,4 +85,29 @@ flowchart LR
 
 ## Notes
 
-<!-- Add implementation notes, decisions, problems encountered here -->
+### 2025-12-27: Pre-Kafka Groundwork (Preparation Phase)
+
+**Completed:** Idempotency infrastructure fixes before Kafka integration
+
+**Changes:**
+- ✅ Added UNIQUE constraints for idempotency:
+  - `order_events(order_id, provider_event_id)`
+  - `dispute_events(dispute_id, provider_event_id, created_at)` *(includes partition key)*
+- ✅ Fixed event creation error handling:
+  - Events are now critical operations (webhook fails if event creation fails)
+  - Repositories return `apperror.ErrEventAlreadyStored` on duplicate
+  - Handlers properly check for duplicates via `errors.Is()`
+- ✅ Fixed binding error handling in webhook handlers (added missing `return` statements)
+- ✅ Added integration tests:
+  - `TestCreateOrderEvent_IdempotencyConstraint` (order_eventsink)
+  - `TestCreateDisputeEvent_IdempotencyConstraint` (dispute_eventsink)
+- ✅ Created `.claude/rules/migrations.md` for migration testing standards
+
+**Why this matters for Kafka:**
+- Kafka consumers will retry failed messages
+- UNIQUE constraints + webhook retry = safe idempotency
+- Without these fixes, retries would create duplicate events
+
+**Migration:** `20251227102937_add_idempotency_constraints.sql`
+
+**Next:** Ready for Phase 1 - Basic Kafka Integration

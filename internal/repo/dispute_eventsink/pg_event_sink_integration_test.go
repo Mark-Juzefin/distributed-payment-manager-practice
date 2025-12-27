@@ -4,11 +4,13 @@
 package dispute_eventsink_test
 
 import (
+	"TestTaskJustPay/internal/controller/apperror"
 	"TestTaskJustPay/internal/domain/dispute"
 	"TestTaskJustPay/internal/repo/dispute_eventsink"
 	"TestTaskJustPay/pkg/postgres"
 	"context"
 	_ "embed"
+	"errors"
 	"testing"
 	"time"
 
@@ -346,6 +348,121 @@ func TestGetDisputeEventsIntegration(t *testing.T) {
 				}
 				return nil
 			})
+			require.NoError(t, err)
+		})
+	}
+}
+
+func TestCreateDisputeEvent_IdempotencyConstraint(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+
+	tests := []struct {
+		name                 string
+		seed                 func(t *testing.T, tx postgres.Executor)
+		firstEvent           dispute.NewDisputeEvent
+		duplicateEvent       dispute.NewDisputeEvent
+		expectDuplicateError bool
+	}{
+		{
+			name: "Duplicate provider_event_id for same dispute returns ErrEventAlreadyStored",
+			seed: func(t *testing.T, tx postgres.Executor) {
+				applyBaseFixture(t, tx)
+			},
+			firstEvent: dispute.NewDisputeEvent{
+				DisputeID:       "dispute_001",
+				Kind:            dispute.DisputeEventWebhookOpened,
+				ProviderEventID: "provider_evt_123",
+				Data:            []byte(`{"status": "opened"}`),
+				CreatedAt:       time.Date(2024, 1, 15, 10, 0, 0, 0, time.UTC),
+			},
+			duplicateEvent: dispute.NewDisputeEvent{
+				DisputeID:       "dispute_001",
+				Kind:            dispute.DisputeEventWebhookUpdated,
+				ProviderEventID: "provider_evt_123",                            // Same provider_event_id
+				Data:            []byte(`{"status": "updated"}`),               // Different data
+				CreatedAt:       time.Date(2024, 1, 15, 10, 0, 0, 0, time.UTC), // SAME created_at for true duplicate
+			},
+			expectDuplicateError: true,
+		},
+		{
+			name: "Same provider_event_id for different disputes succeeds",
+			seed: func(t *testing.T, tx postgres.Executor) {
+				applyBaseFixture(t, tx)
+			},
+			firstEvent: dispute.NewDisputeEvent{
+				DisputeID:       "dispute_001",
+				Kind:            dispute.DisputeEventWebhookOpened,
+				ProviderEventID: "provider_evt_shared",
+				Data:            []byte(`{"status": "opened"}`),
+				CreatedAt:       time.Date(2024, 1, 15, 10, 0, 0, 0, time.UTC),
+			},
+			duplicateEvent: dispute.NewDisputeEvent{
+				DisputeID:       "dispute_002", // Different dispute
+				Kind:            dispute.DisputeEventWebhookOpened,
+				ProviderEventID: "provider_evt_shared", // Same provider_event_id (different disputes can have same)
+				Data:            []byte(`{"status": "opened"}`),
+				CreatedAt:       time.Date(2024, 1, 15, 11, 0, 0, 0, time.UTC),
+			},
+			expectDuplicateError: false,
+		},
+		{
+			name: "Different provider_event_id for same dispute succeeds",
+			seed: func(t *testing.T, tx postgres.Executor) {
+				applyBaseFixture(t, tx)
+			},
+			firstEvent: dispute.NewDisputeEvent{
+				DisputeID:       "dispute_001",
+				Kind:            dispute.DisputeEventWebhookOpened,
+				ProviderEventID: "provider_evt_first",
+				Data:            []byte(`{"status": "opened"}`),
+				CreatedAt:       time.Date(2024, 1, 15, 10, 0, 0, 0, time.UTC),
+			},
+			duplicateEvent: dispute.NewDisputeEvent{
+				DisputeID:       "dispute_001",
+				Kind:            dispute.DisputeEventWebhookUpdated,
+				ProviderEventID: "provider_evt_second", // Different provider_event_id
+				Data:            []byte(`{"status": "updated"}`),
+				CreatedAt:       time.Date(2024, 1, 15, 11, 0, 0, 0, time.UTC),
+			},
+			expectDuplicateError: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := pool.SandboxTransaction(ctx, func(tx postgres.Executor) error {
+				tt.seed(t, tx)
+
+				repo := dispute_eventsink.NewPgEventRepo(tx, pool.Builder)
+
+				// Create first event
+				firstCreated, err := repo.CreateDisputeEvent(ctx, tt.firstEvent)
+				require.NoError(t, err)
+				require.NotNil(t, firstCreated)
+				assert.Equal(t, tt.firstEvent.DisputeID, firstCreated.DisputeID)
+				assert.Equal(t, tt.firstEvent.ProviderEventID, firstCreated.ProviderEventID)
+
+				// Attempt to create duplicate event
+				duplicateCreated, err := repo.CreateDisputeEvent(ctx, tt.duplicateEvent)
+
+				if tt.expectDuplicateError {
+					// Should return ErrEventAlreadyStored for duplicate (dispute_id, provider_event_id)
+					require.Error(t, err)
+					assert.True(t, errors.Is(err, apperror.ErrEventAlreadyStored),
+						"Expected ErrEventAlreadyStored, got: %v", err)
+					assert.Nil(t, duplicateCreated)
+				} else {
+					// Should succeed for different combinations
+					require.NoError(t, err)
+					require.NotNil(t, duplicateCreated)
+					assert.Equal(t, tt.duplicateEvent.DisputeID, duplicateCreated.DisputeID)
+					assert.Equal(t, tt.duplicateEvent.ProviderEventID, duplicateCreated.ProviderEventID)
+				}
+
+				return nil
+			})
+
 			require.NoError(t, err)
 		})
 	}

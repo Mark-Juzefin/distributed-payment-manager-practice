@@ -22,6 +22,7 @@ func (h *OrderHandler) Webhook(c *gin.Context) {
 	var event order.PaymentWebhook
 	if err := c.ShouldBindJSON(&event); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"message": "Missing order_id"})
+		return
 	}
 
 	err := h.service.ProcessPaymentWebhook(c, event)

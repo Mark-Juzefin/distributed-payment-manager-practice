@@ -79,7 +79,7 @@ func (s *OrderService) ProcessPaymentWebhook(ctx context.Context, event PaymentW
 	}
 
 	if err := s.createWebhookReceivedEvent(ctx, event); err != nil {
-		fmt.Printf("Failed to create webhook event: %v\n", err)
+		return fmt.Errorf("failed to create webhook event: %w", err)
 	}
 
 	return nil

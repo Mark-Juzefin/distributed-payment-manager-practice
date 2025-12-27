@@ -7,6 +7,8 @@ import (
 )
 
 type EventSink interface {
+	// CreateDisputeEvent creates a new dispute event.
+	// Returns apperror.ErrEventAlreadyStored if event with same (dispute_id, provider_event_id) already exists.
 	CreateDisputeEvent(ctx context.Context, event NewDisputeEvent) (*DisputeEvent, error)
 	GetDisputeEvents(ctx context.Context, query DisputeEventQuery) (DisputeEventPage, error)
 }

@@ -14,19 +14,27 @@ This is a **learning sandbox** for practicing highload/distributed systems conce
 
 ## Current Focus
 
-**Active feature:** [docs/features/001-kafka-ingestion.md](docs/features/001-kafka-ingestion.md)
+**Active feature:** [docs/features/001-kafka-ingestion/](docs/features/001-kafka-ingestion/)
 
 Full roadmap: [docs/roadmap.md](docs/roadmap.md)
 
 ## Feature Workflow
 
 **On session start:**
-1. Read this file and the active feature file
-2. Understand current progress from task checkboxes
-3. Continue from where we left off
+1. Read this file and the active feature's `README.md`
+2. Check which subtask is current (first unchecked in Tasks list)
+3. Check if plan exists for that subtask (look for `plan-subtask-N.md` link)
+4. If no plan - start planning phase
+5. If plan exists - continue implementation from checkboxes
+
+**Planning phase:**
+1. Discuss approach with user, explain trade-offs and alternatives
+2. When user approves the plan - save it to `docs/features/{feature-folder}/plan-subtask-N.md`
+3. Add plan link to README.md
+4. Then proceed to implementation
 
 **During implementation:**
-1. Plan first, then implement
+1. Follow the approved plan step by step
 2. User runs tests manually and fixes issues themselves
 3. Update checkboxes in feature file as tasks complete
 

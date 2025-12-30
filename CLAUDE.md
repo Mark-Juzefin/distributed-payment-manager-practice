@@ -158,6 +158,16 @@ orderRepo.InTransaction(func(txRepo order.OrderRepo) error {
 
 **Interface Segregation**: Domain layer defines interfaces (`OrderRepo`, `EventSink`, `Provider`), infrastructure implements them. This allows easy mocking with `mockgen`.
 
+### Design Philosophy: Scalability as Configuration
+
+This project follows a **"complex opt-in"** principle:
+- Core business logic remains infrastructure-agnostic
+- Highload patterns (partitioning, Kafka, sharding) are implemented as swappable adapters
+- The system should be deployable in "simple mode" (single Postgres, no message queue) without code changes
+- Interfaces like `EventSink`, `Provider`, `Consumer` enable this flexibility
+
+When implementing new features, always ask: "Can this be configured to use a simpler alternative?"
+
 ### State Machines
 
 **Order Status Flow**:

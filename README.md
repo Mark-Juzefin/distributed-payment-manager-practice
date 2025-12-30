@@ -8,11 +8,13 @@ Go, PostgreSQL, pg_partman, Docker, MongoDB, OpenSearch, Kafka, testcontainers-g
 
 # Goals
 
-- Practice database scaling: time-series partitioning, sharding, replication, and queues.
+- Practice database scaling: time-series partitioning, sharding, replication, and queues
 - Experiment with multiple database systems
 - Write high-quality Golang code
 - Include thorough testing: unit, integration, and end-to-end tests
-- Practice metrics collection and benchmarking configurations. 
+- Practice metrics collection and benchmarking configurations
+- Extensibility in the architecture of application and infrastructure
+- Host simplified version on VPS
 
 
 # Not Goals
@@ -40,5 +42,6 @@ Detailed plan: **[docs/roadmap.md](./docs/roadmap.md)**
 | 3 | Sharding experiments | Planned |
 | 4 | Analytics & Observability | Planned |
 | 5 | Infrastructure (K8s, API Gateway) | Planned |
+| 5.5 | Simple Deployment Profile | Planned |
 | 6 | Deployment | Planned |
 | 7 | Simple Frontend (HTMX) | Planned |

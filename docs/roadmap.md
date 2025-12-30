@@ -12,7 +12,10 @@
 ## In Progress
 
 ### Step 1: Webhooks ingestion with Kafka
-Details: [features/001-kafka-ingestion.md](features/001-kafka-ingestion.md)
+Details: [features/001-kafka-ingestion/](features/001-kafka-ingestion/)
+
+### Architecture Review
+Details: [features/002-architecture-review/](features/002-architecture-review/)
 
 ---
 
@@ -42,10 +45,20 @@ Details: [features/001-kafka-ingestion.md](features/001-kafka-ingestion.md)
 - **Platform ops**: centralized logs, metrics (Prometheus), tracing (OTel/Jaeger).
 - Practice: service boundaries, platform primitives, reliability patterns.
 
+### Step 5.5: Simple Deployment Profile
+- Create "simple" profile that works on basic VPS without complex infrastructure.
+- **What this includes:**
+  - Single PostgreSQL without partitioning (or with minimal partitioning)
+  - Synchronous event processing (no Kafka required)
+  - Optional: HTMX admin panel for basic operations
+- **Note:** This may be a separate, simplified build of the system rather than the full highload version.
+- **Goal:** Have a deployable product while continuing highload experiments in parallel.
+- Practice: feature flags, dependency injection, multi-profile configuration.
+
 ### Step 6: Deployment
-- Run the system on Kubernetes (local k3s or Minikube).
+- Run the full system on Kubernetes (local k3s or Minikube).
+- **OR** deploy Simple Profile to a cheap VPS.
 - Experiment with horizontal scaling, liveness/readiness probes.
-- Later, deploy a minimal setup to a cheap VPS.
 - Practice: infra basics, container orchestration, ops skills.
 
 ### Step 7: Simple Frontend (HTMX)

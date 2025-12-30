@@ -20,6 +20,7 @@ import (
 	"TestTaskJustPay/internal/repo/dispute_eventsink"
 	order_repo "TestTaskJustPay/internal/repo/order"
 	"TestTaskJustPay/internal/repo/order_eventsink"
+	"TestTaskJustPay/internal/webhook"
 	"TestTaskJustPay/pkg/logger"
 	"TestTaskJustPay/pkg/postgres"
 )
@@ -54,19 +55,33 @@ func Run(cfg config.Config) {
 		&http.Client{Timeout: cfg.HTTPSilvergateClientTimeout},
 	)
 
-	// Kafka publishers
-	orderPublisher := kafka.NewPublisher(l, cfg.KafkaBrokers, cfg.KafkaOrdersTopic)
-	disputePublisher := kafka.NewPublisher(l, cfg.KafkaBrokers, cfg.KafkaDisputesTopic)
-	defer orderPublisher.Close()
-	defer disputePublisher.Close()
+	// Services (no longer need publishers - webhook processing is handled by processor)
+	orderService := order.NewOrderService(orderRepo, silvergateClient, orderEventSink, l)
+	disputeService := dispute.NewDisputeService(disputeRepo, silvergateClient, disputeEventSink, l)
 
-	// Services with publishers
-	orderService := order.NewOrderService(orderRepo, silvergateClient, orderEventSink, orderPublisher)
-	disputeService := dispute.NewDisputeService(disputeRepo, silvergateClient, disputeEventSink, disputePublisher)
+	// Webhook processor based on config
+	var processor webhook.Processor
+	if cfg.WebhookMode == "kafka" {
+		l.Info("Webhook mode: kafka (async)")
+
+		// Kafka publishers
+		orderPublisher := kafka.NewPublisher(l, cfg.KafkaBrokers, cfg.KafkaOrdersTopic)
+		disputePublisher := kafka.NewPublisher(l, cfg.KafkaBrokers, cfg.KafkaDisputesTopic)
+		defer orderPublisher.Close()
+		defer disputePublisher.Close()
+
+		processor = webhook.NewAsyncProcessor(orderPublisher, disputePublisher)
+
+		// Start Kafka consumers only in kafka mode
+		StartWorkers(ctx, l, cfg, orderService, disputeService)
+	} else {
+		l.Info("Webhook mode: sync (direct)")
+		processor = webhook.NewSyncProcessor(orderService, disputeService)
+	}
 
 	// Handlers
-	orderHandler := handlers.NewOrderHandler(orderService)
-	chargebackHandler := handlers.NewChargebackHandler(disputeService)
+	orderHandler := handlers.NewOrderHandler(orderService, processor)
+	chargebackHandler := handlers.NewChargebackHandler(disputeService, processor)
 	disputeHandler := handlers.NewDisputeHandler(disputeService)
 
 	router := rest.NewRouter(orderHandler, chargebackHandler, disputeHandler)
@@ -77,9 +92,6 @@ func Run(cfg config.Config) {
 	if err != nil {
 		l.Fatal(fmt.Errorf("app - Run - ApplyMigrations: %w", err))
 	}
-
-	// Start Kafka consumers
-	StartWorkers(ctx, l, cfg, orderService, disputeService)
 
 	// Start HTTP server in a goroutine
 	go func() {

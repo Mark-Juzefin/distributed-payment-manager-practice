@@ -22,8 +22,11 @@ type Config struct {
 	OpensearchIndexDisputes string `env:"OPENSEARCH_INDEX_DISPUTES" required:"true"`
 	OpensearchIndexOrders   string `env:"OPENSEARCH_INDEX_ORDERS" required:"true"`
 
+	// Webhook processing mode: "sync" (direct) or "kafka" (async via Kafka)
+	WebhookMode string `env:"WEBHOOK_MODE" envDefault:"sync"`
+
 	// Kafka configuration
-	KafkaBrokers               []string `env:"KAFKA_BROKERS" required:"true" envSeparator:","`
+	KafkaBrokers               []string `env:"KAFKA_BROKERS" envSeparator:","`
 	KafkaOrdersTopic           string   `env:"KAFKA_ORDERS_TOPIC" envDefault:"webhooks.orders"`
 	KafkaDisputesTopic         string   `env:"KAFKA_DISPUTES_TOPIC" envDefault:"webhooks.disputes"`
 	KafkaOrdersConsumerGroup   string   `env:"KAFKA_ORDERS_CONSUMER_GROUP" envDefault:"payment-app-orders"`

@@ -20,10 +20,11 @@ Replace synchronous webhook processing with Kafka-based async ingestion.
 - [x] Handler модифікації (publish замість sync)
 - [x] App wiring + graceful shutdown
 
-**Subtask 2 план:** [plan-subtask-1.md](plan-subtask-1.md)
+**Subtask 2 план:** [plan-subtask-2.md](plan-subtask-2.md)
 
-- [ ] Конфігурація режиму (sync/kafka) через env змінну
-- [ ] Оновити інтеграційний тест, щоб він ен розраховував на синхронність вебхуків
+- [x] Конфігурація режиму (sync/kafka) через env змінну
+- [x] Оновити інтеграційний тест, щоб він не розраховував на синхронність вебхуків
+- [ ] Виправити проблему з consumer group offset в тестах (duplicate key через старі повідомлення)
 - [ ] додати окремі інтеграційні тести до модулів кафки
 
 ## Notes

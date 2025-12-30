@@ -15,6 +15,7 @@ import (
 	"TestTaskJustPay/internal/repo/dispute_eventsink"
 	order_repo "TestTaskJustPay/internal/repo/order"
 	"TestTaskJustPay/internal/repo/order_eventsink"
+	"TestTaskJustPay/internal/webhook"
 	"TestTaskJustPay/pkg/logger"
 	"TestTaskJustPay/pkg/postgres"
 	"bytes"
@@ -43,6 +44,30 @@ func applyBaseFixture(t *testing.T, tx postgres.Executor) {
 }
 
 var successfulSubmittingId = "sg-subm-1"
+
+// isKafkaMode tracks whether tests are running in kafka mode (set in setupTestServer)
+var isKafkaMode bool
+
+// retryGet retries GET request on 404 when in kafka mode (eventual consistency).
+func retryGet(t *testing.T, doRequest func() (*http.Response, error), maxRetries int) *http.Response {
+	t.Helper()
+	var resp *http.Response
+	var err error
+
+	for i := 0; i < maxRetries; i++ {
+		resp, err = doRequest()
+		require.NoError(t, err)
+
+		if resp.StatusCode != http.StatusNotFound || !isKafkaMode {
+			return resp
+		}
+
+		resp.Body.Close()
+		time.Sleep(200 * time.Millisecond)
+	}
+
+	return resp
+}
 
 // todo: refactor
 func setupTestServer(t *testing.T) (*httptest.Server, *postgres.Postgres) {
@@ -81,15 +106,37 @@ func setupTestServer(t *testing.T) (*httptest.Server, *postgres.Postgres) {
 		&http.Client{Timeout: cfg.HTTPSilvergateClientTimeout},
 	)
 
-	// Kafka publishers
-	orderPublisher := kafka.NewPublisher(l, cfg.KafkaBrokers, cfg.KafkaOrdersTopic)
-	disputePublisher := kafka.NewPublisher(l, cfg.KafkaBrokers, cfg.KafkaDisputesTopic)
+	// Services
+	orderService := order.NewOrderService(orderRepo, silvergateClient, orderEventSink, l)
+	disputeService := dispute.NewDisputeService(disputeRepo, silvergateClient, disputeEventSink, l)
 
-	orderService := order.NewOrderService(orderRepo, silvergateClient, orderEventSink, orderPublisher)
-	disputeService := dispute.NewDisputeService(disputeRepo, silvergateClient, disputeEventSink, disputePublisher)
+	// Webhook processor based on WEBHOOK_MODE env variable
+	isKafkaMode = cfg.WebhookMode == "kafka"
+	var processor webhook.Processor
+	if isKafkaMode {
+		t.Logf("Integration test using WEBHOOK_MODE=kafka (async via Kafka)")
 
-	orderHandler := handlers.NewOrderHandler(orderService)
-	chargebackHandler := handlers.NewChargebackHandler(disputeService)
+		// Kafka publishers
+		orderPublisher := kafka.NewPublisher(l, cfg.KafkaBrokers, cfg.KafkaOrdersTopic)
+		disputePublisher := kafka.NewPublisher(l, cfg.KafkaBrokers, cfg.KafkaDisputesTopic)
+		t.Cleanup(func() {
+			orderPublisher.Close()
+			disputePublisher.Close()
+		})
+
+		processor = webhook.NewAsyncProcessor(orderPublisher, disputePublisher)
+
+		// Start Kafka consumers for async processing
+		ctx, cancel := context.WithCancel(context.Background())
+		t.Cleanup(cancel)
+		app.StartWorkers(ctx, l, cfg, orderService, disputeService)
+	} else {
+		t.Logf("Integration test using WEBHOOK_MODE=sync (direct processing)")
+		processor = webhook.NewSyncProcessor(orderService, disputeService)
+	}
+
+	orderHandler := handlers.NewOrderHandler(orderService, processor)
+	chargebackHandler := handlers.NewChargebackHandler(disputeService, processor)
 	disputeHandler := handlers.NewDisputeHandler(disputeService)
 
 	router := apphttp.NewRouter(orderHandler, chargebackHandler, disputeHandler)
@@ -623,8 +670,8 @@ func sendOrderWebhook(t *testing.T, server *httptest.Server, payload map[string]
 	}
 	resp.Body.Close()
 
-	if resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusCreated {
-		t.Errorf("Expected status 200 or 201 for webhooks, got %d", resp.StatusCode)
+	if resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusCreated && resp.StatusCode != http.StatusAccepted {
+		t.Errorf("Expected status 200, 201, or 202 for webhooks, got %d", resp.StatusCode)
 	}
 }
 
@@ -653,13 +700,15 @@ func GET[T any](t *testing.T, baseUrl, path string, queryPayload any, expectedSt
 		u.RawQuery = v.Encode()
 	}
 
-	resp, err := http.Get(u.String())
-	require.NoError(t, err)
+	// Use retry logic for kafka mode (eventual consistency)
+	resp := retryGet(t, func() (*http.Response, error) {
+		return http.Get(u.String())
+	}, 10) // max 10 retries = ~2 seconds
 	defer resp.Body.Close()
 
 	require.Equal(t, expectedStatus, resp.StatusCode)
 
-	err = json.NewDecoder(resp.Body).Decode(&res)
+	err := json.NewDecoder(resp.Body).Decode(&res)
 	require.NoError(t, err)
 	return res
 }

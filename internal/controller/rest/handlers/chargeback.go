@@ -24,6 +24,22 @@ func (h *ChargebackHandler) Webhook(c *gin.Context) {
 		return
 	}
 
+	if err := h.service.QueueChargebackWebhook(c.Request.Context(), event); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"message": "Failed to queue webhook"})
+		return
+	}
+
+	c.Status(http.StatusAccepted)
+}
+
+// WebhookSync handles webhooks synchronously (for testing/fallback).
+func (h *ChargebackHandler) WebhookSync(c *gin.Context) {
+	var event dispute.ChargebackWebhook
+	if err := c.ShouldBindJSON(&event); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"message": "Invalid payload"})
+		return
+	}
+
 	err := h.service.ProcessChargeback(c, event)
 	if err != nil {
 		if errors.Is(err, apperror.ErrUnappropriatedStatus) {

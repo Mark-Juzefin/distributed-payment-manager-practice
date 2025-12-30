@@ -2,6 +2,7 @@ package dispute
 
 import (
 	"TestTaskJustPay/internal/domain/gateway"
+	"TestTaskJustPay/internal/messaging"
 	"TestTaskJustPay/pkg/pointers"
 	"context"
 	"encoding/json"
@@ -13,13 +14,15 @@ type DisputeService struct {
 	disputeRepo DisputeRepo
 	eventSink   EventSink
 	provider    gateway.Provider
+	publisher   messaging.Publisher
 }
 
-func NewDisputeService(repo DisputeRepo, provider gateway.Provider, eventSink EventSink) *DisputeService {
+func NewDisputeService(repo DisputeRepo, provider gateway.Provider, eventSink EventSink, publisher messaging.Publisher) *DisputeService {
 	return &DisputeService{
 		disputeRepo: repo,
 		provider:    provider,
 		eventSink:   eventSink,
+		publisher:   publisher,
 	}
 }
 
@@ -279,4 +282,13 @@ func (s *DisputeService) saveWebhookEvent(ctx context.Context, dispute Dispute, 
 		return fmt.Errorf("create dispute event: %w", err)
 	}
 	return nil
+}
+
+// QueueChargebackWebhook publishes a chargeback webhook to Kafka for async processing.
+func (s *DisputeService) QueueChargebackWebhook(ctx context.Context, webhook ChargebackWebhook) error {
+	envelope, err := messaging.NewEnvelope(webhook.OrderID, "dispute.webhook", webhook)
+	if err != nil {
+		return fmt.Errorf("create envelope: %w", err)
+	}
+	return s.publisher.Publish(ctx, envelope)
 }

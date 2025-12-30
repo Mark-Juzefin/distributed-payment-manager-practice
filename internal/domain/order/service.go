@@ -3,6 +3,7 @@ package order
 import (
 	"TestTaskJustPay/internal/controller/apperror"
 	"TestTaskJustPay/internal/domain/gateway"
+	"TestTaskJustPay/internal/messaging"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -13,13 +14,15 @@ type OrderService struct {
 	orderRepo OrderRepo
 	provider  gateway.Provider
 	eventSink EventSink
+	publisher messaging.Publisher
 }
 
-func NewOrderService(orderRepo OrderRepo, provider gateway.Provider, eventSink EventSink) *OrderService {
+func NewOrderService(orderRepo OrderRepo, provider gateway.Provider, eventSink EventSink, publisher messaging.Publisher) *OrderService {
 	return &OrderService{
 		orderRepo: orderRepo,
 		provider:  provider,
 		eventSink: eventSink,
+		publisher: publisher,
 	}
 }
 
@@ -282,4 +285,13 @@ func (s *OrderService) createCaptureResultEvent(ctx context.Context, orderID str
 
 	_, err := s.eventSink.CreateOrderEvent(ctx, orderEvent)
 	return err
+}
+
+// QueuePaymentWebhook publishes a payment webhook to Kafka for async processing.
+func (s *OrderService) QueuePaymentWebhook(ctx context.Context, webhook PaymentWebhook) error {
+	envelope, err := messaging.NewEnvelope(webhook.OrderId, "order.webhook", webhook)
+	if err != nil {
+		return fmt.Errorf("create envelope: %w", err)
+	}
+	return s.publisher.Publish(ctx, envelope)
 }

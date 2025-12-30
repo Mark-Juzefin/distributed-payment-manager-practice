@@ -12,13 +12,19 @@ Replace synchronous webhook processing with Kafka-based async ingestion.
 
 ## Tasks
 
-- [ ] Інфраструктура (Redpanda + topics)
-- [ ] Config (brokers, topics, consumer groups)
-- [ ] Messaging абстракції (`internal/messaging/`)
-- [ ] Kafka implementation (`internal/external/kafka/`)
-- [ ] Message Controllers (`internal/controller/message/`)
-- [ ] Handler модифікації (publish замість sync)
-- [ ] App wiring + graceful shutdown
+- [x] Інфраструктура (Kafka + Zookeeper)
+- [x] Config (brokers, topics, consumer groups)
+- [x] Messaging абстракції (`internal/messaging/`)
+- [x] Kafka implementation (`internal/external/kafka/`)
+- [x] Message Controllers (`internal/controller/message/`)
+- [x] Handler модифікації (publish замість sync)
+- [x] App wiring + graceful shutdown
+
+**Subtask 2 план:** [plan-subtask-1.md](plan-subtask-1.md)
+
+- [ ] Конфігурація режиму (sync/kafka) через env змінну
+- [ ] Оновити інтеграційний тест, щоб він ен розраховував на синхронність вебхуків
+- [ ] додати окремі інтеграційні тести до модулів кафки
 
 ## Notes
 

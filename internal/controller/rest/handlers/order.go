@@ -25,6 +25,22 @@ func (h *OrderHandler) Webhook(c *gin.Context) {
 		return
 	}
 
+	if err := h.service.QueuePaymentWebhook(c.Request.Context(), event); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"message": "Failed to queue webhook"})
+		return
+	}
+
+	c.Status(http.StatusAccepted)
+}
+
+// WebhookSync handles webhooks synchronously (for testing/fallback).
+func (h *OrderHandler) WebhookSync(c *gin.Context) {
+	var event order.PaymentWebhook
+	if err := c.ShouldBindJSON(&event); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"message": "Missing order_id"})
+		return
+	}
+
 	err := h.service.ProcessPaymentWebhook(c, event)
 	if err != nil {
 		if errors.Is(err, apperror.ErrUnappropriatedStatus) {

@@ -1,5 +1,4 @@
 //go:build integration
-// +build integration
 
 package integration_test
 
@@ -10,6 +9,7 @@ import (
 	"TestTaskJustPay/internal/controller/rest/handlers"
 	"TestTaskJustPay/internal/domain/dispute"
 	"TestTaskJustPay/internal/domain/order"
+	"TestTaskJustPay/internal/external/kafka"
 	"TestTaskJustPay/internal/external/silvergate"
 	dispute_repo "TestTaskJustPay/internal/repo/dispute"
 	"TestTaskJustPay/internal/repo/dispute_eventsink"
@@ -80,8 +80,13 @@ func setupTestServer(t *testing.T) (*httptest.Server, *postgres.Postgres) {
 		cfg.SilvergateCapturePath,
 		&http.Client{Timeout: cfg.HTTPSilvergateClientTimeout},
 	)
-	orderService := order.NewOrderService(orderRepo, silvergateClient, orderEventSink)
-	disputeService := dispute.NewDisputeService(disputeRepo, silvergateClient, disputeEventSink)
+
+	// Kafka publishers
+	orderPublisher := kafka.NewPublisher(l, cfg.KafkaBrokers, cfg.KafkaOrdersTopic)
+	disputePublisher := kafka.NewPublisher(l, cfg.KafkaBrokers, cfg.KafkaDisputesTopic)
+
+	orderService := order.NewOrderService(orderRepo, silvergateClient, orderEventSink, orderPublisher)
+	disputeService := dispute.NewDisputeService(disputeRepo, silvergateClient, disputeEventSink, disputePublisher)
 
 	orderHandler := handlers.NewOrderHandler(orderService)
 	chargebackHandler := handlers.NewChargebackHandler(disputeService)

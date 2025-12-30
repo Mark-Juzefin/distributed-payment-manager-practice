@@ -12,7 +12,10 @@
 ## In Progress
 
 ### Step 1: Webhooks ingestion with Kafka
-Details: [features/001-kafka-ingestion.md](features/001-kafka-ingestion.md)
+Details: [features/001-kafka-ingestion/](features/001-kafka-ingestion/)
+
+### Architecture Review
+Details: [features/002-architecture-review/](features/002-architecture-review/)
 
 ---
 

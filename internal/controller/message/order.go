@@ -44,10 +44,15 @@ func (c *OrderMessageController) HandleMessage(ctx context.Context, key, value [
 	}
 
 	if err := c.service.ProcessPaymentWebhook(ctx, webhook); err != nil {
-		// Idempotency: duplicate events are not errors
+		// Idempotency: duplicate events/orders are not errors
 		if errors.Is(err, apperror.ErrEventAlreadyStored) {
 			c.logger.Info("Duplicate order event ignored: event_id=%s order_id=%s provider_event_id=%s",
 				env.EventID, webhook.OrderId, webhook.ProviderEventID)
+			return nil
+		}
+		if errors.Is(err, apperror.ErrOrderAlreadyExists) {
+			c.logger.Info("Order already exists, skipping: event_id=%s order_id=%s",
+				env.EventID, webhook.OrderId)
 			return nil
 		}
 

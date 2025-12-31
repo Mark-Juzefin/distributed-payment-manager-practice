@@ -24,8 +24,12 @@ Replace synchronous webhook processing with Kafka-based async ingestion.
 
 - [x] Конфігурація режиму (sync/kafka) через env змінну
 - [x] Оновити інтеграційний тест, щоб він не розраховував на синхронність вебхуків
-- [ ] Виправити проблему з consumer group offset в тестах (duplicate key через старі повідомлення)
+- [x] Виправити проблему з consumer group offset в тестах (duplicate key через старі повідомлення)
+- [x] Виправити retry в тестах для пустих результатів (GET повертає 200 з [])
+- [x] Додати retry в consumer при order not found (race condition)
+- [ ] Дослідити Transactional Outbox pattern для reliable messaging
 - [ ] додати окремі інтеграційні тести до модулів кафки
+- [ ] Ізоляція тестів: unique consumer group per test run (уникнути stale messages)
 
 ## Notes
 

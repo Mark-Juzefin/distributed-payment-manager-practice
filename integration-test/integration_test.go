@@ -324,6 +324,12 @@ func TestChargebackFlow(t *testing.T) {
 	}
 	sendOrderWebhook(t, server, createOrderPayload)
 
+	// Wait for order to be created (needed for kafka mode)
+	// Use longer timeout for first run when consumer group is initializing
+	if waitForOrder(t, server, orderID, 40) == nil {
+		t.Fatalf("Order was not created: %s", orderID)
+	}
+
 	// Now create the chargeback to trigger dispute creation
 	openChargeback := map[string]interface{}{
 		"provider_event_id": "evt-1",
@@ -339,8 +345,8 @@ func TestChargebackFlow(t *testing.T) {
 	// send event to create dispute
 	sendChargebacksWebhooks(t, server, openChargeback)
 
-	// find one by order id
-	foundDispute := findDisputeByOrderID(t, server.URL, orderID)
+	// find one by order id (with retry for kafka mode)
+	foundDispute := waitForDisputeByOrderID(t, server.URL, orderID, 15)
 	if foundDispute == nil {
 		t.Fatalf("Could not find dispute for order_id: %s", orderID)
 	}
@@ -369,8 +375,8 @@ func TestChargebackFlow(t *testing.T) {
 
 	sendChargebacksWebhooks(t, server, closeChargeback)
 
-	// find updated dispute by order id
-	updatedDispute := findDisputeByOrderID(t, server.URL, orderID)
+	// find updated dispute by order id (wait for status change in kafka mode)
+	updatedDispute := waitForDisputeStatus(t, server.URL, orderID, "won", 15)
 	if updatedDispute == nil {
 		t.Fatalf("Could not find updated dispute for order_id: %s", orderID)
 	}
@@ -460,11 +466,10 @@ func TestUpdateOrderFlow(t *testing.T) {
 
 	sendOrderWebhook(t, server, initialOrder)
 
-	// Verify order was created
-	initialResult := getOrder(t, server, orderID)
-
-	if initialResult.Status != "created" {
-		t.Errorf("Expected order status to be 'created', got %v", initialResult.Status)
+	// Verify order was created (wait in kafka mode)
+	initialResult := waitForOrderStatus(t, server, orderID, "created", 20)
+	if initialResult == nil || initialResult.Status != "created" {
+		t.Fatalf("Expected order status to be 'created', got %v", initialResult)
 	}
 
 	// Update the order
@@ -483,11 +488,10 @@ func TestUpdateOrderFlow(t *testing.T) {
 
 	sendOrderWebhook(t, server, updatedOrder)
 
-	// Verify order was updated
-	updatedResult := getOrder(t, server, orderID)
-
-	if updatedResult.Status != "updated" {
-		t.Errorf("Expected order status to be 'updated', got %v", updatedResult.Status)
+	// Verify order was updated (wait in kafka mode)
+	updatedResult := waitForOrderStatus(t, server, orderID, "updated", 20)
+	if updatedResult == nil || updatedResult.Status != "updated" {
+		t.Errorf("Expected order status to be 'updated', got %v", updatedResult)
 	}
 }
 
@@ -534,7 +538,7 @@ func TestEvidenceAdditionFlow(t *testing.T) {
 	}
 
 	// Get updated disputes to verify status change
-	updatedDispute := findDisputeByOrderID(t, server.URL, orderID)
+	updatedDispute := waitForDisputeStatus(t, server.URL, orderID, "under_review", 15)
 	if updatedDispute == nil {
 		t.Fatalf("Could not find updated dispute for order_id: %s", orderID)
 	}
@@ -573,7 +577,7 @@ func TestSubmitDisputeFlow(t *testing.T) {
 		disputeID := createOpenedDisputeForOrderId(t, server, orderID)
 
 		// Verify initial dispute status is "open"
-		initialDispute := findDisputeByOrderID(t, server.URL, orderID)
+		initialDispute := waitForDisputeByOrderID(t, server.URL, orderID, 15)
 		if initialDispute == nil {
 			t.Fatalf("Could not find dispute for order_id: %s", orderID)
 		}
@@ -600,7 +604,7 @@ func TestSubmitDisputeFlow(t *testing.T) {
 		addEvidence(t, server, disputeID, evidenceData)
 
 		// Verify status changed to "under_review" after evidence addition
-		updatedDispute := findDisputeByOrderID(t, server.URL, orderID)
+		updatedDispute := waitForDisputeStatus(t, server.URL, orderID, "under_review", 15)
 		if updatedDispute == nil {
 			t.Fatalf("Could not find updated dispute for order_id: %s", orderID)
 		}
@@ -612,7 +616,7 @@ func TestSubmitDisputeFlow(t *testing.T) {
 		submitDispute(t, server, disputeID)
 
 		// Verify final state after submission
-		finalDispute := findDisputeByOrderID(t, server.URL, orderID)
+		finalDispute := waitForDisputeStatus(t, server.URL, orderID, "submitted", 15)
 		if finalDispute == nil {
 			t.Fatalf("Could not find final dispute for order_id: %s", orderID)
 		}
@@ -660,6 +664,14 @@ func createOrderWithId(t *testing.T, server *httptest.Server, orderId string) {
 	}
 
 	sendOrderWebhook(t, server, createOrderPayload)
+
+	// In kafka mode, wait for the order to be created
+	// Use longer timeout (40 retries * 200ms = 8s) for first run when consumer group is initializing
+	if isKafkaMode {
+		if waitForOrder(t, server, orderId, 40) == nil {
+			t.Fatalf("Order %s was not created in time (kafka mode)", orderId)
+		}
+	}
 }
 
 func sendOrderWebhook(t *testing.T, server *httptest.Server, payload map[string]interface{}) {
@@ -784,6 +796,7 @@ func submitDispute(t *testing.T, server *httptest.Server, disputeID string) {
 }
 
 func createOpenedDisputeForOrderId(t *testing.T, server *httptest.Server, orderId string) (disputeId string) {
+	// createOrderWithId already waits for order in kafka mode
 	createOrderWithId(t, server, orderId)
 
 	openChargeback := map[string]interface{}{
@@ -799,7 +812,7 @@ func createOpenedDisputeForOrderId(t *testing.T, server *httptest.Server, orderI
 
 	sendChargebacksWebhooks(t, server, openChargeback)
 
-	foundDispute := findDisputeByOrderID(t, server.URL, orderId)
+	foundDispute := waitForDisputeByOrderID(t, server.URL, orderId, 15)
 	if foundDispute == nil {
 		t.Fatalf("Could not find dispute for order_id: %s", orderId)
 	}
@@ -822,6 +835,116 @@ func findDisputeByOrderID(t *testing.T, baseURL, orderID string) *dispute.Disput
 		}
 	}
 	return nil
+}
+
+// waitForDisputeByOrderID retries finding dispute until found or max retries reached.
+// In kafka mode, dispute creation is async so we need to poll.
+func waitForDisputeByOrderID(t *testing.T, baseURL, orderID string, maxRetries int) *dispute.Dispute {
+	t.Helper()
+
+	for i := 0; i < maxRetries; i++ {
+		dispute := findDisputeByOrderID(t, baseURL, orderID)
+		if dispute != nil {
+			return dispute
+		}
+
+		if !isKafkaMode {
+			return nil // in sync mode, if not found immediately - it won't appear
+		}
+
+		time.Sleep(200 * time.Millisecond)
+	}
+
+	return nil
+}
+
+// waitForDisputeStatus retries until dispute has expected status or max retries reached.
+func waitForDisputeStatus(t *testing.T, baseURL, orderID, expectedStatus string, maxRetries int) *dispute.Dispute {
+	t.Helper()
+
+	for i := 0; i < maxRetries; i++ {
+		d := findDisputeByOrderID(t, baseURL, orderID)
+		if d != nil && string(d.Status) == expectedStatus {
+			return d
+		}
+
+		if !isKafkaMode {
+			return d // in sync mode, return whatever we found
+		}
+
+		time.Sleep(200 * time.Millisecond)
+	}
+
+	return findDisputeByOrderID(t, baseURL, orderID)
+}
+
+// waitForOrder retries getting order until found or max retries reached.
+// In kafka mode, order creation is async so we need to poll.
+func waitForOrder(t *testing.T, server *httptest.Server, orderID string, maxRetries int) *order.Order {
+	t.Helper()
+
+	for i := 0; i < maxRetries; i++ {
+		resp, err := http.Get(server.URL + "/orders/" + orderID)
+		if err != nil {
+			t.Fatalf("Failed to get order: %v", err)
+		}
+
+		if resp.StatusCode == http.StatusOK {
+			var o order.Order
+			err = json.NewDecoder(resp.Body).Decode(&o)
+			resp.Body.Close()
+			if err != nil {
+				t.Fatalf("Failed to decode order: %v", err)
+			}
+			return &o
+		}
+		resp.Body.Close()
+
+		if !isKafkaMode {
+			return nil // in sync mode, if not found immediately - it won't appear
+		}
+
+		time.Sleep(200 * time.Millisecond)
+	}
+
+	return nil
+}
+
+// waitForOrderStatus retries getting order until it has the expected status or max retries reached.
+// In kafka mode, order updates are async so we need to poll.
+func waitForOrderStatus(t *testing.T, server *httptest.Server, orderID, expectedStatus string, maxRetries int) *order.Order {
+	t.Helper()
+
+	for i := 0; i < maxRetries; i++ {
+		resp, err := http.Get(server.URL + "/orders/" + orderID)
+		if err != nil {
+			t.Fatalf("Failed to get order: %v", err)
+		}
+
+		if resp.StatusCode == http.StatusOK {
+			var o order.Order
+			err = json.NewDecoder(resp.Body).Decode(&o)
+			resp.Body.Close()
+			if err != nil {
+				t.Fatalf("Failed to decode order: %v", err)
+			}
+			if string(o.Status) == expectedStatus {
+				return &o
+			}
+		} else {
+			resp.Body.Close()
+		}
+
+		if !isKafkaMode {
+			return nil // in sync mode, if status doesn't match immediately - it won't change
+		}
+
+		time.Sleep(200 * time.Millisecond)
+	}
+
+	// Return the last state even if status doesn't match
+	o := waitForOrder(t, server, orderID, 1)
+	return o
 }
 
 func TestOrderHoldFlow(t *testing.T) {

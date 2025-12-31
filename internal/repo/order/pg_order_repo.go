@@ -1,10 +1,13 @@
 package order_repo
 
 import (
-	"TestTaskJustPay/internal/domain/order"
-	"TestTaskJustPay/pkg/postgres"
 	"context"
 	"fmt"
+	"strings"
+
+	"TestTaskJustPay/internal/controller/apperror"
+	"TestTaskJustPay/internal/domain/order"
+	"TestTaskJustPay/pkg/postgres"
 
 	"github.com/Masterminds/squirrel"
 	"github.com/jackc/pgx/v5"
@@ -92,6 +95,9 @@ func (r *repo) CreateOrder(ctx context.Context, event order.PaymentWebhook) erro
 
 	_, err = r.db.Exec(ctx, query, args...)
 	if err != nil {
+		if strings.Contains(err.Error(), "duplicate key") && strings.Contains(err.Error(), "orders_pkey") {
+			return apperror.ErrOrderAlreadyExists
+		}
 		return fmt.Errorf("create order by event: %w", err)
 	}
 	return nil

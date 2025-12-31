@@ -1,14 +1,15 @@
 package dispute_repo
 
 import (
-	"TestTaskJustPay/internal/domain/dispute"
-	"TestTaskJustPay/internal/domain/gateway"
-	"TestTaskJustPay/pkg/postgres"
 	"context"
 	"database/sql"
 	"encoding/json"
 	"fmt"
 	"time"
+
+	"TestTaskJustPay/internal/domain/dispute"
+	"TestTaskJustPay/internal/domain/gateway"
+	"TestTaskJustPay/pkg/postgres"
 
 	"github.com/Masterminds/squirrel"
 	"github.com/google/uuid"

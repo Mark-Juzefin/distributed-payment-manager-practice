@@ -7,7 +7,7 @@ tool github.com/pressly/goose/v3/cmd/goose
 require (
 	github.com/Masterminds/squirrel v1.5.4
 	github.com/caarlos0/env/v11 v11.3.1
-	github.com/docker/go-connections v0.5.0
+	github.com/docker/go-connections v0.6.0
 	github.com/gin-gonic/gin v1.10.0
 	github.com/google/go-querystring v1.1.0
 	github.com/google/uuid v1.6.0
@@ -19,13 +19,13 @@ require (
 	github.com/rs/zerolog v1.34.0
 	github.com/segmentio/kafka-go v0.4.49
 	github.com/stretchr/testify v1.11.1
-	github.com/testcontainers/testcontainers-go v0.38.0
+	github.com/testcontainers/testcontainers-go v0.40.0
 	go.uber.org/mock v0.5.2
 	golang.org/x/sync v0.17.0
 )
 
 require (
-	dario.cat/mergo v1.0.1 // indirect
+	dario.cat/mergo v1.0.2 // indirect
 	filippo.io/edwards25519 v1.1.0 // indirect
 	github.com/Azure/go-ansiterm v0.0.0-20210617225240-d185dfc1b5a1 // indirect
 	github.com/ClickHouse/ch-go v0.61.5 // indirect
@@ -35,7 +35,7 @@ require (
 	github.com/antlr4-go/antlr/v4 v4.13.0 // indirect
 	github.com/bytedance/sonic v1.11.6 // indirect
 	github.com/bytedance/sonic/loader v0.1.1 // indirect
-	github.com/cenkalti/backoff/v4 v4.2.1 // indirect
+	github.com/cenkalti/backoff/v4 v4.3.0 // indirect
 	github.com/cespare/xxhash/v2 v2.3.0 // indirect
 	github.com/cloudwego/base64x v0.1.4 // indirect
 	github.com/cloudwego/iasm v0.2.0 // indirect
@@ -47,7 +47,7 @@ require (
 	github.com/cpuguy83/dockercfg v0.3.2 // indirect
 	github.com/davecgh/go-spew v1.1.1 // indirect
 	github.com/distribution/reference v0.6.0 // indirect
-	github.com/docker/docker v28.2.2+incompatible // indirect
+	github.com/docker/docker v28.5.1+incompatible // indirect
 	github.com/docker/go-units v0.5.0 // indirect
 	github.com/dustin/go-humanize v1.0.1 // indirect
 	github.com/ebitengine/purego v0.8.4 // indirect
@@ -113,9 +113,10 @@ require (
 	github.com/remyoudompheng/bigfft v0.0.0-20230129092748-24d4a6f8daec // indirect
 	github.com/segmentio/asm v1.2.0 // indirect
 	github.com/sethvargo/go-retry v0.3.0 // indirect
-	github.com/shirou/gopsutil/v4 v4.25.5 // indirect
+	github.com/shirou/gopsutil/v4 v4.25.6 // indirect
 	github.com/shopspring/decimal v1.4.0 // indirect
 	github.com/sirupsen/logrus v1.9.3 // indirect
+	github.com/testcontainers/testcontainers-go/modules/kafka v0.40.0 // indirect
 	github.com/tklauser/go-sysconf v0.3.12 // indirect
 	github.com/tklauser/numcpus v0.6.1 // indirect
 	github.com/tursodatabase/libsql-client-go v0.0.0-20240902231107-85af5b9d094d // indirect
@@ -138,6 +139,7 @@ require (
 	golang.org/x/arch v0.8.0 // indirect
 	golang.org/x/crypto v0.43.0 // indirect
 	golang.org/x/exp v0.0.0-20240325151524-a685a6edb6d8 // indirect
+	golang.org/x/mod v0.28.0 // indirect
 	golang.org/x/net v0.46.0 // indirect
 	golang.org/x/sys v0.39.0 // indirect
 	golang.org/x/text v0.30.0 // indirect

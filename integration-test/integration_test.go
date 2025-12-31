@@ -15,6 +15,7 @@ import (
 	"TestTaskJustPay/internal/repo/dispute_eventsink"
 	order_repo "TestTaskJustPay/internal/repo/order"
 	"TestTaskJustPay/internal/repo/order_eventsink"
+	"TestTaskJustPay/internal/testinfra"
 	"TestTaskJustPay/internal/webhook"
 	"TestTaskJustPay/pkg/logger"
 	"TestTaskJustPay/pkg/postgres"
@@ -22,9 +23,11 @@ import (
 	"context"
 	_ "embed"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"os"
 	"testing"
 	"time"
 
@@ -45,10 +48,29 @@ func applyBaseFixture(t *testing.T, tx postgres.Executor) {
 
 var successfulSubmittingId = "sg-subm-1"
 
-// isKafkaMode tracks whether tests are running in kafka mode (set in setupTestServer)
-var isKafkaMode bool
+// suite holds testcontainer infrastructure (created in TestMain)
+var suite *testinfra.TestSuite
 
-// retryGet retries GET request on 404 when in kafka mode (eventual consistency).
+func TestMain(m *testing.M) {
+	ctx := context.Background()
+
+	var err error
+	suite, err = testinfra.NewTestSuite(ctx, testinfra.SuiteOptions{
+		WithKafka:    true,
+		WithWiremock: true,
+		MappingsPath: "mappings", // relative path from integration-test/
+	})
+	if err != nil {
+		panic(fmt.Sprintf("Failed to start test suite: %v", err))
+	}
+
+	code := m.Run()
+
+	suite.Cleanup(ctx)
+	os.Exit(code)
+}
+
+// retryGet retries GET request on 404 for eventual consistency in kafka mode.
 func retryGet(t *testing.T, doRequest func() (*http.Response, error), maxRetries int) *http.Response {
 	t.Helper()
 	var resp *http.Response
@@ -58,7 +80,7 @@ func retryGet(t *testing.T, doRequest func() (*http.Response, error), maxRetries
 		resp, err = doRequest()
 		require.NoError(t, err)
 
-		if resp.StatusCode != http.StatusNotFound || !isKafkaMode {
+		if resp.StatusCode != http.StatusNotFound {
 			return resp
 		}
 
@@ -69,27 +91,15 @@ func retryGet(t *testing.T, doRequest func() (*http.Response, error), maxRetries
 	return resp
 }
 
-// todo: refactor
 func setupTestServer(t *testing.T) (*httptest.Server, *postgres.Postgres) {
-	cfg, err := config.New()
-	if err != nil {
-		t.Fatalf("Failed to load config: %v", err)
-	}
-	l := logger.New(cfg.LogLevel)
+	l := logger.New("debug")
 
-	pool, err := postgres.New(cfg.PgURL, postgres.MaxPoolSize(cfg.PgPoolMax))
-	if err != nil {
-		t.Fatalf("Failed to create postgres pool: %v", err)
-	}
-
-	// Apply migrations
-	err = app.ApplyMigrations(cfg.PgURL, app.MIGRATION_FS)
-	if err != nil {
-		t.Fatalf("Failed to apply migrations: %v", err)
-	}
+	// Use postgres pool from testcontainer suite
+	pool := suite.Postgres.Pool
 
 	// Clean existing data from tables
-	_, err = pool.Pool.Exec(context.Background(), "TRUNCATE TABLE dispute_events, disputes, order_events, orders, evidence CASCADE")
+	ctx := context.Background()
+	err := suite.Postgres.Truncate(ctx)
 	if err != nil {
 		t.Fatalf("Failed to clean database: %v", err)
 	}
@@ -100,40 +110,46 @@ func setupTestServer(t *testing.T) (*httptest.Server, *postgres.Postgres) {
 	orderEventSink := order_eventsink.NewPgOrderEventRepo(pool.Pool, pool.Builder)
 
 	silvergateClient := silvergate.New(
-		cfg.SilvergateBaseURL,
-		cfg.SilvergateSubmitRepresentmentPath,
-		cfg.SilvergateCapturePath,
-		&http.Client{Timeout: cfg.HTTPSilvergateClientTimeout},
+		suite.Wiremock.BaseURL,
+		"/api/v1/dispute-representments/create",
+		"/api/v1/capture",
+		&http.Client{Timeout: 10 * time.Second},
 	)
 
 	// Services
 	orderService := order.NewOrderService(orderRepo, silvergateClient, orderEventSink, l)
 	disputeService := dispute.NewDisputeService(disputeRepo, silvergateClient, disputeEventSink, l)
 
-	// Webhook processor based on WEBHOOK_MODE env variable
-	isKafkaMode = cfg.WebhookMode == "kafka"
-	var processor webhook.Processor
-	if isKafkaMode {
-		t.Logf("Integration test using WEBHOOK_MODE=kafka (async via Kafka)")
+	// Kafka publishers (always kafka in tests)
+	orderPublisher := kafka.NewPublisher(l, suite.Kafka.Brokers, suite.Kafka.OrdersTopic)
+	disputePublisher := kafka.NewPublisher(l, suite.Kafka.Brokers, suite.Kafka.DisputesTopic)
+	t.Cleanup(func() {
+		orderPublisher.Close()
+		disputePublisher.Close()
+	})
 
-		// Kafka publishers
-		orderPublisher := kafka.NewPublisher(l, cfg.KafkaBrokers, cfg.KafkaOrdersTopic)
-		disputePublisher := kafka.NewPublisher(l, cfg.KafkaBrokers, cfg.KafkaDisputesTopic)
-		t.Cleanup(func() {
-			orderPublisher.Close()
-			disputePublisher.Close()
-		})
+	processor := webhook.NewAsyncProcessor(orderPublisher, disputePublisher)
 
-		processor = webhook.NewAsyncProcessor(orderPublisher, disputePublisher)
+	// Start Kafka consumers for async processing
+	consumerCtx, cancel := context.WithCancel(context.Background())
+	t.Cleanup(func() {
+		cancel()
+		// Give time for consumers to close and commit offsets
+		time.Sleep(500 * time.Millisecond)
+	})
 
-		// Start Kafka consumers for async processing
-		ctx, cancel := context.WithCancel(context.Background())
-		t.Cleanup(cancel)
-		app.StartWorkers(ctx, l, cfg, orderService, disputeService)
-	} else {
-		t.Logf("Integration test using WEBHOOK_MODE=sync (direct processing)")
-		processor = webhook.NewSyncProcessor(orderService, disputeService)
+	cfg := config.Config{
+		KafkaBrokers:               suite.Kafka.Brokers,
+		KafkaOrdersTopic:           suite.Kafka.OrdersTopic,
+		KafkaDisputesTopic:         suite.Kafka.DisputesTopic,
+		KafkaOrdersConsumerGroup:   suite.Kafka.OrdersGroup,
+		KafkaDisputesConsumerGroup: suite.Kafka.DisputesGroup,
 	}
+	app.StartWorkers(consumerCtx, l, cfg, orderService, disputeService)
+
+	// Give consumers time to start and join consumer group
+	// Topics are pre-created, but consumers still need time to subscribe and rebalance
+	time.Sleep(1 * time.Second)
 
 	orderHandler := handlers.NewOrderHandler(orderService, processor)
 	chargebackHandler := handlers.NewChargebackHandler(disputeService, processor)
@@ -395,11 +411,14 @@ func TestCreateOrdersFlow(t *testing.T) {
 	server, _ := setupTestServer(t)
 	defer server.Close()
 
+	orderId1 := "order-1"
+	orderId2 := "order-2"
+
 	// Create multiple orders via webhook
 	orders := []map[string]interface{}{
 		{
 			"provider_event_id": "evt-1",
-			"order_id":          "order-1",
+			"order_id":          orderId1,
 			"user_id":           "11111111-1111-1111-1111-111111111111",
 			"status":            "created",
 			"updated_at":        time.Now().Format(time.RFC3339),
@@ -411,7 +430,7 @@ func TestCreateOrdersFlow(t *testing.T) {
 		},
 		{
 			"provider_event_id": "evt-2",
-			"order_id":          "order-2",
+			"order_id":          orderId2,
 			"user_id":           "22222222-2222-2222-2222-222222222222",
 			"status":            "created",
 			"updated_at":        time.Now().Format(time.RFC3339),
@@ -428,6 +447,14 @@ func TestCreateOrdersFlow(t *testing.T) {
 		sendOrderWebhook(t, server, orderData)
 	}
 
+	if waitForOrder(t, server, orderId1, 40) == nil {
+		t.Fatalf("Order %s was not created in time", orderId1)
+	}
+
+	if waitForOrder(t, server, orderId2, 40) == nil {
+		t.Fatalf("Order %s was not created in time", orderId2)
+	}
+
 	// Get all orders to verify creation
 	result := getOrders(t, server)
 
@@ -437,7 +464,7 @@ func TestCreateOrdersFlow(t *testing.T) {
 
 	// Verify webhook_received events were created for both orders
 	eventsPage := getOrderEvents(t, server.URL, order.OrderEventQuery{
-		OrderIDs: []string{"order-1", "order-2"},
+		OrderIDs: []string{orderId1, orderId2},
 		Kinds:    []order.OrderEventKind{order.OrderEventWebhookReceived},
 		Limit:    10,
 	})
@@ -665,12 +692,10 @@ func createOrderWithId(t *testing.T, server *httptest.Server, orderId string) {
 
 	sendOrderWebhook(t, server, createOrderPayload)
 
-	// In kafka mode, wait for the order to be created
+	// Wait for the order to be created (kafka mode - async processing)
 	// Use longer timeout (40 retries * 200ms = 8s) for first run when consumer group is initializing
-	if isKafkaMode {
-		if waitForOrder(t, server, orderId, 40) == nil {
-			t.Fatalf("Order %s was not created in time (kafka mode)", orderId)
-		}
+	if waitForOrder(t, server, orderId, 40) == nil {
+		t.Fatalf("Order %s was not created in time", orderId)
 	}
 }
 
@@ -838,7 +863,7 @@ func findDisputeByOrderID(t *testing.T, baseURL, orderID string) *dispute.Disput
 }
 
 // waitForDisputeByOrderID retries finding dispute until found or max retries reached.
-// In kafka mode, dispute creation is async so we need to poll.
+// Dispute creation is async (kafka mode) so we need to poll.
 func waitForDisputeByOrderID(t *testing.T, baseURL, orderID string, maxRetries int) *dispute.Dispute {
 	t.Helper()
 
@@ -846,10 +871,6 @@ func waitForDisputeByOrderID(t *testing.T, baseURL, orderID string, maxRetries i
 		dispute := findDisputeByOrderID(t, baseURL, orderID)
 		if dispute != nil {
 			return dispute
-		}
-
-		if !isKafkaMode {
-			return nil // in sync mode, if not found immediately - it won't appear
 		}
 
 		time.Sleep(200 * time.Millisecond)
@@ -868,10 +889,6 @@ func waitForDisputeStatus(t *testing.T, baseURL, orderID, expectedStatus string,
 			return d
 		}
 
-		if !isKafkaMode {
-			return d // in sync mode, return whatever we found
-		}
-
 		time.Sleep(200 * time.Millisecond)
 	}
 
@@ -879,7 +896,7 @@ func waitForDisputeStatus(t *testing.T, baseURL, orderID, expectedStatus string,
 }
 
 // waitForOrder retries getting order until found or max retries reached.
-// In kafka mode, order creation is async so we need to poll.
+// Order creation is async (kafka mode) so we need to poll.
 func waitForOrder(t *testing.T, server *httptest.Server, orderID string, maxRetries int) *order.Order {
 	t.Helper()
 
@@ -899,10 +916,6 @@ func waitForOrder(t *testing.T, server *httptest.Server, orderID string, maxRetr
 			return &o
 		}
 		resp.Body.Close()
-
-		if !isKafkaMode {
-			return nil // in sync mode, if not found immediately - it won't appear
-		}
 
 		time.Sleep(200 * time.Millisecond)
 	}
@@ -933,10 +946,6 @@ func waitForOrderStatus(t *testing.T, server *httptest.Server, orderID, expected
 			}
 		} else {
 			resp.Body.Close()
-		}
-
-		if !isKafkaMode {
-			return nil // in sync mode, if status doesn't match immediately - it won't change
 		}
 
 		time.Sleep(200 * time.Millisecond)

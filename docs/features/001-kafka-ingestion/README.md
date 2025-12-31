@@ -29,7 +29,10 @@ Replace synchronous webhook processing with Kafka-based async ingestion.
 - [x] Додати retry в consumer при order not found (race condition)
 - [ ] Дослідити Transactional Outbox pattern для reliable messaging
 - [ ] додати окремі інтеграційні тести до модулів кафки
-- [ ] Ізоляція тестів: unique consumer group per test run (уникнути stale messages)
+
+**Subtask 3 план:** [plan-subtask-3.md](plan-subtask-3.md)
+
+- [x] Testcontainers для ізоляції тестів (замість docker-compose для тестів)
 
 ## Notes
 

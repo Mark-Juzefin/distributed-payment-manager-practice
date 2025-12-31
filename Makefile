@@ -34,11 +34,11 @@ INTEGRATION_DIRS = \
 	./internal/repo/dispute_eventsink \
 	./internal/repo/order_eventsink
 
-integration-test: start_containers
+integration-test:
 	go clean -testcache && go test -tags=integration -v  $(INTEGRATION_DIRS)
 
 .PHONY: integration-test-name
-integration-test-name: start_containers
+integration-test-name:
 ifndef name
 	$(error "Usage: make integration-test-name name=testname")
 endif

@@ -3,7 +3,7 @@ export
 
 MIGRATION_DIR=internal/app/migrations
 
-.PHONY: run run-dev start_containers stop_containers lint test integration-test generate migrate seed-db print-db-size clean-db benchmark build-pg-image
+.PHONY: run run-dev start_containers stop_containers stop_containers_remove lint test integration-test generate migrate seed-db print-db-size clean-db benchmark build-pg-image
 
 run:
 	docker compose --profile prod up --build
@@ -17,6 +17,9 @@ start_containers:
 stop_containers:
 	docker compose --profile infra --profile prod down --remove-orphans
 
+stop_containers_remove:
+	docker compose --profile infra down -v
+
 build-pg-image:
 	docker build -f PG.Dockerfile -t pg17-partman:local .
 
@@ -27,11 +30,20 @@ test:
 	go test -race ./...
 
 INTEGRATION_DIRS = \
+	./integration-test/... \
 	./internal/repo/dispute_eventsink \
-	./integration-test/...
+	./internal/repo/order_eventsink
 
-integration-test: start_containers
+integration-test:
 	go clean -testcache && go test -tags=integration -v  $(INTEGRATION_DIRS)
+
+.PHONY: integration-test-name
+integration-test-name:
+ifndef name
+	$(error "Usage: make integration-test-name name=testname")
+endif
+	go clean -testcache && go test -run $(name)  -tags=integration -v  $(INTEGRATION_DIRS)
+
 
 generate:
 	go generate ./...

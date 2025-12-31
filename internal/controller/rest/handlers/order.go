@@ -3,6 +3,7 @@ package handlers
 import (
 	"TestTaskJustPay/internal/controller/apperror"
 	"TestTaskJustPay/internal/domain/order"
+	"TestTaskJustPay/internal/webhook"
 	"errors"
 	"fmt"
 	"net/http"
@@ -11,11 +12,12 @@ import (
 )
 
 type OrderHandler struct {
-	service *order.OrderService
+	service   *order.OrderService
+	processor webhook.Processor
 }
 
-func NewOrderHandler(s *order.OrderService) OrderHandler {
-	return OrderHandler{service: s}
+func NewOrderHandler(s *order.OrderService, processor webhook.Processor) OrderHandler {
+	return OrderHandler{service: s, processor: processor}
 }
 
 func (h *OrderHandler) Webhook(c *gin.Context) {
@@ -25,7 +27,7 @@ func (h *OrderHandler) Webhook(c *gin.Context) {
 		return
 	}
 
-	err := h.service.ProcessPaymentWebhook(c, event)
+	err := h.processor.ProcessOrderWebhook(c.Request.Context(), event)
 	if err != nil {
 		if errors.Is(err, apperror.ErrUnappropriatedStatus) {
 			c.JSON(http.StatusUnprocessableEntity, gin.H{"message": err.Error()})
@@ -39,7 +41,7 @@ func (h *OrderHandler) Webhook(c *gin.Context) {
 		return
 	}
 
-	c.Status(http.StatusCreated)
+	c.Status(http.StatusAccepted)
 }
 
 func (h *OrderHandler) Get(c *gin.Context) {

@@ -3,6 +3,7 @@ package handlers
 import (
 	"TestTaskJustPay/internal/controller/apperror"
 	"TestTaskJustPay/internal/domain/dispute"
+	"TestTaskJustPay/internal/webhook"
 	"errors"
 	"net/http"
 
@@ -10,11 +11,12 @@ import (
 )
 
 type ChargebackHandler struct {
-	service *dispute.DisputeService
+	service   *dispute.DisputeService
+	processor webhook.Processor
 }
 
-func NewChargebackHandler(s *dispute.DisputeService) ChargebackHandler {
-	return ChargebackHandler{service: s}
+func NewChargebackHandler(s *dispute.DisputeService, processor webhook.Processor) ChargebackHandler {
+	return ChargebackHandler{service: s, processor: processor}
 }
 
 func (h *ChargebackHandler) Webhook(c *gin.Context) {
@@ -24,7 +26,7 @@ func (h *ChargebackHandler) Webhook(c *gin.Context) {
 		return
 	}
 
-	err := h.service.ProcessChargeback(c, event)
+	err := h.processor.ProcessDisputeWebhook(c.Request.Context(), event)
 	if err != nil {
 		if errors.Is(err, apperror.ErrUnappropriatedStatus) {
 			c.JSON(http.StatusUnprocessableEntity, gin.H{"message": err.Error()})

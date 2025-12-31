@@ -12,13 +12,27 @@ Replace synchronous webhook processing with Kafka-based async ingestion.
 
 ## Tasks
 
-- [ ] Інфраструктура (Redpanda + topics)
-- [ ] Config (brokers, topics, consumer groups)
-- [ ] Messaging абстракції (`internal/messaging/`)
-- [ ] Kafka implementation (`internal/external/kafka/`)
-- [ ] Message Controllers (`internal/controller/message/`)
-- [ ] Handler модифікації (publish замість sync)
-- [ ] App wiring + graceful shutdown
+- [x] Інфраструктура (Kafka + Zookeeper)
+- [x] Config (brokers, topics, consumer groups)
+- [x] Messaging абстракції (`internal/messaging/`)
+- [x] Kafka implementation (`internal/external/kafka/`)
+- [x] Message Controllers (`internal/controller/message/`)
+- [x] Handler модифікації (publish замість sync)
+- [x] App wiring + graceful shutdown
+
+**Subtask 2 план:** [plan-subtask-2.md](plan-subtask-2.md)
+
+- [x] Конфігурація режиму (sync/kafka) через env змінну
+- [x] Оновити інтеграційний тест, щоб він не розраховував на синхронність вебхуків
+- [x] Виправити проблему з consumer group offset в тестах (duplicate key через старі повідомлення)
+- [x] Виправити retry в тестах для пустих результатів (GET повертає 200 з [])
+- [x] Додати retry в consumer при order not found (race condition)
+- [ ] Дослідити Transactional Outbox pattern для reliable messaging
+- [ ] додати окремі інтеграційні тести до модулів кафки
+
+**Subtask 3 план:** [plan-subtask-3.md](plan-subtask-3.md)
+
+- [x] Testcontainers для ізоляції тестів (замість docker-compose для тестів)
 
 ## Notes
 

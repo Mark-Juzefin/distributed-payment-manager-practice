@@ -2,8 +2,10 @@ package logger
 
 import (
 	"fmt"
+	"io"
 	"os"
 	"strings"
+	"time"
 
 	"github.com/rs/zerolog"
 )
@@ -19,83 +21,83 @@ type Interface interface {
 
 // Logger -.
 type Logger struct {
-	logger *zerolog.Logger
+	logger zerolog.Logger
 }
 
-var _ Interface = (*Logger)(nil)
-
-// New -.
 func New(level string) *Logger {
-	var l zerolog.Level
+	lvl := parseLevel(level)
 
+	zerolog.SetGlobalLevel(lvl)
+	zerolog.TimeFieldFormat = time.RFC3339
+
+	var out io.Writer = os.Stdout
+
+	// Для локального запуску / тестів: кольоровий “console” формат
+	if strings.ToLower(os.Getenv("LOG_FORMAT")) == "console" {
+		out = zerolog.ConsoleWriter{
+			Out:        os.Stdout,
+			TimeFormat: time.RFC3339,
+			NoColor:    false,
+		}
+	}
+
+	log := zerolog.New(out).Level(lvl).With().Timestamp().Logger()
+
+	return &Logger{logger: log}
+}
+
+func parseLevel(level string) zerolog.Level {
 	switch strings.ToLower(level) {
+	case "fatal":
+		return zerolog.FatalLevel
 	case "error":
-		l = zerolog.ErrorLevel
-	case "warn":
-		l = zerolog.WarnLevel
+		return zerolog.ErrorLevel
+	case "warn", "warning":
+		return zerolog.WarnLevel
 	case "info":
-		l = zerolog.InfoLevel
+		return zerolog.InfoLevel
 	case "debug":
-		l = zerolog.DebugLevel
+		return zerolog.DebugLevel
 	default:
-		l = zerolog.InfoLevel
-	}
-
-	zerolog.SetGlobalLevel(l)
-
-	logger := zerolog.New(os.Stdout).With().Timestamp().Logger()
-
-	return &Logger{
-		logger: &logger,
+		return zerolog.InfoLevel
 	}
 }
 
-// Debug -.
 func (l *Logger) Debug(message interface{}, args ...interface{}) {
-	l.msg("debug", message, args...)
+	l.write(zerolog.DebugLevel, message, args...)
 }
-
-// Info -.
 func (l *Logger) Info(message string, args ...interface{}) {
-	l.log(message, args...)
+	l.write(zerolog.InfoLevel, message, args...)
 }
-
-// Warn -.
 func (l *Logger) Warn(message string, args ...interface{}) {
-	l.log(message, args...)
+	l.write(zerolog.WarnLevel, message, args...)
 }
-
-// Error -.
 func (l *Logger) Error(message interface{}, args ...interface{}) {
-	if l.logger.GetLevel() == zerolog.DebugLevel {
-		l.Debug(message, args...)
-	}
-
-	l.msg("error", message, args...)
+	l.write(zerolog.ErrorLevel, message, args...)
 }
-
-// Fatal -.
 func (l *Logger) Fatal(message interface{}, args ...interface{}) {
-	l.msg("fatal", message, args...)
-
+	l.write(zerolog.FatalLevel, message, args...)
 	os.Exit(1)
 }
 
-func (l *Logger) log(message string, args ...interface{}) {
-	if len(args) == 0 {
-		l.logger.Info().Msg(message)
-	} else {
-		l.logger.Info().Msgf(message, args...)
-	}
-}
+func (l *Logger) write(level zerolog.Level, message interface{}, args ...interface{}) {
+	ev := l.logger.WithLevel(level)
 
-func (l *Logger) msg(level string, message interface{}, args ...interface{}) {
-	switch msg := message.(type) {
+	switch m := message.(type) {
 	case error:
-		l.log(msg.Error(), args...)
+		ev = ev.Err(m)
+		if len(args) > 0 {
+			ev.Msgf(m.Error(), args...)
+		} else {
+			ev.Msg(m.Error())
+		}
 	case string:
-		l.log(msg, args...)
+		if len(args) > 0 {
+			ev.Msgf(m, args...)
+		} else {
+			ev.Msg(m)
+		}
 	default:
-		l.log(fmt.Sprintf("%s message %v has unknown type %v", level, message, msg), args...)
+		ev.Msg(fmt.Sprintf("unknown message type: %T value=%v", message, message))
 	}
 }

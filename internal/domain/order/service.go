@@ -3,23 +3,28 @@ package order
 import (
 	"TestTaskJustPay/internal/controller/apperror"
 	"TestTaskJustPay/internal/domain/gateway"
+	"TestTaskJustPay/pkg/logger"
 	"context"
 	"encoding/json"
 	"fmt"
 	"time"
+
+	"github.com/google/uuid"
 )
 
 type OrderService struct {
 	orderRepo OrderRepo
 	provider  gateway.Provider
 	eventSink EventSink
+	logger    logger.Interface
 }
 
-func NewOrderService(orderRepo OrderRepo, provider gateway.Provider, eventSink EventSink) *OrderService {
+func NewOrderService(orderRepo OrderRepo, provider gateway.Provider, eventSink EventSink, l logger.Interface) *OrderService {
 	return &OrderService{
 		orderRepo: orderRepo,
 		provider:  provider,
 		eventSink: eventSink,
+		logger:    l,
 	}
 }
 
@@ -155,7 +160,7 @@ func (s *OrderService) UpdateOrderHold(ctx context.Context, orderID string, requ
 		eventKind = OrderEventHoldCleared
 	}
 	if err := s.createHoldEvent(ctx, orderID, eventKind, request); err != nil {
-		fmt.Printf("Failed to create hold event: %v\n", err)
+		s.logger.Error("Failed to create hold event: %v", err)
 	}
 
 	return response, nil
@@ -209,7 +214,7 @@ func (s *OrderService) CapturePayment(ctx context.Context, orderID string, reque
 
 	// Create capture events after successful transaction
 	if err := s.createCaptureRequestedEvent(ctx, orderID, request); err != nil {
-		fmt.Printf("Failed to create capture requested event: %v\n", err)
+		s.logger.Error("Failed to create capture requested event: %v", err)
 	}
 
 	eventKind := OrderEventCaptureCompleted
@@ -217,7 +222,7 @@ func (s *OrderService) CapturePayment(ctx context.Context, orderID string, reque
 		eventKind = OrderEventCaptureFailed
 	}
 	if err := s.createCaptureResultEvent(ctx, orderID, eventKind, *response); err != nil {
-		fmt.Printf("Failed to create capture result event: %v\n", err)
+		s.logger.Error("Failed to create capture result event: %v", err)
 	}
 
 	return response, nil
@@ -245,7 +250,7 @@ func (s *OrderService) createHoldEvent(ctx context.Context, orderID string, kind
 	orderEvent := NewOrderEvent{
 		OrderID:         orderID,
 		Kind:            kind,
-		ProviderEventID: "", // No provider event for internal hold operations
+		ProviderEventID: uuid.New().String(), // Generate unique ID for internal hold operations
 		Data:            payload,
 		CreatedAt:       time.Now(),
 	}

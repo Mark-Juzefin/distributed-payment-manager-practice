@@ -2,24 +2,29 @@ package dispute
 
 import (
 	"TestTaskJustPay/internal/domain/gateway"
+	"TestTaskJustPay/pkg/logger"
 	"TestTaskJustPay/pkg/pointers"
 	"context"
 	"encoding/json"
 	"fmt"
 	"time"
+
+	"github.com/google/uuid"
 )
 
 type DisputeService struct {
 	disputeRepo DisputeRepo
 	eventSink   EventSink
 	provider    gateway.Provider
+	logger      logger.Interface
 }
 
-func NewDisputeService(repo DisputeRepo, provider gateway.Provider, eventSink EventSink) *DisputeService {
+func NewDisputeService(repo DisputeRepo, provider gateway.Provider, eventSink EventSink, l logger.Interface) *DisputeService {
 	return &DisputeService{
 		disputeRepo: repo,
 		provider:    provider,
 		eventSink:   eventSink,
+		logger:      l,
 	}
 }
 
@@ -203,7 +208,7 @@ func (s *DisputeService) Submit(ctx context.Context, disputeID string) error {
 		}
 		result = &res
 
-		fmt.Printf("Submit represented responce: %+v\n", res)
+		s.logger.Debug("Submit representment response: %+v", res)
 
 		//TODO: refactor
 		d.SubmittedAt = pointers.Ptr(time.Now())
@@ -253,7 +258,7 @@ func (s *DisputeService) createEvidenceAddedEvent(ctx context.Context, disputeID
 	disputeEvent := NewDisputeEvent{
 		DisputeID:       disputeID,
 		Kind:            DisputeEventEvidenceAdded,
-		ProviderEventID: "", // No provider event for evidence added by merchant
+		ProviderEventID: uuid.New().String(), // Generate unique ID for internal events
 		Data:            payload,
 		CreatedAt:       time.Now(),
 	}

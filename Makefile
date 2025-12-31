@@ -37,6 +37,14 @@ INTEGRATION_DIRS = \
 integration-test: start_containers
 	go clean -testcache && go test -tags=integration -v  $(INTEGRATION_DIRS)
 
+.PHONY: integration-test-name
+integration-test-name: start_containers
+ifndef name
+	$(error "Usage: make integration-test-name name=testname")
+endif
+	go clean -testcache && go test -run $(name)  -tags=integration -v  $(INTEGRATION_DIRS)
+
+
 generate:
 	go generate ./...
 

@@ -1,7 +1,6 @@
 package order
 
 import (
-	"TestTaskJustPay/internal/controller/apperror"
 	"errors"
 	"fmt"
 	"slices"
@@ -87,7 +86,7 @@ func NewOrdersQueryBuilder() *OrdersQueryBuilder {
 
 func (b *OrdersQueryBuilder) Build() (*OrdersQuery, error) {
 	if err := b.query.Validate(); err != nil {
-		return nil, fmt.Errorf("%w: %s", apperror.ErrInvalidOrdersQuery, err.Error())
+		return nil, fmt.Errorf("%w: %s", ErrInvalidQuery, err.Error())
 	}
 	return b.query, nil
 }

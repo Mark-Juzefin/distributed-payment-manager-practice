@@ -40,10 +40,11 @@ Details: [features/002-architecture-review/](features/002-architecture-review/)
 - **Kubernetes**: deploy services, HPA, liveness/readiness, ConfigMaps/Secrets.
 - **API Gateway**: ingress (NGINX/Traefik/Kong), routing, rate limiting, authn/z.
 - **Service-to-service**: gRPC/HTTP, retries/timeouts, circuit breakers (e.g., Envoy/Istio-lite later).
+- **Workflow orchestration**: Temporal for long-running transactions (dispute flows, saga pattern), distributed coordination.
 - **Postgres access**: PgBouncer per service, connection limits, migration strategy.
 - **CI/CD**: build pipelines, image tagging, per-env configs.
 - **Platform ops**: centralized logs, metrics (Prometheus), tracing (OTel/Jaeger).
-- Practice: service boundaries, platform primitives, reliability patterns.
+- Practice: service boundaries, platform primitives, reliability patterns, workflow-driven architecture.
 
 ### Step 5.5: Simple Deployment Profile
 - Create "simple" profile that works on basic VPS without complex infrastructure.

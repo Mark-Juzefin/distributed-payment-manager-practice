@@ -4,7 +4,6 @@
 package dispute_eventsink_test
 
 import (
-	"TestTaskJustPay/internal/controller/apperror"
 	"TestTaskJustPay/internal/domain/dispute"
 	"TestTaskJustPay/internal/repo/dispute_eventsink"
 	"TestTaskJustPay/pkg/postgres"
@@ -449,7 +448,7 @@ func TestCreateDisputeEvent_IdempotencyConstraint(t *testing.T) {
 				if tt.expectDuplicateError {
 					// Should return ErrEventAlreadyStored for duplicate (dispute_id, provider_event_id)
 					require.Error(t, err)
-					assert.True(t, errors.Is(err, apperror.ErrEventAlreadyStored),
+					assert.True(t, errors.Is(err, dispute.ErrEventAlreadyStored),
 						"Expected ErrEventAlreadyStored, got: %v", err)
 					assert.Nil(t, duplicateCreated)
 				} else {

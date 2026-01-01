@@ -8,7 +8,7 @@ import (
 
 type EventSink interface {
 	// CreateOrderEvent creates a new order event.
-	// Returns apperror.ErrEventAlreadyStored if event with same (order_id, provider_event_id) already exists.
+	// Returns ErrEventAlreadyStored if event with same (order_id, provider_event_id) already exists.
 	CreateOrderEvent(ctx context.Context, event NewOrderEvent) (*OrderEvent, error)
 	GetOrderEvents(ctx context.Context, query OrderEventQuery) (OrderEventPage, error)
 }

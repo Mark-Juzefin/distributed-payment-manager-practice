@@ -1,7 +1,6 @@
 package dispute_eventsink
 
 import (
-	"TestTaskJustPay/internal/controller/apperror"
 	"TestTaskJustPay/internal/domain/dispute"
 	"TestTaskJustPay/pkg/postgres"
 	"context"
@@ -42,7 +41,7 @@ func (r *PgDisputeEventRepo) CreateDisputeEvent(ctx context.Context, event dispu
 
 	_, err = r.db.Exec(ctx, query, args...)
 	if postgres.IsPgErrorUniqueViolation(err) {
-		return nil, apperror.ErrEventAlreadyStored
+		return nil, dispute.ErrEventAlreadyStored
 	}
 	if err != nil {
 		return nil, fmt.Errorf("create dispute event: %w", err)

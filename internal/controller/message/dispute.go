@@ -6,7 +6,6 @@ import (
 	"errors"
 	"fmt"
 
-	"TestTaskJustPay/internal/controller/apperror"
 	"TestTaskJustPay/internal/domain/dispute"
 	"TestTaskJustPay/internal/messaging"
 	"TestTaskJustPay/pkg/logger"
@@ -45,7 +44,7 @@ func (c *DisputeMessageController) HandleMessage(ctx context.Context, key, value
 
 	if err := c.service.ProcessChargeback(ctx, webhook); err != nil {
 		// Idempotency: duplicate events are not errors
-		if errors.Is(err, apperror.ErrEventAlreadyStored) {
+		if errors.Is(err, dispute.ErrEventAlreadyStored) {
 			c.logger.Info("Duplicate dispute event ignored: event_id=%s user_id=%s order_id=%s provider_event_id=%s",
 				env.EventID, webhook.UserID, webhook.OrderID, webhook.ProviderEventID)
 			return nil

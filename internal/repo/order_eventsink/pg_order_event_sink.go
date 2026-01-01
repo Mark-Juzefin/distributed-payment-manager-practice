@@ -1,7 +1,6 @@
 package order_eventsink
 
 import (
-	"TestTaskJustPay/internal/controller/apperror"
 	"TestTaskJustPay/internal/domain/order"
 	"TestTaskJustPay/pkg/postgres"
 	"context"
@@ -42,7 +41,7 @@ func (r *PgOrderEventRepo) CreateOrderEvent(ctx context.Context, event order.New
 
 	_, err = r.db.Exec(ctx, query, args...)
 	if postgres.IsPgErrorUniqueViolation(err) {
-		return nil, apperror.ErrEventAlreadyStored
+		return nil, order.ErrEventAlreadyStored
 	}
 	if err != nil {
 		return nil, fmt.Errorf("create order event: %w", err)

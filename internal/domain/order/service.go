@@ -1,7 +1,6 @@
 package order
 
 import (
-	"TestTaskJustPay/internal/controller/apperror"
 	"TestTaskJustPay/internal/domain/gateway"
 	"TestTaskJustPay/pkg/logger"
 	"context"
@@ -42,7 +41,7 @@ func getOrderByID(ctx context.Context, repo TxOrderRepo, id string) (Order, erro
 		return Order{}, fmt.Errorf("get order: %w", err)
 	}
 	if len(orders) == 0 {
-		return Order{}, apperror.ErrOrderNotFound
+		return Order{}, ErrNotFound
 	}
 	return orders[0], nil
 }
@@ -68,7 +67,7 @@ func (s *OrderService) ProcessPaymentWebhook(ctx context.Context, event PaymentW
 			}
 
 			if !order.Status.CanBeUpdatedTo(event.Status) {
-				return apperror.ErrUnappropriatedStatus
+				return ErrInvalidStatus
 			}
 
 			if err := tx.UpdateOrder(ctx, event); err != nil {
@@ -176,12 +175,12 @@ func (s *OrderService) CapturePayment(ctx context.Context, orderID string, reque
 
 		// Check if order is on hold
 		if order.OnHold {
-			return apperror.ErrOrderOnHold
+			return ErrOnHold
 		}
 
 		// Check if order is already in final status (success/failed)
 		if order.Status == StatusSuccess || order.Status == StatusFailed {
-			return apperror.ErrOrderInFinalStatus
+			return ErrInFinalStatus
 		}
 
 		// Call provider to capture payment

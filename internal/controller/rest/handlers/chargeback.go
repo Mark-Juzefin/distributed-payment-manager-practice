@@ -1,8 +1,8 @@
 package handlers
 
 import (
-	"TestTaskJustPay/internal/controller/apperror"
 	"TestTaskJustPay/internal/domain/dispute"
+	"TestTaskJustPay/internal/domain/order"
 	"TestTaskJustPay/internal/webhook"
 	"errors"
 	"net/http"
@@ -28,11 +28,11 @@ func (h *ChargebackHandler) Webhook(c *gin.Context) {
 
 	err := h.processor.ProcessDisputeWebhook(c.Request.Context(), event)
 	if err != nil {
-		if errors.Is(err, apperror.ErrUnappropriatedStatus) {
+		if errors.Is(err, order.ErrInvalidStatus) {
 			c.JSON(http.StatusUnprocessableEntity, gin.H{"message": err.Error()})
-		} else if errors.Is(err, apperror.ErrOrderNotFound) {
+		} else if errors.Is(err, order.ErrNotFound) {
 			c.JSON(http.StatusNotFound, gin.H{"message": err.Error()})
-		} else if errors.Is(err, apperror.ErrEventAlreadyStored) {
+		} else if errors.Is(err, dispute.ErrEventAlreadyStored) {
 			c.JSON(http.StatusOK, gin.H{"message": "Duplicate webhook received"})
 		} else {
 			c.JSON(http.StatusInternalServerError, gin.H{"message": err.Error()})
@@ -52,7 +52,7 @@ func (h *ChargebackHandler) GetDispute(c *gin.Context) {
 
 	d, err := h.service.GetDisputeByID(c, disputeID)
 	if err != nil {
-		if errors.Is(err, apperror.ErrOrderNotFound) {
+		if errors.Is(err, order.ErrNotFound) {
 			c.JSON(http.StatusNotFound, gin.H{"message": "Dispute not found"})
 		} else {
 			c.JSON(http.StatusInternalServerError, gin.H{"message": err.Error()})

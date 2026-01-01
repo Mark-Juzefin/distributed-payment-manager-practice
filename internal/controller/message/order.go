@@ -6,7 +6,6 @@ import (
 	"errors"
 	"fmt"
 
-	"TestTaskJustPay/internal/controller/apperror"
 	"TestTaskJustPay/internal/domain/order"
 	"TestTaskJustPay/internal/messaging"
 	"TestTaskJustPay/pkg/logger"
@@ -45,12 +44,12 @@ func (c *OrderMessageController) HandleMessage(ctx context.Context, key, value [
 
 	if err := c.service.ProcessPaymentWebhook(ctx, webhook); err != nil {
 		// Idempotency: duplicate events/orders are not errors
-		if errors.Is(err, apperror.ErrEventAlreadyStored) {
+		if errors.Is(err, order.ErrEventAlreadyStored) {
 			c.logger.Info("Duplicate order event ignored: event_id=%s order_id=%s provider_event_id=%s",
 				env.EventID, webhook.OrderId, webhook.ProviderEventID)
 			return nil
 		}
-		if errors.Is(err, apperror.ErrOrderAlreadyExists) {
+		if errors.Is(err, order.ErrAlreadyExists) {
 			c.logger.Info("Order already exists, skipping: event_id=%s order_id=%s",
 				env.EventID, webhook.OrderId)
 			return nil

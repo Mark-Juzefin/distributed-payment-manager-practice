@@ -8,9 +8,9 @@
 
 ## Subtasks
 
-**Subtask 1:** Domain errors refactoring
-- [ ] Перенести `apperror` з controller до domain layer
-- [ ] Domain не має залежати від controller
+**Subtask 1:** Domain errors refactoring — [plan-subtask-1.md](plan-subtask-1.md) ✅
+- [x] Перенести `apperror` з controller до domain layer
+- [x] Domain не має залежати від controller
 
 **Subtask 2:** Separate ingest service binary
 - [ ] Винести Kafka consumers в окремий `cmd/ingest/`
@@ -99,3 +99,14 @@ Silvergate повертає generic `error`. Немає можливості р�
 - testinfra package для shared setup
 
 Залишається: domain errors + separate binaries + test parallelization.
+
+### 2026-01-01: Subtask 1 Complete
+
+Domain errors refactoring завершено:
+- Створено `internal/domain/order/errors.go` (7 errors)
+- Створено `internal/domain/dispute/errors.go` (2 errors)
+- Оновлено 16 файлів: domain, repo, controller layers + integration tests
+- Видалено `internal/controller/apperror/`
+- Domain layer тепер повністю незалежний від controller
+- Використано підхід "errors per bounded context" для кращої ізоляції
+- Всі тести пройшли успішно (unit + integration)

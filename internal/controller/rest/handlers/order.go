@@ -1,7 +1,6 @@
 package handlers
 
 import (
-	"TestTaskJustPay/internal/controller/apperror"
 	"TestTaskJustPay/internal/domain/order"
 	"TestTaskJustPay/internal/webhook"
 	"errors"
@@ -29,11 +28,11 @@ func (h *OrderHandler) Webhook(c *gin.Context) {
 
 	err := h.processor.ProcessOrderWebhook(c.Request.Context(), event)
 	if err != nil {
-		if errors.Is(err, apperror.ErrUnappropriatedStatus) {
+		if errors.Is(err, order.ErrInvalidStatus) {
 			c.JSON(http.StatusUnprocessableEntity, gin.H{"message": err.Error()})
-		} else if errors.Is(err, apperror.ErrOrderNotFound) {
+		} else if errors.Is(err, order.ErrNotFound) {
 			c.JSON(http.StatusNotFound, gin.H{"message": err.Error()})
-		} else if errors.Is(err, apperror.ErrEventAlreadyStored) {
+		} else if errors.Is(err, order.ErrEventAlreadyStored) {
 			c.JSON(http.StatusConflict, gin.H{"message": err.Error()})
 		} else {
 			c.JSON(http.StatusInternalServerError, gin.H{"message": err.Error()})
@@ -53,7 +52,7 @@ func (h *OrderHandler) Get(c *gin.Context) {
 	fmt.Println("get orderID:", orderID)
 	res, err := h.service.GetOrderByID(c, orderID)
 	if err != nil {
-		if errors.Is(err, apperror.ErrOrderNotFound) {
+		if errors.Is(err, order.ErrNotFound) {
 			c.JSON(http.StatusNotFound, gin.H{"message": err.Error()})
 			return
 		}
@@ -119,7 +118,7 @@ func (h *OrderHandler) Hold(c *gin.Context) {
 
 	response, err := h.service.UpdateOrderHold(c, orderID, request)
 	if err != nil {
-		if errors.Is(err, apperror.ErrOrderNotFound) {
+		if errors.Is(err, order.ErrNotFound) {
 			c.JSON(http.StatusNotFound, gin.H{"error": err.Error()})
 		} else {
 			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
@@ -145,9 +144,9 @@ func (h *OrderHandler) Capture(c *gin.Context) {
 
 	response, err := h.service.CapturePayment(c, orderID, request)
 	if err != nil {
-		if errors.Is(err, apperror.ErrOrderNotFound) {
+		if errors.Is(err, order.ErrNotFound) {
 			c.JSON(http.StatusNotFound, gin.H{"error": err.Error()})
-		} else if errors.Is(err, apperror.ErrOrderOnHold) || errors.Is(err, apperror.ErrOrderInFinalStatus) {
+		} else if errors.Is(err, order.ErrOnHold) || errors.Is(err, order.ErrInFinalStatus) {
 			c.JSON(http.StatusConflict, gin.H{"error": err.Error()})
 		} else {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})

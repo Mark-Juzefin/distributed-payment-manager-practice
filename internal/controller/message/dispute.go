@@ -46,18 +46,18 @@ func (c *DisputeMessageController) HandleMessage(ctx context.Context, key, value
 	if err := c.service.ProcessChargeback(ctx, webhook); err != nil {
 		// Idempotency: duplicate events are not errors
 		if errors.Is(err, apperror.ErrEventAlreadyStored) {
-			c.logger.Info("Duplicate dispute event ignored: event_id=%s order_id=%s provider_event_id=%s",
-				env.EventID, webhook.OrderID, webhook.ProviderEventID)
+			c.logger.Info("Duplicate dispute event ignored: event_id=%s user_id=%s order_id=%s provider_event_id=%s",
+				env.EventID, webhook.UserID, webhook.OrderID, webhook.ProviderEventID)
 			return nil
 		}
 
-		c.logger.Error("Failed to process chargeback webhook: event_id=%s order_id=%s error=%v",
-			env.EventID, webhook.OrderID, err)
+		c.logger.Error("Failed to process chargeback webhook: event_id=%s user_id=%s order_id=%s error=%v",
+			env.EventID, webhook.UserID, webhook.OrderID, err)
 		return err
 	}
 
-	c.logger.Info("Chargeback webhook processed: event_id=%s order_id=%s status=%s",
-		env.EventID, webhook.OrderID, webhook.Status)
+	c.logger.Info("Chargeback webhook processed: event_id=%s user_id=%s order_id=%s status=%s",
+		env.EventID, webhook.UserID, webhook.OrderID, webhook.Status)
 
 	return nil
 }

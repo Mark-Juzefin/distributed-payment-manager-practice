@@ -12,9 +12,13 @@ This is a **learning sandbox** for practicing highload/distributed systems conce
 3. **Don't auto-fix test failures** - When tests fail, explain what went wrong and why, but let the user fix it themselves to learn.
 4. **Explain trade-offs** - When implementing highload patterns, explain alternatives and why this approach was chosen.
 
+**Language:**
+- Conversation with user: Ukrainian is fine
+- Code, comments, commits, PRs, documentation: **English only**
+
 ## Current Focus
 
-**Active feature:** [docs/features/001-kafka-ingestion/](docs/features/001-kafka-ingestion/)
+**Active feature:** [docs/features/002-architecture-review/](docs/features/002-architecture-review/)
 
 Full roadmap: [docs/roadmap.md](docs/roadmap.md)
 

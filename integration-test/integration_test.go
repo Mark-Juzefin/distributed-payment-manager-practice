@@ -350,6 +350,7 @@ func TestChargebackFlow(t *testing.T) {
 	openChargeback := map[string]interface{}{
 		"provider_event_id": "evt-1",
 		"order_id":          orderID,
+		"user_id":           "44444444-4444-4444-4444-444444444444",
 		"status":            "opened",
 		"reason":            "fraud",
 		"amount":            100.50,
@@ -378,6 +379,7 @@ func TestChargebackFlow(t *testing.T) {
 	closeChargeback := map[string]interface{}{
 		"provider_event_id": "evt-2",
 		"order_id":          orderID,
+		"user_id":           "44444444-4444-4444-4444-444444444444",
 		"transaction_id":    "txn-chargeback-1", //TODO
 		"status":            "closed",
 		"reason":            "fraud",
@@ -827,6 +829,7 @@ func createOpenedDisputeForOrderId(t *testing.T, server *httptest.Server, orderI
 	openChargeback := map[string]interface{}{
 		"provider_event_id": "evt-evidence-1",
 		"order_id":          orderId,
+		"user_id":           "55555555-5555-5555-5555-555555555555",
 		"status":            "opened",
 		"reason":            "unauthorized",
 		"amount":            250.75,

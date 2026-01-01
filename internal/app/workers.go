@@ -21,25 +21,39 @@ func StartWorkers(
 	orderService *order.OrderService,
 	disputeService *dispute.DisputeService,
 ) {
-	// Order consumer
+	// Create DLQ publishers
+	orderDLQPub := kafka.NewDLQPublisher(l, cfg.KafkaBrokers, cfg.KafkaOrdersDLQTopic)
+	disputeDLQPub := kafka.NewDLQPublisher(l, cfg.KafkaBrokers, cfg.KafkaDisputesDLQTopic)
+	defer orderDLQPub.Close()
+	defer disputeDLQPub.Close()
+
+	// Order consumer with retry + DLQ middleware
 	orderController := message.NewOrderMessageController(l, orderService)
+	orderHandler := messaging.WithDLQ(
+		messaging.WithRetry(orderController.HandleMessage, messaging.DefaultRetryConfig()),
+		orderDLQPub,
+	)
 	orderConsumer := kafka.NewConsumer(
 		l,
 		cfg.KafkaBrokers,
 		cfg.KafkaOrdersTopic,
 		cfg.KafkaOrdersConsumerGroup,
 	)
-	orderRunner := messaging.NewRunner(l, []messaging.Worker{orderConsumer}, orderController.HandleMessage)
+	orderRunner := messaging.NewRunner(l, []messaging.Worker{orderConsumer}, orderHandler)
 
-	// Dispute consumer
+	// Dispute consumer with retry + DLQ middleware
 	disputeController := message.NewDisputeMessageController(l, disputeService)
+	disputeHandler := messaging.WithDLQ(
+		messaging.WithRetry(disputeController.HandleMessage, messaging.DefaultRetryConfig()),
+		disputeDLQPub,
+	)
 	disputeConsumer := kafka.NewConsumer(
 		l,
 		cfg.KafkaBrokers,
 		cfg.KafkaDisputesTopic,
 		cfg.KafkaDisputesConsumerGroup,
 	)
-	disputeRunner := messaging.NewRunner(l, []messaging.Worker{disputeConsumer}, disputeController.HandleMessage)
+	disputeRunner := messaging.NewRunner(l, []messaging.Worker{disputeConsumer}, disputeHandler)
 
 	// Start order runner in background
 	go func() {

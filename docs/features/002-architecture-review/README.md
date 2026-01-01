@@ -1,166 +1,85 @@
-# Feature 002: Architecture Review
+# Feature 002: Architecture Review & Refactoring
 
 **Status:** In Progress
 
 ## Overview
 
-Аналіз поточної архітектури на предмет потенційних проблем масштабування по мірі росту кодової бази.
+Виправлення архітектурних проблем, виявлених під час розробки Kafka ingestion. Фокус на чистій архітектурі та підготовці до мікросервісів.
 
-## Tasks
+## Subtasks
 
-- [x] Аналіз організації шарів (`internal/` structure)
-- [x] Аналіз проблем з інтеграційними тестами
-- [ ] Документація findings та рекомендацій
-- [ ] План рефакторингу (якщо потрібен)
+**Subtask 1:** Domain errors refactoring
+- [ ] Перенести `apperror` з controller до domain layer
+- [ ] Domain не має залежати від controller
+
+**Subtask 2:** Separate ingest service binary
+- [ ] Винести Kafka consumers в окремий `cmd/ingest/`
+- [ ] Спільний код в `internal/` (domain, repo)
+- [ ] Окремі бінарники: API server + Ingest workers
+
+**Subtask 3:** Integration tests improvements
+- [ ] Додати `t.Parallel()` до E2E тестів
+- [ ] Ізоляція через unique IDs замість shared state
+
+**Subtask 4:** Minor cleanups (optional)
+- [ ] Об'єднати ChargebackHandler з DisputeHandler
+- [ ] Typed errors для Gateway (retry vs permanent)
+- [ ] Консолідувати EventSink реалізації в `repo/`
 
 ---
 
-## Findings
+## Findings (Reference)
 
-### Layer Organization Issues
+### Fixed Issues
 
-#### 1. Domain залежить від Controller (КРИТИЧНО)
+| Issue | Resolution |
+|-------|------------|
+| Messaging guarantees | Kafka async mode + retry/DLQ. Outbox planned for Step 2 |
+| TRUNCATE в E2E tests | Testcontainers з proper cleanup |
+| Migrations per test | TestMain() в `internal/testinfra` |
+| Setup code duplication | `internal/testinfra` package |
 
-**Проблема:** Domain layer імпортує `apperror` з controller:
+### Open Issues
+
+#### 1. Domain → Controller dependency (CRITICAL)
 
 ```go
-// internal/domain/order/order_entity.go
-import "TestTaskJustPay/internal/controller/apperror"
-
 // internal/domain/order/service.go
-if len(orders) == 0 {
-    return Order{}, apperror.ErrOrderNotFound
-}
+import "TestTaskJustPay/internal/controller/apperror"  // ← Порушення!
 ```
 
-**Імпакт:**
+**Чому критично:**
+- Domain має бути framework-agnostic
 - Неможливо додати gRPC/GraphQL без змін у domain
-- Тестування domain залежить від controller структур
 - Порушує Dependency Inversion Principle
 
-**Рішення:** Створити `internal/domain/errors/` або errors в кожному bounded context.
+**Рішення:** `internal/domain/errors/` або errors per bounded context.
 
----
+#### 2. Monolith binary
 
-#### 2. Event Sink реалізації розкидані (ВИСОКА)
-
-**Проблема:**
 ```
-internal/repo/order_eventsink/     ← PostgreSQL
-internal/repo/dispute_eventsink/   ← PostgreSQL
-internal/external/opensearch/      ← OpenSearch (теж EventSink!)
+cmd/app/main.go  ← Один бінарник робить все
+├── HTTP server
+├── Kafka consumers
+└── Background workers
 ```
 
-Обидва реалізують `dispute.EventSink`, але розташовані в різних шарах.
+**Чому проблема:**
+- Не можна скейлити consumers окремо від API
+- Один crash валить все
+- Складніший deployment
 
-**Рішення:** Консолідувати всі persistence реалізації в `repo/`.
+**Рішення:** Окремі бінарники `cmd/api/` та `cmd/ingest/`.
 
----
+#### 3. No t.Parallel() in E2E tests
 
-#### 3. Messaging без транзакційних гарантій (ВИСОКА)
+Тести в `integration-test/` запускаються послідовно. З testcontainers це безпечно паралелити.
 
-**Проблема:**
-```go
-// REST handler
-err := h.service.ProcessPaymentWebhook(ctx, webhook)  // ✓ Success
-err := h.publisher.Publish(ctx, envelope)              // ✗ Fail - що робити?
-```
+#### 4. Gateway errors без типізації
 
-Якщо publish fail після успішної обробки - немає rollback або retry.
-
-**Рішення:** Event publishing має бути частиною domain service або використовувати Outbox pattern.
-
----
-
-#### 4. Gateway errors без типізації (СЕРЕДНЯ)
-
-**Проблема:** Silvergate повертає generic `error`, service не може розрізнити:
-- Transient (retry) - network timeout
-- Permanent (abort) - account suspended
-- Validation (reject) - invalid card
-
-**Рішення:** Typed errors в `gateway/errors.go`.
-
----
-
-#### 5. Chargeback як окремий handler (НИЗЬКА)
-
-**Проблема:** `ChargebackHandler` використовує той самий `DisputeService`, що й `DisputeHandler`. Це не окремий bounded context.
-
-**Рішення:** Об'єднати в `DisputeHandler.Chargeback()`.
-
----
-
-### Integration Tests Issues
-
-#### 1. TRUNCATE замість SandboxTransaction (КРИТИЧНО)
-
-**Проблема:**
-```go
-// integration-test/integration_test.go
-pool.Pool.Exec(ctx, "TRUNCATE TABLE orders, disputes, ...")
-```
-
-При падінні тесту наступний бачить неповні дані.
-
-**Рішення:** Використовувати `SandboxTransaction` як у repo тестах.
-
----
-
-#### 2. Немає t.Parallel() в E2E (ВИСОКА)
-
-**Проблема:** 9 тестів в `integration-test/` запускаються послідовно.
-
-**Рішення:** Додати `t.Parallel()` + ізоляцію через transactions.
-
----
-
-#### 3. Міграції запускаються для кожного тесту (ВИСОКА)
-
-**Проблема:**
-```go
-func setupTestServer(t *testing.T) {
-    app.ApplyMigrations(cfg.PgURL, ...)  // Кожен раз!
-}
-```
-
-**Рішення:** Винести в `TestMain()`.
-
----
-
-#### 4. Дублювання setup коду (СЕРЕДНЯ)
-
-**Проблема:** `applyBaseFixture()` визначена 3 рази в різних пакетах. Container setup дублюється.
-
-**Рішення:** Спільний `internal/testutil/` пакет.
-
----
-
-#### 5. order_eventsink не в Makefile (НИЗЬКА)
-
-**Проблема:**
-```makefile
-INTEGRATION_DIRS = \
-    ./internal/repo/dispute_eventsink \
-    ./integration-test/...
-# order_eventsink пропущено!
-```
-
----
-
-## Priority Matrix
-
-| Issue | Severity | Effort | Impact on Growth |
-|-------|----------|--------|------------------|
-| Domain → Controller dependency | CRITICAL | Large | Blocks new UI layers |
-| TRUNCATE in E2E tests | CRITICAL | Medium | Test isolation failures |
-| Event sink placement | HIGH | Medium | Confusion in persistence |
-| No t.Parallel() in E2E | HIGH | Small | Slow CI |
-| Messaging guarantees | HIGH | Large | Data consistency |
-| Migrations per test | HIGH | Medium | Slow tests |
-| Gateway error types | MEDIUM | Small | No retry policy |
-| Setup code duplication | MEDIUM | Medium | Maintenance burden |
-| Chargeback handler | LOW | Small | Code organization |
+Silvergate повертає generic `error`. Немає можливості розрізнити:
+- Transient (retry) — network timeout
+- Permanent (abort) — account suspended
 
 ---
 
@@ -168,8 +87,15 @@ INTEGRATION_DIRS = \
 
 ### 2024-12-30: Initial Analysis
 
-Провели глибокий аналіз архітектури. Головна проблема - domain layer має зворотну залежність від controller через `apperror`. Це блокує будь-яке розширення UI layer (gRPC, GraphQL) без змін у core domain.
+Провели аналіз архітектури. Головні проблеми:
+1. Domain залежить від controller через `apperror`
+2. Monolith binary не дозволяє окремо скейлити компоненти
 
-Інтеграційні тести мають архітектурну проблему: E2E тести не використовують ізоляцію через transactions, що робить їх flaky.
+### 2026-01-01: Post-Kafka Review
 
-**Наступний крок:** Обговорити з користувачем пріоритети та план рефакторингу.
+Після завершення Kafka integration (Feature 001) частина проблем виправлена:
+- Testcontainers замість docker-compose
+- TestMain() для міграцій
+- testinfra package для shared setup
+
+Залишається: domain errors + separate binaries + test parallelization.

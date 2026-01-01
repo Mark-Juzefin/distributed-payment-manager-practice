@@ -51,6 +51,7 @@ func (c *Consumer) Start(ctx context.Context, handler messaging.MessageHandler) 
 	for {
 		msg, err := c.reader.FetchMessage(ctx)
 		if err != nil {
+			// Graceful shutdown - context cancellation is not an error
 			if errors.Is(err, context.Canceled) {
 				c.logger.Info("Consumer stopped (context cancelled)")
 				return nil

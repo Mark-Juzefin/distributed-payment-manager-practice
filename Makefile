@@ -3,13 +3,19 @@ export
 
 MIGRATION_DIR=internal/app/migrations
 
-.PHONY: run run-dev start_containers stop_containers stop_containers_remove lint test integration-test generate migrate seed-db print-db-size clean-db benchmark build-pg-image
+.PHONY: run run-dev run-sync run-kafka start_containers stop_containers stop_containers_remove lint test integration-test generate migrate seed-db print-db-size clean-db benchmark build-pg-image
 
 run:
 	docker compose --profile prod up --build
 
 run-dev: start_containers
 	go run ./cmd/app
+
+run-sync: start_containers
+	WEBHOOK_MODE=sync go run ./cmd/app
+
+run-kafka: start_containers
+	WEBHOOK_MODE=kafka go run ./cmd/app
 
 start_containers:
 	docker-compose --profile infra up --build -d

@@ -31,6 +31,8 @@ type Config struct {
 	KafkaDisputesTopic         string   `env:"KAFKA_DISPUTES_TOPIC" envDefault:"webhooks.disputes"`
 	KafkaOrdersConsumerGroup   string   `env:"KAFKA_ORDERS_CONSUMER_GROUP" envDefault:"payment-app-orders"`
 	KafkaDisputesConsumerGroup string   `env:"KAFKA_DISPUTES_CONSUMER_GROUP" envDefault:"payment-app-disputes"`
+	KafkaOrdersDLQTopic        string   `env:"KAFKA_ORDERS_DLQ_TOPIC" envDefault:"webhooks.orders.dlq"`
+	KafkaDisputesDLQTopic      string   `env:"KAFKA_DISPUTES_DLQ_TOPIC" envDefault:"webhooks.disputes.dlq"`
 }
 
 func New() (Config, error) {

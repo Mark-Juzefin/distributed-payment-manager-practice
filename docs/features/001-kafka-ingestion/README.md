@@ -8,31 +8,38 @@ Replace synchronous webhook processing with Kafka-based async ingestion.
 
 **Architecture:** [kafka-architecture.md](../kafka-architecture.md)
 
-**Subtask 1 план:** [plan-subtask-1.md](plan-subtask-1.md)
+## Subtasks
 
-## Tasks
+**Subtask 1:** Basic Kafka integration — [plan](plan-subtask-1.md)
+- [x] Webhook handlers publish to Kafka instead of sync processing
+- [x] Workers consume topics and process events
 
-- [x] Інфраструктура (Kafka + Zookeeper)
-- [x] Config (brokers, topics, consumer groups)
-- [x] Messaging абстракції (`internal/messaging/`)
-- [x] Kafka implementation (`internal/external/kafka/`)
-- [x] Message Controllers (`internal/controller/message/`)
-- [x] Handler модифікації (publish замість sync)
-- [x] App wiring + graceful shutdown
+**Subtask 2:** Sync/Kafka mode — [plan](plan-subtask-2.md)
+- [x] Sync/Kafka mode switch via env variable
+- [x] Integration test fixes for async mode
 
-**Subtask 2 план:** [plan-subtask-2.md](plan-subtask-2.md)
+**Subtask 3:** Test isolation — [plan](plan-subtask-3.md)
+- [x] Testcontainers instead of docker-compose
 
-- [x] Конфігурація режиму (sync/kafka) через env змінну
-- [x] Оновити інтеграційний тест, щоб він не розраховував на синхронність вебхуків
-- [x] Виправити проблему з consumer group offset в тестах (duplicate key через старі повідомлення)
-- [x] Виправити retry в тестах для пустих результатів (GET повертає 200 з [])
-- [x] Додати retry в consumer при order not found (race condition)
-- [ ] Дослідити Transactional Outbox pattern для reliable messaging
-- [ ] додати окремі інтеграційні тести до модулів кафки
+**Subtask 4:** Consumer resilience — [plan](plan-subtask-4.md)
+- [x] Retry with exponential backoff + jitter
+- [x] Panic recovery (defer + recover)
+- [x] Dead Letter Queue for poison messages
 
-**Subtask 3 план:** [plan-subtask-3.md](plan-subtask-3.md)
+**Subtask 5:** Sharding-ready architecture
+- [ ] Partition key by user_id instead of order_id
+- [ ] Add user_id to ChargebackWebhook (simplified — real providers won't have it)
+- [ ] Separate ingest service binary
 
-- [x] Testcontainers для ізоляції тестів (замість docker-compose для тестів)
+## Future: Realistic user_id lookup
+
+Current approach is simplified — we add user_id directly to webhook payloads. In reality:
+- External providers don't know our internal user_id
+- Webhook might contain only email or order_id
+- Need to lookup user_id before Kafka publish or on consume
+- Opportunities: cache layer (Redis), lookup service, cross-shard queries
+
+→ Consider for Step 3 (Sharding) or later.
 
 ## Notes
 

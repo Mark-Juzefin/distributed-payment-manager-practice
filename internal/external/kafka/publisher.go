@@ -1,13 +1,10 @@
 package kafka
 
 import (
-	"context"
-	"encoding/json"
-	"strings"
-	"time"
-
 	"TestTaskJustPay/internal/messaging"
 	"TestTaskJustPay/pkg/logger"
+	"context"
+	"encoding/json"
 
 	"github.com/segmentio/kafka-go"
 )
@@ -45,42 +42,16 @@ func (p *Publisher) Publish(ctx context.Context, env messaging.Envelope) error {
 		Value: value,
 	}
 
-	// Retry with backoff for transient errors (Kafka may need time to start)
-	const maxRetries = 5
-	var lastErr error
-
-	for attempt := 0; attempt < maxRetries; attempt++ {
-		if attempt > 0 {
-			backoff := time.Duration(attempt*2) * time.Second // 2s, 4s, 6s, 8s
-			time.Sleep(backoff)
-			p.logger.Info("Retrying publish: topic=%s attempt=%d backoff=%v", p.writer.Topic, attempt+1, backoff)
-		}
-
-		if err := p.writer.WriteMessages(ctx, msg); err != nil {
-			lastErr = err
-			if isRetryable(err) {
-				continue
-			}
-			p.logger.Error("Failed to publish message: topic=%s key=%s error=%v",
-				p.writer.Topic, env.Key, err)
-			return err
-		}
-
-		p.logger.Debug("Message published: topic=%s key=%s event_id=%s",
-			p.writer.Topic, env.Key, env.EventID)
-		return nil
+	if err = p.writer.WriteMessages(ctx, msg); err != nil {
+		p.logger.Error("Failed to publish message: topic=%s key=%s error=%v",
+			p.writer.Topic, env.Key, err)
+		return err
 	}
 
-	p.logger.Error("Failed to publish after retries: topic=%s key=%s error=%v",
-		p.writer.Topic, env.Key, lastErr)
-	return lastErr
-}
+	p.logger.Debug("Message published: topic=%s key=%s event_id=%s",
+		p.writer.Topic, env.Key, env.EventID)
+	return nil
 
-func isRetryable(err error) bool {
-	msg := err.Error()
-	return strings.Contains(msg, "connection reset by peer") ||
-		strings.Contains(msg, "Unknown Topic Or Partition") ||
-		strings.Contains(msg, "connection refused")
 }
 
 // Close closes the Kafka writer.

@@ -8,6 +8,7 @@ import (
 type ChargebackWebhook struct {
 	ProviderEventID string           `json:"provider_event_id"`
 	OrderID         string           `json:"order_id"`
+	UserID          string           `json:"user_id"`
 	Status          ChargebackStatus `json:"status"`
 	Reason          string           `json:"reason"`
 	Money

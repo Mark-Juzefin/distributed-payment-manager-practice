@@ -22,7 +22,7 @@ func NewAsyncProcessor(orderPublisher, disputePublisher messaging.Publisher) *As
 }
 
 func (p *AsyncProcessor) ProcessOrderWebhook(ctx context.Context, webhook order.PaymentWebhook) error {
-	envelope, err := messaging.NewEnvelope(webhook.OrderId, "order.webhook", webhook)
+	envelope, err := messaging.NewEnvelope(webhook.UserId, "order.webhook", webhook)
 	if err != nil {
 		return fmt.Errorf("create envelope: %w", err)
 	}
@@ -30,7 +30,7 @@ func (p *AsyncProcessor) ProcessOrderWebhook(ctx context.Context, webhook order.
 }
 
 func (p *AsyncProcessor) ProcessDisputeWebhook(ctx context.Context, webhook dispute.ChargebackWebhook) error {
-	envelope, err := messaging.NewEnvelope(webhook.OrderID, "dispute.webhook", webhook)
+	envelope, err := messaging.NewEnvelope(webhook.UserID, "dispute.webhook", webhook)
 	if err != nil {
 		return fmt.Errorf("create envelope: %w", err)
 	}

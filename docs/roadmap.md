@@ -7,15 +7,24 @@
 - [x] **Time-series Partitioning** - PostgreSQL pg_partman для dispute_events
   - Див: [Postgres Time Series Partitioning Notes](../Postgres%20Time%20Series%20Partitioning%20Notes.md)
 
+- [x] **Step 1: Webhooks ingestion with Kafka**
+  - Async webhook processing via Kafka topics
+  - Sync/Kafka mode switch via WEBHOOK_MODE env variable
+  - Consumer resilience: retry with exponential backoff, panic recovery, DLQ
+  - Topic partitioning
+  - Details: [features/001-kafka-ingestion/](features/001-kafka-ingestion/) | Notes: [notes.md](features/001-kafka-ingestion/notes.md)
+
 ---
 
 ## In Progress
 
-### Step 1: Webhooks ingestion with Kafka
-Details: [features/001-kafka-ingestion/](features/001-kafka-ingestion/)
-
 ### Ingest Service Extraction
-Details: [features/002-ingest-service-extraction/](features/002-ingest-service-extraction/)
+- Extract Ingest service as a separate microservice (first step to Step 5)
+- Kafka mode: Ingest → Kafka → API consumer
+- Sync mode: Ingest → gRPC → API (for dev without Kafka)
+- Separate binaries: `cmd/ingest/` + `cmd/api/`
+- Practice: service boundaries, gRPC, multi-binary deployment
+- Details: [features/002-ingest-service-extraction/](features/002-ingest-service-extraction/)
 
 ---
 

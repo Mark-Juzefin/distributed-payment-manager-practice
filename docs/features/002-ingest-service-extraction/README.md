@@ -1,0 +1,100 @@
+# Feature 002: Ingest Service Extraction
+
+**Status:** In Progress
+
+## Overview
+
+Виділення Ingest service як окремого мікросервісу. Перший крок до мікросервісної архітектури (Step 5 roadmap).
+
+**Архітектура:**
+
+```
+Kafka mode (production):
+  Webhook → Ingest (HTTP) → Kafka → API consumer → domain logic
+
+Sync mode (dev, без Kafka):
+  Webhook → Ingest (HTTP) → gRPC → API → domain logic
+```
+
+Consumer завжди в API service (retry через Kafka re-delivery). gRPC тільки для sync mode.
+
+## Subtasks
+
+**Subtask 0:** Preparation — [plan-subtask-0.md](plan-subtask-0.md)
+- [x] Domain errors refactoring
+- [ ] Integration tests improvements (t.Parallel)
+- [ ] Minor cleanups (ChargebackHandler merge, typed Gateway errors)
+
+**Subtask 1:** Ingest Service with Kafka mode — [plan-subtask-1.md](plan-subtask-1.md)
+- [ ] Створити `cmd/ingest/` binary
+- [ ] HTTP → Kafka gateway (легкий edge service)
+- [ ] API consumer читає з Kafka → domain logic
+- [ ] Два окремих процеси: Ingest + API
+- [ ] Deployment configs (Makefile, Docker)
+
+**Subtask 2:** gRPC for sync mode
+- [ ] gRPC proto definitions
+- [ ] gRPC server в API service
+- [ ] Ingest викликає gRPC замість Kafka (sync mode)
+- [ ] WEBHOOK_MODE switch: `kafka` vs `sync`
+
+**Subtask 3:** Observability basics (optional)
+- [ ] Health checks для обох сервісів
+- [ ] Structured logging з correlation IDs
+- [ ] Basic metrics (Prometheus-ready)
+
+---
+
+## Architecture Decision Records
+
+### ADR-1: Consumer placement
+
+**Decision:** Kafka consumer в API service, не в Ingest.
+
+**Rationale:**
+- Retry природній через Kafka re-delivery (не commit offset → re-process)
+- Transaction boundaries чіткі (1 DB transaction per message)
+- Domain визначає transient vs permanent errors
+- Менше distributed complexity
+
+### ADR-2: gRPC for sync mode only
+
+**Decision:** gRPC використовується тільки для sync mode, не як прослойка після Kafka.
+
+**Rationale:**
+- Якщо consumer в Ingest викликає gRPC після Kafka:
+  - Складні retries (gRPC timeout ≠ domain error)
+  - Потрібен idempotency key на кожен call
+  - Distributed transaction problem
+- Sync mode потребує синхронний call → gRPC ідеально
+
+---
+
+## Notes
+
+### 2024-12-30: Initial Analysis
+
+Провели аналіз архітектури. Головні проблеми:
+1. Domain залежить від controller через `apperror`
+2. Monolith binary не дозволяє окремо скейлити компоненти
+
+### 2026-01-01: Post-Kafka Review
+
+Після завершення Kafka integration (Feature 001) частина проблем виправлена:
+- Testcontainers замість docker-compose
+- TestMain() для міграцій
+- testinfra package для shared setup
+
+### 2026-01-01: Subtask 0 - Domain errors complete
+
+Domain errors refactoring завершено:
+- Створено `internal/domain/order/errors.go` (7 errors)
+- Створено `internal/domain/dispute/errors.go` (2 errors)
+- Оновлено 16 файлів: domain, repo, controller layers + integration tests
+- Видалено `internal/controller/apperror/`
+- Domain layer тепер повністю незалежний від controller
+
+### 2026-01-02: Feature restructure
+
+Фічу перейменовано з "Architecture Review & Refactoring" на "Ingest Service Extraction".
+Фокус змістився з розрізнених рефакторингів на чітку ціль - створення окремого сервісу.

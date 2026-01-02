@@ -18,7 +18,7 @@ This is a **learning sandbox** for practicing highload/distributed systems conce
 
 ## Current Focus
 
-**Active feature:** [docs/features/002-architecture-review/](docs/features/002-architecture-review/)
+**Active feature:** [docs/features/002-ingest-service-extraction/](docs/features/002-ingest-service-extraction/)
 
 Full roadmap: [docs/roadmap.md](docs/roadmap.md)
 

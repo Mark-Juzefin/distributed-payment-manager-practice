@@ -14,8 +14,8 @@
 ### Step 1: Webhooks ingestion with Kafka
 Details: [features/001-kafka-ingestion/](features/001-kafka-ingestion/)
 
-### Architecture Review
-Details: [features/002-architecture-review/](features/002-architecture-review/)
+### Ingest Service Extraction
+Details: [features/002-ingest-service-extraction/](features/002-ingest-service-extraction/)
 
 ---
 

@@ -33,10 +33,10 @@ Consumer завжди в API service (retry через Kafka re-delivery). Sync 
 - [x] Deployment configs (Makefile, Docker)
 
 **Subtask 1.5:** Monorepo Architecture Refactoring — [plan-subtask-1.5.md](plan-subtask-1.5.md)
-- [ ] Реорганізувати `internal/` на service-based структуру
-- [ ] Перемістити shared код в `internal/shared/`
-- [ ] Розділити handlers (API vs Ingest, без nullable deps)
-- [ ] Оновити routers та bootstrap
+- [x] Реорганізувати `internal/` на service-based структуру
+- [x] Перемістити shared код in `internal/shared/`
+- [x] Розділити handlers (API vs Ingest, без nullable deps)
+- [x] Оновити routers та bootstrap
 
 **Subtask 2:** gRPC for sync mode
 - [ ] gRPC proto definitions
@@ -121,3 +121,30 @@ Domain errors refactoring завершено:
 - Kafka mode: обидва сервіси через goreman
 - Kafka consumers залишились в API service
 - Ingest не має доступу до domain logic чи БД
+
+### 2026-01-03: Subtask 1.5 complete - Monorepo architecture refactored
+
+Успішно виконано рефакторинг архітектури з layer-based на service-based:
+
+**Нова структура:**
+- `internal/api/` - API service (handlers, consumers, router, bootstrap)
+- `internal/ingest/` - Ingest service (webhook handlers, router, bootstrap)
+- `internal/shared/` - Shared code (domain, repo, external, webhook, messaging, testinfra)
+
+**Ключові зміни:**
+- Чисті handlers без nullable dependencies
+- API handlers мають тільки service (без processor)
+- Ingest handlers мають тільки processor (без service)
+- API router без `includeWebhooks` boolean flag
+- Kafka consumers в `internal/api/consumers/`
+- Migrations в `internal/api/migrations/`
+- Видалено `internal/controller/` та `internal/app/`
+
+**Sync mode support:**
+- API service динамічно додає webhook endpoints в sync mode
+- Використовує ingest handlers з SyncProcessor
+
+**Testing:**
+- Всі unit tests пройшли ✅
+- Integration tests оновлено під нову структуру
+- CLAUDE.md оновлено з новою архітектурою

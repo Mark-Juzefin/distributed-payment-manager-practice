@@ -1,7 +1,7 @@
 package handlers
 
 import (
-	"TestTaskJustPay/internal/shared/domain/order"
+	"TestTaskJustPay/internal/api/domain/order"
 	"errors"
 	"fmt"
 	"net/http"

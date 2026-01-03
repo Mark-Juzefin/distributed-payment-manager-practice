@@ -6,8 +6,8 @@ import (
 	"errors"
 	"fmt"
 
-	"TestTaskJustPay/internal/shared/domain/order"
-	"TestTaskJustPay/internal/shared/messaging"
+	"TestTaskJustPay/internal/api/domain/order"
+	"TestTaskJustPay/internal/api/messaging"
 	"TestTaskJustPay/pkg/logger"
 )
 

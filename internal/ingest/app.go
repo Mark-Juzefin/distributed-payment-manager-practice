@@ -11,8 +11,8 @@ import (
 
 	"TestTaskJustPay/config"
 	"TestTaskJustPay/internal/ingest/handlers"
-	"TestTaskJustPay/internal/shared/external/kafka"
-	"TestTaskJustPay/internal/shared/webhook"
+	"TestTaskJustPay/internal/api/external/kafka"
+	"TestTaskJustPay/internal/api/webhook"
 	"TestTaskJustPay/pkg/logger"
 
 	"github.com/gin-gonic/gin"

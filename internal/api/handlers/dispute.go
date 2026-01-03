@@ -1,7 +1,7 @@
 package handlers
 
 import (
-	"TestTaskJustPay/internal/shared/domain/dispute"
+	"TestTaskJustPay/internal/api/domain/dispute"
 	"net/http"
 
 	"github.com/gin-gonic/gin"

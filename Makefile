@@ -1,7 +1,7 @@
 -include .env
 export
 
-MIGRATION_DIR=internal/app/migrations
+MIGRATION_DIR=internal/api/migrations
 
 .PHONY: run run-dev run-sync run-kafka run-api run-ingest start_containers stop_containers stop_containers_remove lint test integration-test generate migrate seed-db print-db-size clean-db benchmark build-pg-image
 
@@ -49,8 +49,8 @@ test:
 
 INTEGRATION_DIRS = \
 	./integration-test/... \
-	./internal/repo/dispute_eventsink \
-	./internal/repo/order_eventsink
+	./internal/shared/repo/dispute_eventsink \
+	./internal/shared/repo/order_eventsink
 
 integration-test:
 	go clean -testcache && go test -tags=integration -v  $(INTEGRATION_DIRS)

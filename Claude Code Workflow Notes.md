@@ -11,6 +11,9 @@ The project uses these files to maintain context across sessions:
 - **docs/features/{feature}/plan-subtask-N.md** - Implementation plans per subtask
 - **docs/roadmap.md** - High-level plan linking to feature folders
 - **.claude/rules/** - Enforced rules (migrations, feature planning)
+- **.claude/commands/** - Slash commands:
+  - `/feature-status` - Progress dashboard for all features
+  - `/new-feature [name] [desc]` - Create feature folder with template
 
 ## Session Flow
 

@@ -18,7 +18,7 @@ This is a **learning sandbox** for practicing highload/distributed systems conce
 
 ## Current Focus
 
-**Active feature:** [docs/features/002-ingest-service-extraction/](docs/features/002-ingest-service-extraction/)
+**Active feature:** [docs/features/003-inter-service-communication/](docs/features/003-inter-service-communication/)
 
 Full roadmap: [docs/roadmap.md](docs/roadmap.md)
 
@@ -49,6 +49,10 @@ Full roadmap: [docs/roadmap.md](docs/roadmap.md)
    - Update roadmap.md table
    - Update "Active feature" link in this file to next feature
    - Create next feature file from roadmap.md details
+
+**Slash commands:**
+- `/feature-status` - Show progress dashboard for all features
+- `/new-feature [name] [description]` - Create new feature folder with template
 
 ## Project Overview
 

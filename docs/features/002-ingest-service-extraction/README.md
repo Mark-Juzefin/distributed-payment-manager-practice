@@ -1,6 +1,6 @@
 # Feature 002: Ingest Service Extraction
 
-**Status:** In Progress
+**Status:** Done
 
 ## Overview
 
@@ -17,6 +17,8 @@ Sync mode (dev, без Kafka):
 ```
 
 Consumer завжди в API service (retry через Kafka re-delivery). Sync mode не потребує Ingest service.
+
+**Note:** Inter-service communication (HTTP/gRPC sync mode) moved to [Feature 003](../003-inter-service-communication/).
 
 ## Subtasks
 
@@ -37,17 +39,6 @@ Consumer завжди в API service (retry через Kafka re-delivery). Sync 
 - [x] Перемістити shared код in `internal/shared/`
 - [x] Розділити handlers (API vs Ingest, без nullable deps)
 - [x] Оновити routers та bootstrap
-
-**Subtask 2:** gRPC for sync mode
-- [ ] gRPC proto definitions
-- [ ] gRPC server в API service
-- [ ] Ingest викликає gRPC замість Kafka (sync mode)
-- [ ] WEBHOOK_MODE switch: `kafka` vs `sync`
-
-**Subtask 3:** Observability basics (optional)
-- [ ] Health checks для обох сервісів
-- [ ] Structured logging з correlation IDs
-- [ ] Basic metrics (Prometheus-ready)
 
 ---
 

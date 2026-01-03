@@ -14,17 +14,23 @@
   - Topic partitioning
   - Details: [features/001-kafka-ingestion/](features/001-kafka-ingestion/) | Notes: [notes.md](features/001-kafka-ingestion/notes.md)
 
+- [x] **Ingest Service Extraction**
+  - Extracted Ingest service as a separate microservice
+  - Kafka mode: Ingest → Kafka → API consumer
+  - Separate binaries: `cmd/ingest/` + `cmd/api/`
+  - Service-based monorepo architecture (`internal/api/`, `internal/ingest/`)
+  - Details: [features/002-ingest-service-extraction/](features/002-ingest-service-extraction/)
+
 ---
 
 ## In Progress
 
-### Ingest Service Extraction
-- Extract Ingest service as a separate microservice (first step to Step 5)
-- Kafka mode: Ingest → Kafka → API consumer
-- Sync mode: Ingest → gRPC → API (for dev without Kafka)
-- Separate binaries: `cmd/ingest/` + `cmd/api/`
-- Practice: service boundaries, gRPC, multi-binary deployment
-- Details: [features/002-ingest-service-extraction/](features/002-ingest-service-extraction/)
+### Inter-Service Communication
+- Sync mode communication between Ingest and API services
+- Progressive approach: HTTP → HTTP + Protobuf → gRPC
+- Benchmarking different approaches (Kafka vs HTTP vs gRPC)
+- Practice: Protocol Buffers, gRPC, service-to-service communication
+- Details: [features/003-inter-service-communication/](features/003-inter-service-communication/)
 
 ---
 
@@ -74,3 +80,9 @@
 ### Step 7: Simple Frontend (HTMX)
 - Build a lightweight dashboard to view orders, disputes, and events.
 - Practice: HTMX, server-side rendering, integrating with APIs.
+
+### Experiment — Second language module (Rust/C++ in a payments domain)
+- Separate microservice: Go service calls a Rust/C++ service over gRPC.
+- Library: Rust crate → shared library (.so/.dylib) + FFI into Go (cgo).
+- WASM plugin: rules/logic compiled to wasm and executed by Go (potential hot-reload via the future admin UI).
+- Implementation idea: Fee & Pricing Engine (fee/pricing calculation).

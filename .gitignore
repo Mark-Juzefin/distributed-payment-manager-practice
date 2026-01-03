@@ -1,4 +1,6 @@
 .idea
 .env
+.env.api
+.env.ingest
 
 **/.DS_Store

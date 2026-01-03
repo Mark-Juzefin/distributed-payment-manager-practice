@@ -4,19 +4,19 @@ package integration_test
 
 import (
 	"TestTaskJustPay/config"
-	"TestTaskJustPay/internal/app"
-	apphttp "TestTaskJustPay/internal/controller/rest"
-	"TestTaskJustPay/internal/controller/rest/handlers"
-	"TestTaskJustPay/internal/domain/dispute"
-	"TestTaskJustPay/internal/domain/order"
-	"TestTaskJustPay/internal/external/kafka"
-	"TestTaskJustPay/internal/external/silvergate"
-	dispute_repo "TestTaskJustPay/internal/repo/dispute"
-	"TestTaskJustPay/internal/repo/dispute_eventsink"
-	order_repo "TestTaskJustPay/internal/repo/order"
-	"TestTaskJustPay/internal/repo/order_eventsink"
-	"TestTaskJustPay/internal/testinfra"
-	"TestTaskJustPay/internal/webhook"
+	"TestTaskJustPay/internal/api"
+	apiHandlers "TestTaskJustPay/internal/api/handlers"
+	"TestTaskJustPay/internal/api/domain/dispute"
+	"TestTaskJustPay/internal/api/domain/order"
+	"TestTaskJustPay/internal/api/external/kafka"
+	"TestTaskJustPay/internal/api/external/silvergate"
+	dispute_repo "TestTaskJustPay/internal/api/repo/dispute"
+	"TestTaskJustPay/internal/api/repo/dispute_eventsink"
+	order_repo "TestTaskJustPay/internal/api/repo/order"
+	"TestTaskJustPay/internal/api/repo/order_eventsink"
+	"TestTaskJustPay/internal/shared/testinfra"
+	"TestTaskJustPay/internal/ingest/webhook"
+	ingestHandlers "TestTaskJustPay/internal/ingest/handlers"
 	"TestTaskJustPay/pkg/logger"
 	"TestTaskJustPay/pkg/postgres"
 	"bytes"
@@ -145,20 +145,29 @@ func setupTestServer(t *testing.T) (*httptest.Server, *postgres.Postgres) {
 		KafkaOrdersConsumerGroup:   suite.Kafka.OrdersGroup,
 		KafkaDisputesConsumerGroup: suite.Kafka.DisputesGroup,
 	}
-	app.StartWorkers(consumerCtx, l, cfg, orderService, disputeService)
+	api.StartWorkers(consumerCtx, l, cfg, orderService, disputeService)
 
 	// Give consumers time to start and join consumer group
 	// Topics are pre-created, but consumers still need time to subscribe and rebalance
 	time.Sleep(1 * time.Second)
 
-	orderHandler := handlers.NewOrderHandler(orderService, processor)
-	chargebackHandler := handlers.NewChargebackHandler(disputeService, processor)
-	disputeHandler := handlers.NewDisputeHandler(disputeService)
+	// API handlers (no processor)
+	apiOrderHandler := apiHandlers.NewOrderHandler(orderService)
+	apiChargebackHandler := apiHandlers.NewChargebackHandler(disputeService)
+	apiDisputeHandler := apiHandlers.NewDisputeHandler(disputeService)
 
-	router := apphttp.NewRouter(orderHandler, chargebackHandler, disputeHandler)
+	// Webhook handlers (with processor) for testing webhooks
+	webhookOrderHandler := ingestHandlers.NewOrderHandler(processor)
+	webhookChargebackHandler := ingestHandlers.NewChargebackHandler(processor)
 
-	engine := app.NewGinEngine(l)
-	router.SetUp(engine)
+	// Setup router with both API and webhook endpoints
+	engine := api.NewGinEngine(l)
+	apiRouter := api.NewRouter(apiOrderHandler, apiChargebackHandler, apiDisputeHandler)
+	apiRouter.SetUp(engine)
+
+	// Add webhook endpoints for testing
+	engine.POST("/webhooks/payments/orders", webhookOrderHandler.Webhook)
+	engine.POST("/webhooks/payments/chargebacks", webhookChargebackHandler.Webhook)
 
 	return httptest.NewServer(engine), pool
 }

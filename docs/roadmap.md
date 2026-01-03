@@ -7,15 +7,30 @@
 - [x] **Time-series Partitioning** - PostgreSQL pg_partman для dispute_events
   - Див: [Postgres Time Series Partitioning Notes](../Postgres%20Time%20Series%20Partitioning%20Notes.md)
 
+- [x] **Step 1: Webhooks ingestion with Kafka**
+  - Async webhook processing via Kafka topics
+  - Sync/Kafka mode switch via WEBHOOK_MODE env variable
+  - Consumer resilience: retry with exponential backoff, panic recovery, DLQ
+  - Topic partitioning
+  - Details: [features/001-kafka-ingestion/](features/001-kafka-ingestion/) | Notes: [notes.md](features/001-kafka-ingestion/notes.md)
+
+- [x] **Ingest Service Extraction**
+  - Extracted Ingest service as a separate microservice
+  - Kafka mode: Ingest → Kafka → API consumer
+  - Separate binaries: `cmd/ingest/` + `cmd/api/`
+  - Service-based monorepo architecture (`internal/api/`, `internal/ingest/`)
+  - Details: [features/002-ingest-service-extraction/](features/002-ingest-service-extraction/)
+
 ---
 
 ## In Progress
 
-### Step 1: Webhooks ingestion with Kafka
-Details: [features/001-kafka-ingestion/](features/001-kafka-ingestion/)
-
-### Architecture Review
-Details: [features/002-architecture-review/](features/002-architecture-review/)
+### Inter-Service Communication
+- Sync mode communication between Ingest and API services
+- Progressive approach: HTTP → HTTP + Protobuf → gRPC
+- Benchmarking different approaches (Kafka vs HTTP vs gRPC)
+- Practice: Protocol Buffers, gRPC, service-to-service communication
+- Details: [features/003-inter-service-communication/](features/003-inter-service-communication/)
 
 ---
 
@@ -40,10 +55,11 @@ Details: [features/002-architecture-review/](features/002-architecture-review/)
 - **Kubernetes**: deploy services, HPA, liveness/readiness, ConfigMaps/Secrets.
 - **API Gateway**: ingress (NGINX/Traefik/Kong), routing, rate limiting, authn/z.
 - **Service-to-service**: gRPC/HTTP, retries/timeouts, circuit breakers (e.g., Envoy/Istio-lite later).
+- **Workflow orchestration**: Temporal for long-running transactions (dispute flows, saga pattern), distributed coordination.
 - **Postgres access**: PgBouncer per service, connection limits, migration strategy.
 - **CI/CD**: build pipelines, image tagging, per-env configs.
 - **Platform ops**: centralized logs, metrics (Prometheus), tracing (OTel/Jaeger).
-- Practice: service boundaries, platform primitives, reliability patterns.
+- Practice: service boundaries, platform primitives, reliability patterns, workflow-driven architecture.
 
 ### Step 5.5: Simple Deployment Profile
 - Create "simple" profile that works on basic VPS without complex infrastructure.
@@ -64,3 +80,9 @@ Details: [features/002-architecture-review/](features/002-architecture-review/)
 ### Step 7: Simple Frontend (HTMX)
 - Build a lightweight dashboard to view orders, disputes, and events.
 - Practice: HTMX, server-side rendering, integrating with APIs.
+
+### Experiment — Second language module (Rust/C++ in a payments domain)
+- Separate microservice: Go service calls a Rust/C++ service over gRPC.
+- Library: Rust crate → shared library (.so/.dylib) + FFI into Go (cgo).
+- WASM plugin: rules/logic compiled to wasm and executed by Go (potential hot-reload via the future admin UI).
+- Implementation idea: Fee & Pricing Engine (fee/pricing calculation).

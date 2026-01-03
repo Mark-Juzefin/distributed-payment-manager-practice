@@ -148,3 +148,25 @@ Domain errors refactoring завершено:
 - Всі unit tests пройшли ✅
 - Integration tests оновлено під нову структуру
 - CLAUDE.md оновлено з новою архітектурою
+
+### 2026-01-03: Architecture simplification
+
+Після Subtask 1.5 спростили структуру, перемістивши бізнес-логіку з `shared/` до `api/`:
+
+**Переміщення:**
+- `internal/shared/domain/` → `internal/api/domain/`
+- `internal/shared/repo/` → `internal/api/repo/`
+- `internal/shared/external/` → `internal/api/external/`
+- `internal/shared/webhook/` → `internal/api/webhook/`
+- `internal/shared/messaging/` → `internal/api/messaging/`
+
+**Результат:**
+- Перейменовано `service.go` → `app.go` в обох сервісах
+- API service - primary code owner (вся бізнес-логіка)
+- Ingest service залежить від `api/webhook.Processor` interface
+- В `internal/shared/` залишився тільки `testinfra/` (test utilities)
+
+**Rationale:**
+- Тільки API service використовує domain logic, repositories, integrations
+- Ingest - lightweight gateway, reuses minimal interfaces
+- Простіша ментальна модель: API owns code, Ingest reuses

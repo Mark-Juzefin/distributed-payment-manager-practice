@@ -102,10 +102,10 @@ make build-pg-image      # Build custom PostgreSQL 17 image with pg_partman
 go test -v -run TestName ./path/to/package
 
 # Run integration tests for specific package
-go test -tags=integration -v ./internal/repo/dispute_eventsink
+go test -tags=integration -v ./internal/api/repo/dispute_eventsink
 
 # Run with race detection
-go test -race ./internal/domain/order
+go test -race ./internal/api/domain/order
 ```
 
 ## Architecture
@@ -122,8 +122,8 @@ cmd/
     └── main.go
 
 internal/
-├── api/                    # API Service (business operations, database owner)
-│   ├── service.go          # Bootstrap and dependency injection
+├── api/                    # API Service (primary code owner)
+│   ├── app.go              # Bootstrap and dependency injection
 │   ├── router.go           # API routes (no webhooks)
 │   ├── gin_engine.go       # HTTP server configuration
 │   ├── migration.go        # Database migration runner
@@ -133,37 +133,37 @@ internal/
 │   │   ├── order.go        # GET, POST /orders/* operations
 │   │   ├── dispute.go      # Dispute operations
 │   │   └── chargeback.go   # Chargeback operations
-│   └── consumers/          # Kafka consumer handlers
-│       ├── order.go        # Processes order webhooks from Kafka
-│       └── dispute.go      # Processes dispute webhooks from Kafka
+│   ├── consumers/          # Kafka consumer handlers
+│   │   ├── order.go        # Processes order webhooks from Kafka
+│   │   └── dispute.go      # Processes dispute webhooks from Kafka
+│   ├── domain/             # Core business logic (framework-agnostic)
+│   │   ├── order/          # Order aggregate, service, repository interface
+│   │   ├── dispute/        # Dispute aggregate, service, repository interface
+│   │   └── gateway/        # Payment provider abstraction (port)
+│   ├── repo/               # Data access implementations
+│   │   ├── order/          # PostgreSQL order repository
+│   │   ├── dispute/        # PostgreSQL dispute repository
+│   │   ├── order_eventsink/    # Order event persistence
+│   │   └── dispute_eventsink/  # Dispute event persistence (partitioned)
+│   ├── external/           # Third-party integrations
+│   │   ├── kafka/          # Kafka publishers and consumers
+│   │   ├── silvergate/     # Payment gateway client
+│   │   └── opensearch/     # Event indexing
+│   ├── webhook/            # Webhook processing
+│   │   ├── processor.go    # Processor interface
+│   │   ├── sync.go         # Sync processor (for sync mode)
+│   │   └── async.go        # Async processor (Kafka publisher)
+│   └── messaging/          # Kafka consumer infrastructure
 │
 ├── ingest/                 # Ingest Service (lightweight HTTP → Kafka gateway)
-│   ├── service.go          # Bootstrap (no database, no business logic)
+│   ├── app.go              # Bootstrap (no database, no business logic)
 │   ├── router.go           # Webhook routes only
-│   └── handlers/           # Webhook handlers (processor only, no service)
+│   └── handlers/           # Webhook handlers (depends on api/webhook.Processor)
 │       ├── order.go        # POST /webhooks/payments/orders
 │       └── chargeback.go   # POST /webhooks/payments/chargebacks
 │
-└── shared/                 # Shared code across services
-    ├── domain/             # Core business logic (framework-agnostic)
-    │   ├── order/          # Order aggregate, service, repository interface
-    │   ├── dispute/        # Dispute aggregate, service, repository interface
-    │   └── gateway/        # Payment provider abstraction (port)
-    ├── repo/               # Data access implementations
-    │   ├── order/          # PostgreSQL order repository
-    │   ├── dispute/        # PostgreSQL dispute repository
-    │   ├── order_eventsink/    # Order event persistence
-    │   └── dispute_eventsink/  # Dispute event persistence (partitioned)
-    ├── external/           # Third-party integrations
-    │   ├── kafka/          # Kafka publishers and consumers
-    │   ├── silvergate/     # Payment gateway client
-    │   └── opensearch/     # Event indexing
-    ├── webhook/            # Webhook processing
-    │   ├── processor.go    # Processor interface
-    │   ├── sync.go         # Sync processor (for sync mode)
-    │   └── async.go        # Async processor (Kafka publisher)
-    ├── messaging/          # Kafka consumer infrastructure
-    └── testinfra/          # Shared test utilities
+└── shared/                 # Truly shared code
+    └── testinfra/          # Test utilities only
 
 pkg/                        # Shared utilities
 ├── logger/                 # Zerolog wrapper
@@ -175,7 +175,7 @@ pkg/                        # Shared utilities
 
 **Domain-Driven Design**: Three bounded contexts (order, dispute, gateway) with clear aggregate roots and value objects.
 
-**Repository Pattern**: All data access is abstracted behind interfaces defined in `internal/shared/domain/*/repo.go`, implemented in `internal/shared/repo/`.
+**Repository Pattern**: All data access is abstracted behind interfaces defined in `internal/api/domain/*/repo.go`, implemented in `internal/api/repo/`.
 
 **Transaction Support**: Repositories support `InTransaction(func(Repo) error)` pattern for atomic multi-step operations:
 ```go

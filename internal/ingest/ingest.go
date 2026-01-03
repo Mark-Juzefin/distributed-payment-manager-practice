@@ -13,8 +13,8 @@ import (
 	"TestTaskJustPay/internal/app"
 	"TestTaskJustPay/internal/controller/rest"
 	"TestTaskJustPay/internal/controller/rest/handlers"
-	"TestTaskJustPay/internal/external/kafka"
-	"TestTaskJustPay/internal/webhook"
+	"TestTaskJustPay/internal/shared/external/kafka"
+	"TestTaskJustPay/internal/shared/webhook"
 	"TestTaskJustPay/pkg/logger"
 )
 

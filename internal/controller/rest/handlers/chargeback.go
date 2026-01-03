@@ -1,9 +1,9 @@
 package handlers
 
 import (
-	"TestTaskJustPay/internal/domain/dispute"
-	"TestTaskJustPay/internal/domain/order"
-	"TestTaskJustPay/internal/webhook"
+	"TestTaskJustPay/internal/shared/domain/dispute"
+	"TestTaskJustPay/internal/shared/domain/order"
+	"TestTaskJustPay/internal/shared/webhook"
 	"errors"
 	"net/http"
 

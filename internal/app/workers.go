@@ -5,10 +5,10 @@ import (
 
 	"TestTaskJustPay/config"
 	"TestTaskJustPay/internal/controller/message"
-	"TestTaskJustPay/internal/domain/dispute"
-	"TestTaskJustPay/internal/domain/order"
-	"TestTaskJustPay/internal/external/kafka"
-	"TestTaskJustPay/internal/messaging"
+	"TestTaskJustPay/internal/shared/domain/dispute"
+	"TestTaskJustPay/internal/shared/domain/order"
+	"TestTaskJustPay/internal/shared/external/kafka"
+	"TestTaskJustPay/internal/shared/messaging"
 	"TestTaskJustPay/pkg/logger"
 )
 

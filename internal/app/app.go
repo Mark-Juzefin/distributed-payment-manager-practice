@@ -14,7 +14,6 @@ import (
 	"TestTaskJustPay/internal/controller/rest/handlers"
 	"TestTaskJustPay/internal/domain/dispute"
 	"TestTaskJustPay/internal/domain/order"
-	"TestTaskJustPay/internal/external/kafka"
 	"TestTaskJustPay/internal/external/silvergate"
 	dispute_repo "TestTaskJustPay/internal/repo/dispute"
 	"TestTaskJustPay/internal/repo/dispute_eventsink"
@@ -59,24 +58,25 @@ func Run(cfg config.Config) {
 	orderService := order.NewOrderService(orderRepo, silvergateClient, orderEventSink, l)
 	disputeService := dispute.NewDisputeService(disputeRepo, silvergateClient, disputeEventSink, l)
 
-	// Webhook processor based on config
+	// Webhook processor and routing based on config
 	var processor webhook.Processor
+	var includeWebhooks bool
+
 	if cfg.WebhookMode == "kafka" {
-		l.Info("Webhook mode: kafka (async)")
+		l.Info("Webhook mode: kafka - webhooks handled by Ingest service, starting consumers")
 
-		// Kafka publishers
-		orderPublisher := kafka.NewPublisher(l, cfg.KafkaBrokers, cfg.KafkaOrdersTopic)
-		disputePublisher := kafka.NewPublisher(l, cfg.KafkaBrokers, cfg.KafkaDisputesTopic)
-		defer orderPublisher.Close()
-		defer disputePublisher.Close()
+		// In kafka mode, API service doesn't handle webhooks (Ingest service does)
+		processor = nil
+		includeWebhooks = false
 
-		processor = webhook.NewAsyncProcessor(orderPublisher, disputePublisher)
-
-		// Start Kafka consumers only in kafka mode
+		// Start Kafka consumers to process messages from Ingest
 		StartWorkers(ctx, l, cfg, orderService, disputeService)
 	} else {
-		l.Info("Webhook mode: sync (direct)")
+		l.Info("Webhook mode: sync - webhooks handled directly by API service")
+
+		// In sync mode, API service handles webhooks directly
 		processor = webhook.NewSyncProcessor(orderService, disputeService)
+		includeWebhooks = true
 	}
 
 	// Handlers
@@ -84,7 +84,8 @@ func Run(cfg config.Config) {
 	chargebackHandler := handlers.NewChargebackHandler(disputeService, processor)
 	disputeHandler := handlers.NewDisputeHandler(disputeService)
 
-	router := rest.NewRouter(orderHandler, chargebackHandler, disputeHandler)
+	// Use APIRouter with conditional webhook endpoints
+	router := rest.NewAPIRouter(orderHandler, chargebackHandler, disputeHandler, includeWebhooks)
 
 	router.SetUp(engine)
 

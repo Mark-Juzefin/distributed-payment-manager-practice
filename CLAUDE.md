@@ -54,12 +54,23 @@ Full roadmap: [docs/roadmap.md](docs/roadmap.md)
 
 This is a **Distributed Payment Manager** written in Go - a financial transaction management system that handles payment order lifecycle, dispute/chargeback management, and event sourcing. The system integrates with external payment providers (Silvergate) and uses PostgreSQL with time-series partitioning for high-performance event storage.
 
+**Architecture:** The system consists of two microservices:
+- **API Service** (`cmd/api`) - Core business logic, database owner, Kafka consumers, manual operations
+- **Ingest Service** (`cmd/ingest`) - Lightweight HTTP → Kafka gateway for webhook ingestion
+
+**Deployment modes:**
+- **Sync mode** (dev): API service only, webhooks processed directly
+- **Kafka mode** (prod): Both services, webhooks routed through Kafka
+
 ## Commands
 
 ### Development
 ```bash
-make run-dev              # Start infrastructure containers + run app locally
-make start_containers     # Start only PostgreSQL, OpenSearch, and Wiremock
+make run-dev              # Sync mode: Start infrastructure + run API service locally (default)
+make run-kafka            # Kafka mode: Start infrastructure + run both API + Ingest services (requires goreman)
+make run-api              # Run API service only (standalone)
+make run-ingest           # Run Ingest service only (standalone)
+make start_containers     # Start only PostgreSQL, OpenSearch, Kafka, and Wiremock
 make stop_containers      # Stop all containers
 ```
 

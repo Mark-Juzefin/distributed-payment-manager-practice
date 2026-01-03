@@ -1,9 +1,56 @@
 services:
+  # New microservices architecture
+  api-service:
+    image: payment-api
+    container_name: payment-api
+    profiles:
+      - prod
+    networks:
+      - backend
+    build:
+      context: .
+      dockerfile: Dockerfile.api
+    depends_on:
+      db:
+        condition: service_started
+      opensearch-node1:
+        condition: service_started
+      kafka-init:
+        condition: service_completed_successfully
+    env_file: .env.api
+    environment:
+      - PG_URL=user=postgres password=secret host=db port=5432 dbname=payments sslmode=disable
+      - OPENSEARCH_URLS=http://opensearch-node1:9200
+      - KAFKA_BROKERS=kafka:29092
+      - WEBHOOK_MODE=kafka
+    ports:
+      - "3000:3000"
+
+  ingest-service:
+    image: payment-ingest
+    container_name: payment-ingest
+    profiles:
+      - prod
+    networks:
+      - backend
+    build:
+      context: .
+      dockerfile: Dockerfile.ingest
+    depends_on:
+      kafka-init:
+        condition: service_completed_successfully
+    env_file: .env.ingest
+    environment:
+      - KAFKA_BROKERS=kafka:29092
+    ports:
+      - "3001:3001"
+
+  # Legacy monolith (backward compatibility)
   payment-app:
     image: payment-app
     container_name: payment-app
     profiles:
-      - prod
+      - legacy
     networks:
       - backend
     build:

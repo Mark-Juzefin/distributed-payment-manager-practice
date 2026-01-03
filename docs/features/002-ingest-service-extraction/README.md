@@ -13,10 +13,10 @@ Kafka mode (production):
   Webhook → Ingest (HTTP) → Kafka → API consumer → domain logic
 
 Sync mode (dev, без Kafka):
-  Webhook → Ingest (HTTP) → gRPC → API → domain logic
+  Webhook → API (HTTP) → domain logic
 ```
 
-Consumer завжди в API service (retry через Kafka re-delivery). gRPC тільки для sync mode.
+Consumer завжди в API service (retry через Kafka re-delivery). Sync mode не потребує Ingest service.
 
 ## Subtasks
 
@@ -26,11 +26,17 @@ Consumer завжди в API service (retry через Kafka re-delivery). gRPC 
 - [ ] Minor cleanups (ChargebackHandler merge, typed Gateway errors)
 
 **Subtask 1:** Ingest Service with Kafka mode — [plan-subtask-1.md](plan-subtask-1.md)
-- [ ] Створити `cmd/ingest/` binary
-- [ ] HTTP → Kafka gateway (легкий edge service)
-- [ ] API consumer читає з Kafka → domain logic
-- [ ] Два окремих процеси: Ingest + API
-- [ ] Deployment configs (Makefile, Docker)
+- [x] Створити `cmd/ingest/` binary
+- [x] HTTP → Kafka gateway (легкий edge service)
+- [x] API consumer читає з Kafka → domain logic
+- [x] Два окремих процеси: Ingest + API
+- [x] Deployment configs (Makefile, Docker)
+
+**Subtask 1.5:** Monorepo Architecture Refactoring — [plan-subtask-1.5.md](plan-subtask-1.5.md)
+- [ ] Реорганізувати `internal/` на service-based структуру
+- [ ] Перемістити shared код в `internal/shared/`
+- [ ] Розділити handlers (API vs Ingest, без nullable deps)
+- [ ] Оновити routers та bootstrap
 
 **Subtask 2:** gRPC for sync mode
 - [ ] gRPC proto definitions
@@ -98,3 +104,20 @@ Domain errors refactoring завершено:
 
 Фічу перейменовано з "Architecture Review & Refactoring" на "Ingest Service Extraction".
 Фокус змістився з розрізнених рефакторингів на чітку ціль - створення окремого сервісу.
+
+### 2026-01-03: Subtask 1 complete - Ingest Service implemented
+
+Успішно створено Ingest Service:
+- Створено `cmd/ingest/` та `cmd/api/` entry points
+- Імплементовано `internal/ingest/ingest.go` - легкий HTTP → Kafka gateway
+- Рефакторинг `internal/app/app.go` для підтримки kafka mode без webhook endpoints
+- Створено `WebhookRouter` для Ingest та `APIRouter` для API service
+- Handlers з nullable dependencies (service/processor can be nil)
+- Deployment: Makefile, Procfile, Dockerfiles, env files
+- Оновлено документацію: README.md, CLAUDE.md
+
+**Архітектурні рішення:**
+- Sync mode: тільки API service (WEBHOOK_MODE=sync)
+- Kafka mode: обидва сервіси через goreman
+- Kafka consumers залишились в API service
+- Ingest не має доступу до domain logic чи БД

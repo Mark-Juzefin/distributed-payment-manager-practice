@@ -7,7 +7,6 @@ import (
 )
 
 func main() {
-	log.Println("WARNING: cmd/app is deprecated, use cmd/api instead")
 	cfg, err := config.New()
 	if err != nil {
 		log.Fatalf("Config error: %s", err)

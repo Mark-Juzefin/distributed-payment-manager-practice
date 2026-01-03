@@ -20,6 +20,12 @@ func NewChargebackHandler(s *dispute.DisputeService, processor webhook.Processor
 }
 
 func (h *ChargebackHandler) Webhook(c *gin.Context) {
+	// Check if processor is available (nil in API kafka mode)
+	if h.processor == nil {
+		c.JSON(http.StatusServiceUnavailable, gin.H{"message": "Webhook endpoint not available in this mode"})
+		return
+	}
+
 	var event dispute.ChargebackWebhook
 	if err := c.ShouldBindJSON(&event); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"message": "Invalid payload"})

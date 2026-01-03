@@ -20,6 +20,12 @@ func NewOrderHandler(s *order.OrderService, processor webhook.Processor) OrderHa
 }
 
 func (h *OrderHandler) Webhook(c *gin.Context) {
+	// Check if processor is available (nil in API kafka mode)
+	if h.processor == nil {
+		c.JSON(http.StatusServiceUnavailable, gin.H{"message": "Webhook endpoint not available in this mode"})
+		return
+	}
+
 	var event order.PaymentWebhook
 	if err := c.ShouldBindJSON(&event); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"message": "Missing order_id"})
@@ -44,6 +50,12 @@ func (h *OrderHandler) Webhook(c *gin.Context) {
 }
 
 func (h *OrderHandler) Get(c *gin.Context) {
+	// Check if service is available (nil in Ingest mode)
+	if h.service == nil {
+		c.JSON(http.StatusServiceUnavailable, gin.H{"message": "Service not available"})
+		return
+	}
+
 	orderID := c.Param("order_id")
 	if orderID == "" {
 		c.JSON(http.StatusBadRequest, gin.H{"message": "Missing order_id"})
@@ -62,6 +74,12 @@ func (h *OrderHandler) Get(c *gin.Context) {
 	c.JSON(http.StatusOK, res)
 }
 func (h *OrderHandler) GetEvents(c *gin.Context) {
+	// Check if service is available (nil in Ingest mode)
+	if h.service == nil {
+		c.JSON(http.StatusServiceUnavailable, gin.H{"message": "Service not available"})
+		return
+	}
+
 	var query order.OrderEventQuery
 	if err := c.ShouldBindQuery(&query); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"message": err.Error()})
@@ -78,6 +96,12 @@ func (h *OrderHandler) GetEvents(c *gin.Context) {
 }
 
 func (h *OrderHandler) Filter(c *gin.Context) {
+	// Check if service is available (nil in Ingest mode)
+	if h.service == nil {
+		c.JSON(http.StatusServiceUnavailable, gin.H{"message": "Service not available"})
+		return
+	}
+
 	filter, err := h.createFilter(c)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
@@ -104,6 +128,12 @@ type FilterParams struct {
 }
 
 func (h *OrderHandler) Hold(c *gin.Context) {
+	// Check if service is available (nil in Ingest mode)
+	if h.service == nil {
+		c.JSON(http.StatusServiceUnavailable, gin.H{"message": "Service not available"})
+		return
+	}
+
 	orderID := c.Param("order_id")
 	if orderID == "" {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Missing order_id"})
@@ -130,6 +160,12 @@ func (h *OrderHandler) Hold(c *gin.Context) {
 }
 
 func (h *OrderHandler) Capture(c *gin.Context) {
+	// Check if service is available (nil in Ingest mode)
+	if h.service == nil {
+		c.JSON(http.StatusServiceUnavailable, gin.H{"message": "Service not available"})
+		return
+	}
+
 	orderID := c.Param("order_id")
 	if orderID == "" {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Missing order_id"})

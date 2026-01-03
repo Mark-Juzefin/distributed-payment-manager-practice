@@ -3,19 +3,31 @@ export
 
 MIGRATION_DIR=internal/app/migrations
 
-.PHONY: run run-dev run-sync run-kafka start_containers stop_containers stop_containers_remove lint test integration-test generate migrate seed-db print-db-size clean-db benchmark build-pg-image
+.PHONY: run run-dev run-sync run-kafka run-api run-ingest start_containers stop_containers stop_containers_remove lint test integration-test generate migrate seed-db print-db-size clean-db benchmark build-pg-image
 
 run:
 	docker compose --profile prod up --build
 
+# Default: sync mode (simple for dev, API service only)
 run-dev: start_containers
-	go run ./cmd/app
+	@echo "Running in SYNC mode (API service only)"
+	WEBHOOK_MODE=sync go run ./cmd/api
 
-run-sync: start_containers
-	WEBHOOK_MODE=sync go run ./cmd/app
-
+# Kafka mode: both services (requires goreman or two terminals)
 run-kafka: start_containers
-	WEBHOOK_MODE=kafka go run ./cmd/app
+	@which goreman > /dev/null || (echo "Install goreman: go install github.com/mattn/goreman@latest" && exit 1)
+	@echo "Running in KAFKA mode (API + Ingest services)"
+	goreman start
+
+# Standalone targets
+run-api: start_containers
+	go run ./cmd/api
+
+run-ingest:
+	go run ./cmd/ingest
+
+# Backward compatibility
+run-sync: run-dev
 
 start_containers:
 	docker-compose --profile infra up --build -d

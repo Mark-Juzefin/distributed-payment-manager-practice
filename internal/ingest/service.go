@@ -10,12 +10,12 @@ import (
 	"time"
 
 	"TestTaskJustPay/config"
-	"TestTaskJustPay/internal/app"
-	"TestTaskJustPay/internal/controller/rest"
-	"TestTaskJustPay/internal/controller/rest/handlers"
+	"TestTaskJustPay/internal/ingest/handlers"
 	"TestTaskJustPay/internal/shared/external/kafka"
 	"TestTaskJustPay/internal/shared/webhook"
 	"TestTaskJustPay/pkg/logger"
+
+	"github.com/gin-gonic/gin"
 )
 
 // Run bootstraps and runs the Ingest service (lightweight HTTP → Kafka gateway)
@@ -25,7 +25,10 @@ func Run(cfg config.IngestConfig) {
 	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer cancel()
 
-	engine := app.NewGinEngine(l)
+	// Setup Gin engine
+	gin.SetMode(gin.ReleaseMode)
+	engine := gin.New()
+	engine.Use(gin.Recovery())
 
 	// Kafka publishers
 	l.Info("Initializing Kafka publishers: brokers=%v, ordersTopic=%s, disputesTopic=%s",
@@ -38,12 +41,12 @@ func Run(cfg config.IngestConfig) {
 	// AsyncProcessor - publishes webhooks to Kafka
 	processor := webhook.NewAsyncProcessor(orderPublisher, disputePublisher)
 
-	// Handlers (service=nil for Ingest mode - no business logic here)
-	orderHandler := handlers.NewOrderHandler(nil, processor)
-	chargebackHandler := handlers.NewChargebackHandler(nil, processor)
+	// Handlers (processor only, clean)
+	orderHandler := handlers.NewOrderHandler(processor)
+	chargebackHandler := handlers.NewChargebackHandler(processor)
 
 	// Webhook-only routes
-	router := rest.NewWebhookRouter(orderHandler, chargebackHandler)
+	router := NewRouter(orderHandler, chargebackHandler)
 	router.SetUp(engine)
 
 	// Start HTTP server

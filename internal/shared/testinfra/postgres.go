@@ -4,7 +4,7 @@
 package testinfra
 
 import (
-	"TestTaskJustPay/internal/app"
+	"TestTaskJustPay/internal/api"
 	"TestTaskJustPay/pkg/postgres"
 	"context"
 	"fmt"
@@ -58,7 +58,7 @@ func NewPostgres(ctx context.Context) (*PostgresContainer, error) {
 	}
 
 	// Apply migrations
-	if err := app.ApplyMigrations(dsn, app.MIGRATION_FS); err != nil {
+	if err := api.ApplyMigrations(dsn, api.MIGRATION_FS); err != nil {
 		pool.Close()
 		container.Terminate(ctx)
 		return nil, fmt.Errorf("failed to apply migrations: %w", err)

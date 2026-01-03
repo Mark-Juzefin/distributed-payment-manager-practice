@@ -11,8 +11,8 @@ type DisputeHandler struct {
 	service *dispute.DisputeService
 }
 
-func NewDisputeHandler(s *dispute.DisputeService) DisputeHandler {
-	return DisputeHandler{service: s}
+func NewDisputeHandler(s *dispute.DisputeService) *DisputeHandler {
+	return &DisputeHandler{service: s}
 }
 
 func (h *DisputeHandler) GetDisputes(c *gin.Context) {

@@ -1,21 +1,24 @@
-package rest
+package api
 
 import (
-	"TestTaskJustPay/internal/controller/rest/handlers"
+	"TestTaskJustPay/internal/api/handlers"
 
 	"github.com/gin-gonic/gin"
 )
 
 type Router struct {
-	order      handlers.OrderHandler
-	chargeback handlers.ChargebackHandler
-	dispute    handlers.DisputeHandler
+	order      *handlers.OrderHandler
+	chargeback *handlers.ChargebackHandler
+	dispute    *handlers.DisputeHandler
 }
 
 func (r *Router) SetUp(engine *gin.Engine) {
-	engine.POST("/webhooks/payments/orders", r.order.Webhook)
-	engine.POST("/webhooks/payments/chargebacks", r.chargeback.Webhook)
+	// Health check
+	engine.GET("/health", func(c *gin.Context) {
+		c.JSON(200, gin.H{"service": "api", "status": "ok"})
+	})
 
+	// Manual operations + reads (no webhooks)
 	engine.GET("/orders", r.order.Filter)
 	engine.GET("/orders/:order_id", r.order.Get)
 	engine.GET("/orders/events", r.order.GetEvents)
@@ -29,11 +32,14 @@ func (r *Router) SetUp(engine *gin.Engine) {
 	engine.POST("/disputes/:dispute_id/submit", r.dispute.Submit)
 }
 
-func NewRouter(order handlers.OrderHandler, chargeback handlers.ChargebackHandler, dispute handlers.DisputeHandler) *Router {
-	router := &Router{
+func NewRouter(
+	order *handlers.OrderHandler,
+	chargeback *handlers.ChargebackHandler,
+	dispute *handlers.DisputeHandler,
+) *Router {
+	return &Router{
 		order:      order,
 		chargeback: chargeback,
 		dispute:    dispute,
 	}
-	return router
 }

@@ -1,4 +1,4 @@
-package message
+package consumers
 
 import (
 	"context"

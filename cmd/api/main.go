@@ -2,7 +2,7 @@ package main
 
 import (
 	"TestTaskJustPay/config"
-	"TestTaskJustPay/internal/app"
+	"TestTaskJustPay/internal/api"
 	"log"
 )
 
@@ -11,5 +11,5 @@ func main() {
 	if err != nil {
 		log.Fatalf("Config error: %s", err)
 	}
-	app.Run(cfg)
+	api.Run(cfg)
 }

@@ -1,10 +1,10 @@
-package app
+package api
 
 import (
 	"context"
 
 	"TestTaskJustPay/config"
-	"TestTaskJustPay/internal/controller/message"
+	"TestTaskJustPay/internal/api/consumers"
 	"TestTaskJustPay/internal/shared/domain/dispute"
 	"TestTaskJustPay/internal/shared/domain/order"
 	"TestTaskJustPay/internal/shared/external/kafka"
@@ -28,7 +28,7 @@ func StartWorkers(
 	defer disputeDLQPub.Close()
 
 	// Order consumer with retry + DLQ middleware
-	orderController := message.NewOrderMessageController(l, orderService)
+	orderController := consumers.NewOrderMessageController(l, orderService)
 	orderHandler := messaging.WithDLQ(
 		messaging.WithRetry(orderController.HandleMessage, messaging.DefaultRetryConfig()),
 		orderDLQPub,
@@ -42,7 +42,7 @@ func StartWorkers(
 	orderRunner := messaging.NewRunner(l, []messaging.Worker{orderConsumer}, orderHandler)
 
 	// Dispute consumer with retry + DLQ middleware
-	disputeController := message.NewDisputeMessageController(l, disputeService)
+	disputeController := consumers.NewDisputeMessageController(l, disputeService)
 	disputeHandler := messaging.WithDLQ(
 		messaging.WithRetry(disputeController.HandleMessage, messaging.DefaultRetryConfig()),
 		disputeDLQPub,

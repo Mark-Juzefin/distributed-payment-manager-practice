@@ -6,12 +6,16 @@ import (
 	"github.com/caarlos0/env/v11"
 )
 
-// IngestConfig - minimal configuration for Ingest service (HTTP → Kafka gateway)
+// IngestConfig - configuration for Ingest service (HTTP → Kafka gateway)
 type IngestConfig struct {
 	Port     int    `env:"PORT" envDefault:"3001"`
 	LogLevel string `env:"LOG_LEVEL" envDefault:"info"`
 
-	// Kafka (required for Ingest service)
+	// Webhook processing mode: "kafka" (async via Kafka)
+	// TODO(Subtask 2): Add "sync" mode with gRPC call to API service
+	WebhookMode string `env:"WEBHOOK_MODE" envDefault:"kafka"`
+
+	// Kafka configuration (required for kafka mode)
 	KafkaBrokers       []string `env:"KAFKA_BROKERS" envSeparator:"," required:"true"`
 	KafkaOrdersTopic   string   `env:"KAFKA_ORDERS_TOPIC" envDefault:"webhooks.orders"`
 	KafkaDisputesTopic string   `env:"KAFKA_DISPUTES_TOPIC" envDefault:"webhooks.disputes"`

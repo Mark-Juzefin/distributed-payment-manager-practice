@@ -18,11 +18,8 @@ import (
 	"TestTaskJustPay/internal/api/repo/dispute_eventsink"
 	order_repo "TestTaskJustPay/internal/api/repo/order"
 	"TestTaskJustPay/internal/api/repo/order_eventsink"
-	"TestTaskJustPay/internal/api/webhook"
 	"TestTaskJustPay/pkg/logger"
 	"TestTaskJustPay/pkg/postgres"
-
-	ingestHandlers "TestTaskJustPay/internal/ingest/handlers"
 )
 
 //go:embed migrations/*.sql
@@ -74,21 +71,10 @@ func Run(cfg config.Config) {
 		l.Fatal(fmt.Errorf("api - Run - ApplyMigrations: %w", err))
 	}
 
-	// Mode-specific setup
+	// Start Kafka consumers if in kafka mode
 	if cfg.WebhookMode == "kafka" {
 		l.Info("Webhook mode: kafka - starting Kafka consumers")
-		// Start Kafka consumers to process messages from Ingest service
 		StartWorkers(ctx, l, cfg, orderService, disputeService)
-	} else {
-		l.Info("Webhook mode: sync - enabling webhook endpoints")
-		// In sync mode, add webhook endpoints directly to API service
-		processor := webhook.NewSyncProcessor(orderService, disputeService)
-		webhookOrderHandler := ingestHandlers.NewOrderHandler(processor)
-		webhookChargebackHandler := ingestHandlers.NewChargebackHandler(processor)
-
-		// Add webhook routes
-		engine.POST("/webhooks/payments/orders", webhookOrderHandler.Webhook)
-		engine.POST("/webhooks/payments/chargebacks", webhookChargebackHandler.Webhook)
 	}
 
 	// Start HTTP server in a goroutine

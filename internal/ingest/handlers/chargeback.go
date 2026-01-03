@@ -3,7 +3,7 @@ package handlers
 import (
 	"TestTaskJustPay/internal/api/domain/dispute"
 	"TestTaskJustPay/internal/api/domain/order"
-	"TestTaskJustPay/internal/api/webhook"
+	"TestTaskJustPay/internal/ingest/webhook"
 	"errors"
 	"net/http"
 

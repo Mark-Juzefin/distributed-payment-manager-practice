@@ -12,15 +12,21 @@ import (
 	"TestTaskJustPay/config"
 	"TestTaskJustPay/internal/ingest/handlers"
 	"TestTaskJustPay/internal/api/external/kafka"
-	"TestTaskJustPay/internal/api/webhook"
+	"TestTaskJustPay/internal/ingest/webhook"
 	"TestTaskJustPay/pkg/logger"
 
 	"github.com/gin-gonic/gin"
 )
 
-// Run bootstraps and runs the Ingest service (lightweight HTTP → Kafka gateway)
+// Run bootstraps and runs the Ingest service
 func Run(cfg config.IngestConfig) {
 	l := logger.New(cfg.LogLevel)
+
+	// TODO(Subtask 2): Implement sync mode with gRPC call to API service
+	// For now, only kafka mode is supported
+	if cfg.WebhookMode != "kafka" {
+		l.Fatal(fmt.Errorf("ingest - Run - unsupported webhook mode: %s (only 'kafka' is supported, 'sync' will be implemented via gRPC in Subtask 2)", cfg.WebhookMode))
+	}
 
 	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer cancel()
@@ -30,8 +36,9 @@ func Run(cfg config.IngestConfig) {
 	engine := gin.New()
 	engine.Use(gin.Recovery())
 
-	// Kafka publishers
-	l.Info("Initializing Kafka publishers: brokers=%v, ordersTopic=%s, disputesTopic=%s",
+	// Kafka publishers (kafka mode)
+	l.Info("Webhook mode: kafka - initializing Kafka publishers")
+	l.Info("Kafka publishers: brokers=%v, ordersTopic=%s, disputesTopic=%s",
 		cfg.KafkaBrokers, cfg.KafkaOrdersTopic, cfg.KafkaDisputesTopic)
 	orderPublisher := kafka.NewPublisher(l, cfg.KafkaBrokers, cfg.KafkaOrdersTopic)
 	disputePublisher := kafka.NewPublisher(l, cfg.KafkaBrokers, cfg.KafkaDisputesTopic)

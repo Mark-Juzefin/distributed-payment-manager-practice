@@ -15,7 +15,7 @@ import (
 	order_repo "TestTaskJustPay/internal/api/repo/order"
 	"TestTaskJustPay/internal/api/repo/order_eventsink"
 	"TestTaskJustPay/internal/shared/testinfra"
-	"TestTaskJustPay/internal/api/webhook"
+	"TestTaskJustPay/internal/ingest/webhook"
 	ingestHandlers "TestTaskJustPay/internal/ingest/handlers"
 	"TestTaskJustPay/pkg/logger"
 	"TestTaskJustPay/pkg/postgres"

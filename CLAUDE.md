@@ -110,41 +110,60 @@ go test -race ./internal/domain/order
 
 ## Architecture
 
-### Layered Hexagonal Architecture
+### Service-Based Monorepo Architecture
 
-The codebase follows clean architecture principles with clear separation of concerns:
+The codebase follows a service-based monorepo structure with clean separation between microservices:
 
 ```
-cmd/app/                    # Application entry point
-├── main.go                 # Bootstraps the application
+cmd/
+├── api/                    # API Service entry point
+│   └── main.go
+└── ingest/                 # Ingest Service entry point
+    └── main.go
 
 internal/
-├── app/                    # Application layer - dependency injection & setup
-│   ├── app.go              # Wires all dependencies together
+├── api/                    # API Service (business operations, database owner)
+│   ├── service.go          # Bootstrap and dependency injection
+│   ├── router.go           # API routes (no webhooks)
 │   ├── gin_engine.go       # HTTP server configuration
 │   ├── migration.go        # Database migration runner
-│   └── migrations/         # Embedded SQL migrations (Goose format)
+│   ├── migrations/         # Embedded SQL migrations (Goose format)
+│   ├── workers.go          # Kafka consumer management
+│   ├── handlers/           # HTTP handlers (service only, no processor)
+│   │   ├── order.go        # GET, POST /orders/* operations
+│   │   ├── dispute.go      # Dispute operations
+│   │   └── chargeback.go   # Chargeback operations
+│   └── consumers/          # Kafka consumer handlers
+│       ├── order.go        # Processes order webhooks from Kafka
+│       └── dispute.go      # Processes dispute webhooks from Kafka
 │
-├── controller/             # HTTP request handling
-│   ├── apperror/           # Domain-specific error types
-│   └── rest/               # REST API handlers and routing
-│       ├── router.go       # Route definitions
-│       └── handlers/       # HTTP handlers (order, dispute, chargeback)
+├── ingest/                 # Ingest Service (lightweight HTTP → Kafka gateway)
+│   ├── service.go          # Bootstrap (no database, no business logic)
+│   ├── router.go           # Webhook routes only
+│   └── handlers/           # Webhook handlers (processor only, no service)
+│       ├── order.go        # POST /webhooks/payments/orders
+│       └── chargeback.go   # POST /webhooks/payments/chargebacks
 │
-├── domain/                 # Core business logic (framework-agnostic)
-│   ├── order/              # Order aggregate, service, repository interface
-│   ├── dispute/            # Dispute aggregate, service, repository interface
-│   └── gateway/            # Payment provider abstraction (port)
-│
-├── repo/                   # Data access implementations
-│   ├── order/              # PostgreSQL order repository
-│   ├── dispute/            # PostgreSQL dispute repository
-│   ├── order_eventsink/    # Order event persistence
-│   └── dispute_eventsink/  # Dispute event persistence (time-series partitioned)
-│
-└── external/               # Third-party integrations
-    ├── silvergate/         # Payment gateway client (implements gateway.Provider)
-    └── opensearch/         # Event indexing for analytics
+└── shared/                 # Shared code across services
+    ├── domain/             # Core business logic (framework-agnostic)
+    │   ├── order/          # Order aggregate, service, repository interface
+    │   ├── dispute/        # Dispute aggregate, service, repository interface
+    │   └── gateway/        # Payment provider abstraction (port)
+    ├── repo/               # Data access implementations
+    │   ├── order/          # PostgreSQL order repository
+    │   ├── dispute/        # PostgreSQL dispute repository
+    │   ├── order_eventsink/    # Order event persistence
+    │   └── dispute_eventsink/  # Dispute event persistence (partitioned)
+    ├── external/           # Third-party integrations
+    │   ├── kafka/          # Kafka publishers and consumers
+    │   ├── silvergate/     # Payment gateway client
+    │   └── opensearch/     # Event indexing
+    ├── webhook/            # Webhook processing
+    │   ├── processor.go    # Processor interface
+    │   ├── sync.go         # Sync processor (for sync mode)
+    │   └── async.go        # Async processor (Kafka publisher)
+    ├── messaging/          # Kafka consumer infrastructure
+    └── testinfra/          # Shared test utilities
 
 pkg/                        # Shared utilities
 ├── logger/                 # Zerolog wrapper
@@ -156,7 +175,7 @@ pkg/                        # Shared utilities
 
 **Domain-Driven Design**: Three bounded contexts (order, dispute, gateway) with clear aggregate roots and value objects.
 
-**Repository Pattern**: All data access is abstracted behind interfaces defined in `internal/domain/*/repo.go`, implemented in `internal/repo/`.
+**Repository Pattern**: All data access is abstracted behind interfaces defined in `internal/shared/domain/*/repo.go`, implemented in `internal/shared/repo/`.
 
 **Transaction Support**: Repositories support `InTransaction(func(Repo) error)` pattern for atomic multi-step operations:
 ```go
@@ -231,7 +250,7 @@ DisputeOpen → DisputeUnderReview → DisputeSubmitted → DisputeWon
 ## Important Patterns & Conventions
 
 ### Error Handling
-Domain-specific errors are defined in `internal/controller/apperror/` and map to HTTP status codes in handlers. Always return typed errors from services.
+Domain-specific errors are defined in `internal/shared/domain/*/errors.go` and map to HTTP status codes in handlers. Always return typed errors from services.
 
 ### Query Building
 Use Squirrel query builder for type-safe SQL. Pagination uses cursor-based approach with `id` and `created_at` for stable ordering.

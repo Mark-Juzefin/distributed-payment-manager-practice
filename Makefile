@@ -49,8 +49,8 @@ test:
 
 INTEGRATION_DIRS = \
 	./integration-test/... \
-	./internal/shared/repo/dispute_eventsink \
-	./internal/shared/repo/order_eventsink
+	./internal/api/repo/dispute_eventsink \
+	./internal/api/repo/order_eventsink
 
 integration-test:
 	go clean -testcache && go test -tags=integration -v  $(INTEGRATION_DIRS)

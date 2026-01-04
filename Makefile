@@ -3,7 +3,7 @@ export
 
 MIGRATION_DIR=internal/api/migrations
 
-.PHONY: run run-dev run-sync run-kafka run-api run-ingest start_containers stop_containers stop_containers_remove lint test integration-test generate migrate seed-db print-db-size clean-db benchmark build-pg-image
+.PHONY: run run-dev run-sync run-kafka run-http run-api run-ingest start_containers stop_containers stop_containers_remove lint test integration-test generate migrate seed-db print-db-size clean-db benchmark build-pg-image
 
 run:
 	docker compose --profile prod up --build
@@ -18,6 +18,12 @@ run-kafka: start_containers
 	@which goreman > /dev/null || (echo "Install goreman: go install github.com/mattn/goreman@latest" && exit 1)
 	@echo "Running in KAFKA mode (API + Ingest services)"
 	goreman start
+
+# HTTP mode: both services via HTTP (Ingest → HTTP → API)
+run-http: start_containers
+	@which goreman > /dev/null || (echo "Install goreman: go install github.com/mattn/goreman@latest" && exit 1)
+	@echo "Running in HTTP mode (API + Ingest services)"
+	goreman -f Procfile.http start
 
 # Standalone targets
 run-api: start_containers

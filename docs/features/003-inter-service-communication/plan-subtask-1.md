@@ -95,36 +95,36 @@ APIRetryMaxDelay  time.Duration `env:"API_RETRY_MAX_DELAY" envDefault:"5s"`
 ## Implementation Steps
 
 ### Step 1: Shared DTOs
-- [ ] Create `internal/shared/dto/order_update.go` - OrderUpdateRequest/Response
-- [ ] Create `internal/shared/dto/dispute_update.go` - DisputeUpdateRequest/Response
+- [x] Create `internal/shared/dto/order_update.go` - OrderUpdateRequest/Response
+- [x] Create `internal/shared/dto/dispute_update.go` - DisputeUpdateRequest/Response
 
 ### Step 2: API Internal Endpoints
-- [ ] Create `internal/api/handlers/internal/updates.go` - UpdatesHandler
-- [ ] Create `internal/api/internal_router.go` - InternalRouter
-- [ ] Modify `internal/api/app.go` - register InternalRouter
+- [x] Create `internal/api/handlers/updates/updates.go` - UpdatesHandler (renamed from internal/)
+- [x] Create `internal/api/internal_router.go` - InternalRouter
+- [x] Modify `internal/api/app.go` - register InternalRouter
 - [ ] Add unit tests for handlers
 - [ ] Add integration tests for endpoints
 
 ### Step 3: Ingest API Client
-- [ ] Create `internal/ingest/apiclient/errors.go` - error types
-- [ ] Create `internal/ingest/apiclient/retry.go` - retry with backoff
-- [ ] Create `internal/ingest/apiclient/client.go` - HTTPClient
-- [ ] Add unit tests with httptest
+- [x] Create `internal/ingest/apiclient/errors.go` - error types
+- [x] Create `internal/ingest/apiclient/retry.go` - retry with backoff
+- [x] Create `internal/ingest/apiclient/client.go` - HTTPClient
+- [x] Add unit tests with httptest
 
 ### Step 4: HTTP Sync Processor
-- [ ] Create `internal/ingest/webhook/http.go` - HTTPSyncProcessor
-- [ ] Modify `config/config.go` - add HTTP mode config
-- [ ] Modify `internal/ingest/app.go` - create HTTPSyncProcessor when mode="http"
-- [ ] Add unit tests with mocked Client
+- [x] Create `internal/ingest/webhook/http.go` - HTTPSyncProcessor
+- [x] Modify `config/config.go` - add HTTP mode config
+- [x] Modify `internal/ingest/app.go` - create HTTPSyncProcessor when mode="http"
+- [x] Add unit tests with mocked Client
 
 ### Step 5: Integration & Testing
 - [ ] Add end-to-end integration test
 - [ ] Create k6 benchmark: HTTP vs Kafka
-- [ ] Update Makefile with `run-http` target
-- [ ] Remove old unused SyncProcessor
+- [x] Update Makefile with `run-http` target
+- [x] Remove old unused SyncProcessor
 
 ### Step 6: Documentation
-- [ ] Update feature README with completion
+- [x] Update feature README with completion
 - [ ] Add notes about benchmarking results
 
 ## Files to Modify

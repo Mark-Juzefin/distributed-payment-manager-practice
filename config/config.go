@@ -11,14 +11,20 @@ type IngestConfig struct {
 	Port     int    `env:"PORT" envDefault:"3001"`
 	LogLevel string `env:"LOG_LEVEL" envDefault:"info"`
 
-	// Webhook processing mode: "kafka" (async via Kafka)
-	// TODO(Subtask 2): Add "sync" mode with gRPC call to API service
+	// Webhook processing mode: "kafka" (async via Kafka) or "http" (sync via HTTP to API)
 	WebhookMode string `env:"WEBHOOK_MODE" envDefault:"kafka"`
 
 	// Kafka configuration (required for kafka mode)
-	KafkaBrokers       []string `env:"KAFKA_BROKERS" envSeparator:"," required:"true"`
+	KafkaBrokers       []string `env:"KAFKA_BROKERS" envSeparator:","`
 	KafkaOrdersTopic   string   `env:"KAFKA_ORDERS_TOPIC" envDefault:"webhooks.orders"`
 	KafkaDisputesTopic string   `env:"KAFKA_DISPUTES_TOPIC" envDefault:"webhooks.disputes"`
+
+	// HTTP mode configuration (required for http mode)
+	APIBaseURL        string        `env:"API_BASE_URL" envDefault:"http://localhost:3000"`
+	APITimeout        time.Duration `env:"API_TIMEOUT" envDefault:"10s"`
+	APIRetryAttempts  int           `env:"API_RETRY_ATTEMPTS" envDefault:"3"`
+	APIRetryBaseDelay time.Duration `env:"API_RETRY_BASE_DELAY" envDefault:"100ms"`
+	APIRetryMaxDelay  time.Duration `env:"API_RETRY_MAX_DELAY" envDefault:"5s"`
 }
 
 // APIConfig - full configuration for API service (domain logic, consumers, manual operations)

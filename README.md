@@ -24,7 +24,7 @@ Go, PostgreSQL, pg_partman, Docker, MongoDB, OpenSearch, Kafka, testcontainers-g
 - Achieving real performance gains from scaling (metrics and benchmarks here are for learning, not for driving design decisions)
 
 # Status
-Currently working on **Ingest Service Extraction** (microservices architecture).
+Currently working on **Inter-Service Communication** (HTTP → Protobuf → gRPC).
 
 # Notes
 - [Postgres Time Series Partitioning Notes](./Postgres%20Time%20Series%20Partitioning%20Notes.md) - Query optimization with pg_partman
@@ -38,14 +38,14 @@ Detailed plan: **[docs/roadmap.md](./docs/roadmap.md)**
 |------|---------|--------|
 | - | Time-series Partitioning (pg_partman) | Done |
 | 1 | Webhooks ingestion with Kafka | Done |
-| 1.5 | Ingest Service Extraction | In Progress |
-| 2 | Outbox pattern → CDC → Analytics | Planned |
-| 3 | Sharding experiments | Planned |
-| 4 | Analytics & Observability | Planned |
-| 5 | Infrastructure (K8s, API Gateway) | Planned |
-| 5.5 | Simple Deployment Profile | Planned |
-| 6 | Deployment | Planned |
-| 7 | Simple Frontend (HTMX) | Planned |
+| 1.5 | Ingest Service Extraction | Done |
+| 1.6 | Inter-Service Communication | In Progress |
+| 2 | Observability | Planned |
+| 3 | Simple Deployment Profile + VPS | Planned |
+| 4 | Outbox Pattern → CDC → Analytics | Planned |
+| 5 | PostgreSQL Replication | Planned |
+| 6 | Sharding Experiments | Planned |
+| 7 | Infrastructure (K8s, Service Mesh) | Planned |
 
 # Services Architecture
 

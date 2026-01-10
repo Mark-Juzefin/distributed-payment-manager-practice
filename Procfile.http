@@ -1,0 +1,2 @@
+api: WEBHOOK_MODE=http go run ./cmd/api
+ingest: WEBHOOK_MODE=http go run ./cmd/ingest

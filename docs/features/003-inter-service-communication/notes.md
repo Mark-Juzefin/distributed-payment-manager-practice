@@ -10,7 +10,7 @@
 | `internal/ingest/apiclient/client.go` | API client interface + HTTP implementation |
 | `internal/ingest/apiclient/errors.go` | Error types for inter-service communication |
 | `internal/ingest/apiclient/retry.go` | Retry with exponential backoff |
-| `internal/api/handlers/internal/updates.go` | Internal API handlers for updates |
+| `internal/api/handlers/updates/updates.go` | Internal API handlers for updates |
 | `internal/api/internal_router.go` | /internal/* route registration |
 | `internal/shared/dto/` | Shared DTOs for inter-service communication |
 

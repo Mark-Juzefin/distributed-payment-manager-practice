@@ -28,12 +28,12 @@ gRPC sync mode (target):
 ## Subtasks
 
 **Subtask 1:** HTTP Sync Mode — [plan-subtask-1.md](plan-subtask-1.md) | [notes.md](notes.md)
-- [ ] Internal update endpoints в API service (`POST /internal/updates/orders`, `/internal/updates/disputes`)
-- [ ] HTTP client в Ingest (`apiclient.Client` interface + `HTTPClient`)
-- [ ] HTTPSyncProcessor що використовує apiclient
-- [ ] WEBHOOK_MODE: `kafka` / `http`
-- [ ] Integration tests
-- [ ] k6 benchmark: Kafka vs HTTP
+- [x] Internal update endpoints в API service (`POST /internal/updates/orders`, `/internal/updates/disputes`)
+- [x] HTTP client в Ingest (`apiclient.Client` interface + `HTTPClient`)
+- [x] HTTPSyncProcessor що використовує apiclient
+- [x] WEBHOOK_MODE: `kafka` / `http`
+- [x] Unit tests for new components
+- [ ] k6 benchmark: Kafka vs HTTP (moved E2E tests to Subtask 5)
 
 **Subtask 2:** HTTP + Protobuf
 - [ ] Proto definitions для webhook payloads
@@ -51,6 +51,13 @@ gRPC sync mode (target):
 - [ ] Health checks для обох сервісів
 - [ ] Correlation IDs across services
 - [ ] Basic metrics (latency, error rates)
+
+**Subtask 5:** E2E Test Refactoring — [plan-subtask-5.md](plan-subtask-5.md)
+- [ ] Process-based test infrastructure (запуск сервісів як окремих процесів)
+- [ ] E2E tests for Kafka mode
+- [ ] E2E tests for HTTP mode
+- [ ] Видалити дублювання setupTestServer (~75 рядків)
+- [ ] Makefile targets: e2e-test, e2e-test-kafka, e2e-test-http
 
 ---
 
@@ -78,6 +85,29 @@ gRPC sync mode (target):
 ---
 
 ## Notes
+
+## Implementation Log
+
+### 2026-01-04: HTTP Sync Mode (Subtask 1 - partial)
+
+**Completed:**
+- Shared DTOs: `internal/shared/dto/order_update.go`, `dispute_update.go`
+- API internal endpoints: `internal/api/handlers/updates/updates.go`, `internal_router.go`
+- Ingest API client with retry: `internal/ingest/apiclient/` (client, errors, retry)
+- HTTPSyncProcessor: `internal/ingest/webhook/http.go`
+- Config updates for HTTP mode
+- Makefile `run-http` target + `Procfile.http`
+- Unit tests for client and processor
+- Removed old unused SyncProcessor
+
+**Note:** Package renamed from `handlers/internal/` to `handlers/updates/` — Go's internal package visibility rules blocked import from parent package.
+
+**Remaining:**
+- E2E integration test (HTTP mode)
+- k6 benchmark: Kafka vs HTTP
+
+---
+
 
 ### 2026-01-03: Feature created
 

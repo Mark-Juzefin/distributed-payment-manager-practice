@@ -36,53 +36,63 @@
 
 ## Planned
 
-### Step 2: Outbox pattern → CDC → Analytics
-- Implement outbox tables per shard.
-- Use Debezium/CDC to stream events into OpenSearch or ClickHouse.
-- Practice: event-driven consistency, projections, analytical indexing.
+### Step 2: Observability
+- **Metrics**: Prometheus instrumentation, key SLIs (webhook latency p50/p95/p99, Kafka lag, error rates)
+- **Dashboards**: Grafana dashboards for services health, throughput, latency
+- **Tracing**: OpenTelemetry integration, distributed tracing (Jaeger)
+- **Profiling**: pprof endpoints for dev, continuous profiling basics
+- **SLO thinking**: define target latencies, alerting on violations
+- Practice: metrics design, Prometheus/Grafana, distributed tracing, SLO-based reliability
 
-### Step 3: Sharding experiments
-- Split orders/disputes across multiple Postgres shards by hash(user_id).
-- Practice: routing, rebalancing, joins across shards.
+### Step 3: Simple Deployment Profile + VPS Hosting
+- Single-node deployment without Kafka dependency (sync mode as default)
+- HTMX admin dashboard for viewing orders, disputes, events
+- Minimal infrastructure: single PostgreSQL instance
+- **VPS deployment**: deploy to a cheap VPS, systemd services, nginx reverse proxy, basic security hardening
+- Practice: feature flags, multi-profile configuration, HTMX/SSR, Linux server administration
 
-### Step 4: Analytics & Observability
-- Explore metrics, dashboards, and query analytics in OpenSearch / ClickHouse.
-- Benchmark queries across partitions and shards.
-- Practice: metrics collection, Grafana dashboards, query optimization.
+### Step 4: Outbox Pattern → CDC → Analytics
+- Implement outbox tables for reliable event publishing
+- Use Debezium/CDC to stream events into OpenSearch or ClickHouse
+- Exactly-once semantics: demonstrate the tradeoffs and limitations
+- Practice: event-driven consistency, CDC pipelines, projections, analytical indexing
 
-### Step 5: Infrastructure (Microservices, Kubernetes, API Gateway)
-- Break monolith into services (Ingest, Orders, Disputes, Analytics API).
-- **Kubernetes**: deploy services, HPA, liveness/readiness, ConfigMaps/Secrets.
-- **API Gateway**: ingress (NGINX/Traefik/Kong), routing, rate limiting, authn/z.
-- **Service-to-service**: gRPC/HTTP, retries/timeouts, circuit breakers (e.g., Envoy/Istio-lite later).
-- **Workflow orchestration**: Temporal for long-running transactions (dispute flows, saga pattern), distributed coordination.
-- **Postgres access**: PgBouncer per service, connection limits, migration strategy.
-- **CI/CD**: build pipelines, image tagging, per-env configs.
-- **Platform ops**: centralized logs, metrics (Prometheus), tracing (OTel/Jaeger).
-- Practice: service boundaries, platform primitives, reliability patterns, workflow-driven architecture.
+### Step 5: PostgreSQL Replication
+- **Streaming replication**: primary-standby setup, synchronous vs asynchronous
+- **Read replica routing**: write → primary, read → replica (pgpool or application-level)
+- **Failover/switchover**: manual and automated (Patroni basics)
+- **Monitoring**: replication lag metrics, alerting on lag thresholds
+- Practice: HA patterns, read scaling, failover procedures
 
-### Step 5.5: Simple Deployment Profile
-- Create "simple" profile that works on basic VPS without complex infrastructure.
-- **What this includes:**
-  - Single PostgreSQL without partitioning (or with minimal partitioning)
-  - Synchronous event processing (no Kafka required)
-  - Optional: HTMX admin panel for basic operations
-- **Note:** This may be a separate, simplified build of the system rather than the full highload version.
-- **Goal:** Have a deployable product while continuing highload experiments in parallel.
-- Practice: feature flags, dependency injection, multi-profile configuration.
+### Step 6: Sharding Experiments
+- Split orders/disputes across multiple Postgres shards by hash(user_id)
+- **Prerequisites**: observability + replication knowledge
+- Practice: routing strategies, rebalancing, cross-shard queries, failure modes
 
-### Step 6: Deployment
-- Run the full system on Kubernetes (local k3s or Minikube).
-- **OR** deploy Simple Profile to a cheap VPS.
-- Experiment with horizontal scaling, liveness/readiness probes.
-- Practice: infra basics, container orchestration, ops skills.
+### Step 7: Infrastructure (Kubernetes, API Gateway, Service Mesh)
+- **Kubernetes**: deploy services, HPA, liveness/readiness, ConfigMaps/Secrets
+- **API Gateway**: ingress (NGINX/Traefik/Kong), routing, rate limiting, authn/z
+- **Service mesh**: circuit breakers, retries/timeouts (Envoy/Istio-lite)
+- **Workflow orchestration**: Temporal for long-running transactions (saga pattern)
+- **Postgres access**: PgBouncer per service, connection limits
+- **CI/CD**: build pipelines, image tagging, per-env configs
+- Practice: service boundaries, platform primitives, reliability patterns
 
-### Step 7: Simple Frontend (HTMX)
-- Build a lightweight dashboard to view orders, disputes, and events.
-- Practice: HTMX, server-side rendering, integrating with APIs.
+### Experiment — Second Language Module (Rust/C++)
+- Separate microservice: Go calls Rust/C++ over gRPC
+- Library: Rust crate → shared library + FFI into Go (cgo)
+- WASM plugin: rules/logic compiled to wasm, executed by Go
+- Implementation idea: Fee & Pricing Engine
 
-### Experiment — Second language module (Rust/C++ in a payments domain)
-- Separate microservice: Go service calls a Rust/C++ service over gRPC.
-- Library: Rust crate → shared library (.so/.dylib) + FFI into Go (cgo).
-- WASM plugin: rules/logic compiled to wasm and executed by Go (potential hot-reload via the future admin UI).
-- Implementation idea: Fee & Pricing Engine (fee/pricing calculation).
+---
+
+## Architecture Decision Records (ADRs)
+
+ADRs document significant architectural decisions with context and tradeoffs.
+
+| ADR | Topic | Status |
+|-----|-------|--------|
+| ADR-001 | Kafka Architecture & Abstractions | Planned (after 003) |
+| ADR-002 | Sync vs Async Webhook Processing | Planned (after 003) |
+
+Location: `docs/adr/`

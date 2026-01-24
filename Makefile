@@ -3,7 +3,7 @@ export
 
 MIGRATION_DIR=internal/api/migrations
 
-.PHONY: run run-dev run-sync run-kafka run-http run-api run-ingest start_containers stop_containers stop_containers_remove lint test integration-test generate migrate seed-db print-db-size clean-db benchmark build-pg-image
+.PHONY: run run-dev run-sync run-kafka run-http run-api run-ingest start_containers stop_containers stop_containers_remove lint test integration-test generate migrate seed-db print-db-size clean-db benchmark build-pg-image test-webhook test-webhook-ingest
 
 run:
 	docker compose --profile prod up --build
@@ -89,3 +89,12 @@ clean-db:
 
 benchmark:
 	k6 run -e BASE_URL=http://localhost:3000 -e LIMIT=1000 -e VUS=8 -e DURATION=30s benchmark/disputes_bench.js
+
+# Test webhooks
+# test-webhook: direct to API internal endpoint (works with run-dev, run-http, run-kafka)
+# test-webhook-ingest: via Ingest service (requires run-http or run-kafka)
+test-webhook:
+	@./scripts/send-test-webhook.sh api created
+
+test-webhook-ingest:
+	@./scripts/send-test-webhook.sh ingest created

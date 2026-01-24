@@ -16,6 +16,7 @@ import (
 	"TestTaskJustPay/internal/ingest/handlers"
 	"TestTaskJustPay/internal/ingest/webhook"
 	"TestTaskJustPay/pkg/logger"
+	"TestTaskJustPay/pkg/metrics"
 
 	"github.com/gin-gonic/gin"
 )
@@ -30,7 +31,7 @@ func Run(cfg config.IngestConfig) {
 	// Setup Gin engine
 	gin.SetMode(gin.ReleaseMode)
 	engine := gin.New()
-	engine.Use(gin.Recovery())
+	engine.Use(metrics.GinMiddleware(), gin.Recovery())
 
 	// Create processor based on webhook mode
 	var processor webhook.Processor

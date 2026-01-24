@@ -19,34 +19,37 @@
 
 ## Subtasks
 
-**Subtask 1:** Metrics Foundation — [plan-subtask-1.md](plan-subtask-1.md)
-- [ ] Prometheus instrumentation (prometheus/client_golang)
-- [ ] HTTP handler latency histogram (p50/p95/p99)
-- [ ] Request counter by endpoint and status
-- [ ] Kafka consumer lag metric
-- [ ] `/metrics` endpoint для обох сервісів
+**Subtask 1:** HTTP Metrics — [plan-subtask-1.md](plan-subtask-1.md)
+- [x] Prometheus instrumentation (prometheus/client_golang)
+- [x] `/metrics` endpoint для обох сервісів
+- [x] HTTP handler latency histogram (p50/p95/p99)
+- [x] Request counter by endpoint and status
 
-**Subtask 2:** Health Checks
+**Subtask 2:** Kafka Metrics
+- [ ] Kafka consumer lag metric
+- [ ] Kafka message processing duration histogram
+
+**Subtask 3:** Health Checks
 - [ ] `/health/live` — liveness (process alive)
 - [ ] `/health/ready` — readiness (dependencies OK: DB, Kafka)
 - [ ] Health check middleware
 
-**Subtask 3:** Correlation IDs
+**Subtask 4:** Correlation IDs
 - [ ] Generate/propagate X-Correlation-ID header
 - [ ] Include in all log entries
 - [ ] Pass through Kafka messages
 
-**Subtask 4:** Grafana Dashboards
+**Subtask 5:** Grafana Dashboards
 - [ ] Docker compose з Prometheus + Grafana
 - [ ] Service health dashboard (RPS, latency, errors)
 - [ ] Kafka dashboard (lag, throughput)
 
-**Subtask 5:** Distributed Tracing (optional)
+**Subtask 6:** Distributed Tracing (optional)
 - [ ] OpenTelemetry SDK integration
 - [ ] Jaeger для візуалізації
 - [ ] Trace propagation через HTTP та Kafka
 
-**Subtask 6:** Profiling (optional)
+**Subtask 7:** Profiling (optional)
 - [ ] pprof endpoints (`/debug/pprof/`)
 - [ ] Basic profiling documentation
 

@@ -1,8 +1,8 @@
-# План: Subtask 1 - Metrics Foundation
+# План: Subtask 1 - HTTP Metrics
 
 ## Мета
 
-Додати Prometheus інструментацію для HTTP handlers (latency, request count) та Kafka consumers (lag, processing time).
+Додати Prometheus інструментацію для HTTP handlers: latency histogram та request counter для обох сервісів (API та Ingest).
 
 ## Метрики
 
@@ -10,42 +10,68 @@
 |--------|------|--------|------|
 | `dpm_http_request_duration_seconds` | Histogram | handler, method, status_code | HTTP latency (p50/p95/p99) |
 | `dpm_http_requests_total` | Counter | handler, method, status_code | Request count |
-| `dpm_kafka_consumer_lag` | Gauge | topic, consumer_group | Messages behind |
-| `dpm_kafka_message_processing_duration_seconds` | Histogram | topic, consumer_group | Processing time |
+
+## Поточний стан
+
+- [x] Prometheus dependency додано (`go get github.com/prometheus/client_golang`)
+- [x] `/metrics` endpoint в Ingest з Go/Process collectors
+- [x] HTTP middleware для метрик
+- [x] `/metrics` endpoint в API
+
+## Архітектурні рішення
+
+| Питання | Рішення | Чому |
+|---------|---------|------|
+| Global vs custom registry | Custom registry | Контроль над тим, що експортується |
+| Middleware placement | Перед усіма handlers | Щоб виміряти повний час обробки |
+| Handler label | `c.FullPath()` | Route pattern (`/orders/:id`), не actual path — контроль cardinality |
 
 ## Структура пакету
 
 ```
 pkg/metrics/
-├── metrics.go    # Metric definitions + init()
-├── gin.go        # HTTP middleware
-└── kafka.go      # Lag collector
+├── registry.go   # Custom registry + init
+├── http.go       # HTTP metrics definitions
+└── middleware.go # Gin middleware
 ```
 
 ## Файли для модифікації
 
 | Файл | Зміни |
 |------|-------|
-| `go.mod` | +prometheus/client_golang |
-| `pkg/metrics/metrics.go` | **NEW** - definitions |
-| `pkg/metrics/gin.go` | **NEW** - middleware |
-| `pkg/metrics/kafka.go` | **NEW** - lag collector |
-| `internal/api/gin_engine.go` | +metrics.GinMetrics() |
-| `internal/api/router.go` | +/metrics endpoint |
-| `internal/api/workers.go` | +lag collectors |
-| `internal/api/messaging/middleware.go` | +WithMetrics |
-| `internal/ingest/app.go` | +metrics.GinMetrics() |
-| `internal/ingest/router.go` | +/metrics endpoint |
+| `pkg/metrics/registry.go` | **NEW** - Custom registry з Go/Process collectors |
+| `pkg/metrics/http.go` | **NEW** - HTTP metric definitions |
+| `pkg/metrics/middleware.go` | **NEW** - Gin middleware |
+| `internal/ingest/app.go` | Використати shared registry + middleware |
+| `internal/ingest/router.go` | Оновити `/metrics` endpoint |
+| `internal/api/gin_engine.go` | Додати metrics middleware |
+| `internal/api/router.go` | Додати `/metrics` endpoint |
 
 ## Порядок імплементації
 
-### 1. Dependency
-```bash
-go get github.com/prometheus/client_golang/prometheus
-go get github.com/prometheus/client_golang/prometheus/promhttp
+### 1. pkg/metrics/registry.go
+
+```go
+package metrics
+
+import (
+    "github.com/prometheus/client_golang/prometheus"
+    "github.com/prometheus/client_golang/prometheus/collectors"
+)
+
+// Registry is the custom Prometheus registry for DPM metrics.
+var Registry = prometheus.NewRegistry()
+
+func init() {
+    Registry.MustRegister(
+        collectors.NewGoCollector(),
+        collectors.NewProcessCollector(collectors.ProcessCollectorOpts{}),
+    )
+}
 ```
 
-### 2. pkg/metrics/metrics.go
+### 2. pkg/metrics/http.go
+
 ```go
 package metrics
 
@@ -72,52 +98,30 @@ var (
         },
         []string{"handler", "method", "status_code"},
     )
-
-    KafkaConsumerLag = prometheus.NewGaugeVec(
-        prometheus.GaugeOpts{
-            Namespace: "dpm",
-            Subsystem: "kafka",
-            Name:      "consumer_lag",
-            Help:      "Number of messages consumer is behind",
-        },
-        []string{"topic", "consumer_group"},
-    )
-
-    KafkaMessageProcessingDuration = prometheus.NewHistogramVec(
-        prometheus.HistogramOpts{
-            Namespace: "dpm",
-            Subsystem: "kafka",
-            Name:      "message_processing_duration_seconds",
-            Help:      "Time to process a Kafka message",
-            Buckets:   []float64{.001, .005, .01, .025, .05, .1, .25, .5, 1, 2.5},
-        },
-        []string{"topic", "consumer_group"},
-    )
 )
 
 func init() {
-    prometheus.MustRegister(
-        HTTPRequestDuration,
-        HTTPRequestsTotal,
-        KafkaConsumerLag,
-        KafkaMessageProcessingDuration,
-    )
+    Registry.MustRegister(HTTPRequestDuration, HTTPRequestsTotal)
 }
 ```
 
-### 3. pkg/metrics/gin.go
+### 3. pkg/metrics/middleware.go
+
 ```go
 package metrics
 
 import (
     "strconv"
     "time"
+
     "github.com/gin-gonic/gin"
 )
 
-func GinMetrics() gin.HandlerFunc {
+// GinMiddleware returns Gin middleware that records HTTP metrics.
+func GinMiddleware() gin.HandlerFunc {
     return func(c *gin.Context) {
         start := time.Now()
+
         c.Next()
 
         duration := time.Since(start).Seconds()
@@ -133,83 +137,55 @@ func GinMetrics() gin.HandlerFunc {
 }
 ```
 
-### 4. pkg/metrics/kafka.go
-```go
-package metrics
+### 4. Оновити internal/ingest/app.go
 
+```go
+// Replace local registry with shared one
+import "TestTaskJustPay/pkg/metrics"
+
+// In Run():
+engine.Use(metrics.GinMiddleware(), gin.Recovery())
+```
+
+### 5. Оновити internal/ingest/router.go
+
+```go
 import (
-    "context"
-    "time"
-    "github.com/segmentio/kafka-go"
+    "TestTaskJustPay/pkg/metrics"
+    "github.com/prometheus/client_golang/prometheus/promhttp"
 )
 
-type StatsProvider interface {
-    Stats() kafka.ReaderStats
-}
-
-func StartLagCollector(ctx context.Context, reader StatsProvider, topic, groupID string, interval time.Duration) {
-    go func() {
-        ticker := time.NewTicker(interval)
-        defer ticker.Stop()
-        for {
-            select {
-            case <-ctx.Done():
-                return
-            case <-ticker.C:
-                stats := reader.Stats()
-                KafkaConsumerLag.WithLabelValues(topic, groupID).Set(float64(stats.Lag))
-            }
-        }
-    }()
-}
-```
-
-### 5. internal/api/messaging/middleware.go - додати WithMetrics
-```go
-func WithMetrics(handler MessageHandler, topic, groupID string) MessageHandler {
-    return func(ctx context.Context, key, value []byte) error {
-        start := time.Now()
-        err := handler(ctx, key, value)
-        metrics.KafkaMessageProcessingDuration.WithLabelValues(topic, groupID).Observe(time.Since(start).Seconds())
-        return err
-    }
-}
-```
-
-### 6. internal/api/gin_engine.go
-```go
-func NewGinEngine(l *logger.Logger) *gin.Engine {
-    engine := gin.New()
-    engine.Use(metrics.GinMetrics(), l.GinBodyLogger(), gin.Recovery())
-    return engine
-}
-```
-
-### 7. internal/api/router.go - додати /metrics
-```go
-import "github.com/prometheus/client_golang/prometheus/promhttp"
-
 func (r *Router) SetUp(engine *gin.Engine) {
-    engine.GET("/metrics", gin.WrapH(promhttp.Handler()))
+    engine.GET("/metrics", gin.WrapH(promhttp.HandlerFor(metrics.Registry, promhttp.HandlerOpts{})))
     // ... existing routes
 }
 ```
 
-### 8. internal/api/workers.go - додати lag collectors + WithMetrics
-```go
-// After creating consumers, start lag collectors:
-metrics.StartLagCollector(ctx, orderConsumer.Reader(), cfg.KafkaOrdersTopic, cfg.KafkaOrdersConsumerGroup, 10*time.Second)
+### 6. Оновити internal/api/gin_engine.go
 
-// Wrap handlers with metrics (outermost):
-orderHandler := messaging.WithMetrics(
-    messaging.WithDLQ(...),
-    cfg.KafkaOrdersTopic,
-    cfg.KafkaOrdersConsumerGroup,
-)
+```go
+import "TestTaskJustPay/pkg/metrics"
+
+func NewGinEngine(l *logger.Logger) *gin.Engine {
+    engine := gin.New()
+    engine.Use(metrics.GinMiddleware(), l.GinBodyLogger(), gin.Recovery())
+    return engine
+}
 ```
 
-### 9. internal/ingest/app.go + router.go
-Аналогічні зміни для HTTP metrics (без Kafka).
+### 7. Оновити internal/api/router.go
+
+```go
+import (
+    "TestTaskJustPay/pkg/metrics"
+    "github.com/prometheus/client_golang/prometheus/promhttp"
+)
+
+func (r *Router) SetUp(engine *gin.Engine) {
+    engine.GET("/metrics", gin.WrapH(promhttp.HandlerFor(metrics.Registry, promhttp.HandlerOpts{})))
+    // ... existing routes
+}
+```
 
 ## Verification
 
@@ -218,19 +194,21 @@ orderHandler := messaging.WithMetrics(
 make run-dev
 
 # 2. Generate traffic
+make test-webhook
 curl http://localhost:3000/health
 curl http://localhost:3000/orders
 
 # 3. Check metrics
-curl http://localhost:3000/metrics | grep dpm_
+curl -s http://localhost:3000/metrics | grep dpm_http
 
-# Expected:
+# Expected output:
 # dpm_http_requests_total{handler="/health",method="GET",status_code="200"} 1
-# dpm_http_request_duration_seconds_bucket{...}
+# dpm_http_request_duration_seconds_bucket{handler="/health",method="GET",status_code="200",le="0.005"} 1
+# ...
 ```
 
 ## Notes
 
-- Metrics middleware йде ПЕРЕД logger middleware (щоб виміряти повний час)
+- Metrics middleware йде ПЕРЕД logger middleware (щоб виміряти повний час включно з logging)
 - `c.FullPath()` повертає route pattern (`/orders/:order_id`), не actual path — це важливо для cardinality
-- Kafka lag collector працює в background goroutine з 10s interval
+- Custom registry дає контроль над експортованими метриками

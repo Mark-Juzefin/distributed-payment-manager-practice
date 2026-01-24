@@ -23,7 +23,7 @@ def find_active_feature(claude_md_content: str) -> Optional[str]:
     return None
 
 
-def parse_feature_readme(readme_content: str, feature_dir: str) -> dict:
+def parse_feature_readme(readme_content: str) -> dict:
     """Parse feature README.md to extract status info."""
     result = {
         "name": None,

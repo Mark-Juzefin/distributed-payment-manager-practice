@@ -1,2 +1,2 @@
-api: WEBHOOK_MODE=http go run ./cmd/api
-ingest: WEBHOOK_MODE=http go run ./cmd/ingest
+api: PORT=3000 WEBHOOK_MODE=http go run ./cmd/api
+ingest: PORT=3001 WEBHOOK_MODE=http API_BASE_URL=http://localhost:3000 go run ./cmd/ingest

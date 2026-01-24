@@ -2,8 +2,10 @@ package api
 
 import (
 	"TestTaskJustPay/internal/api/handlers"
+	"TestTaskJustPay/pkg/metrics"
 
 	"github.com/gin-gonic/gin"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 )
 
 type Router struct {
@@ -17,6 +19,9 @@ func (r *Router) SetUp(engine *gin.Engine) {
 	engine.GET("/health", func(c *gin.Context) {
 		c.JSON(200, gin.H{"service": "api", "status": "ok"})
 	})
+
+	// Prometheus metrics
+	engine.GET("/metrics", gin.WrapH(promhttp.HandlerFor(metrics.Registry, promhttp.HandlerOpts{})))
 
 	// Manual operations + reads (no webhooks)
 	engine.GET("/orders", r.order.Filter)

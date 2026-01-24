@@ -2,8 +2,10 @@ package ingest
 
 import (
 	"TestTaskJustPay/internal/ingest/handlers"
+	"TestTaskJustPay/pkg/metrics"
 
 	"github.com/gin-gonic/gin"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 )
 
 type Router struct {
@@ -16,6 +18,8 @@ func (r *Router) SetUp(engine *gin.Engine) {
 	engine.GET("/health", func(c *gin.Context) {
 		c.JSON(200, gin.H{"service": "ingest", "status": "ok"})
 	})
+
+	engine.GET("/metrics", gin.WrapH(promhttp.HandlerFor(metrics.Registry, promhttp.HandlerOpts{})))
 
 	// Webhook endpoints only
 	engine.POST("/webhooks/payments/orders", r.order.Webhook)

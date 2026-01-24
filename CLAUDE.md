@@ -9,7 +9,7 @@ This is a **learning sandbox** for practicing highload/distributed systems conce
 **How to work with me:**
 1. **Plan first** - Always create a detailed plan before implementing. Explain the "why" behind architectural decisions.
 2. **Implement** - Write the code, but expect that tests will be run manually by the user.
-3. **Don't auto-fix test failures** - When tests fail, explain what went wrong and why, but let the user fix it themselves to learn.
+3. **Don't auto-fix test failures** - When tests fail, explain what went wrong and why.
 4. **Explain trade-offs** - When implementing highload patterns, explain alternatives and why this approach was chosen.
 
 **Language:**
@@ -18,7 +18,7 @@ This is a **learning sandbox** for practicing highload/distributed systems conce
 
 ## Current Focus
 
-**Active feature:** [docs/features/003-inter-service-communication/](docs/features/003-inter-service-communication/)
+**Active feature:** [docs/features/004-observability/](docs/features/004-observability/)
 
 Full roadmap: [docs/roadmap.md](docs/roadmap.md)
 

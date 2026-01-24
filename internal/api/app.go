@@ -10,10 +10,11 @@ import (
 	"syscall"
 
 	"TestTaskJustPay/config"
-	"TestTaskJustPay/internal/api/handlers"
 	"TestTaskJustPay/internal/api/domain/dispute"
 	"TestTaskJustPay/internal/api/domain/order"
 	"TestTaskJustPay/internal/api/external/silvergate"
+	"TestTaskJustPay/internal/api/handlers"
+	"TestTaskJustPay/internal/api/handlers/updates"
 	dispute_repo "TestTaskJustPay/internal/api/repo/dispute"
 	"TestTaskJustPay/internal/api/repo/dispute_eventsink"
 	order_repo "TestTaskJustPay/internal/api/repo/order"
@@ -61,9 +62,16 @@ func Run(cfg config.Config) {
 	chargebackHandler := handlers.NewChargebackHandler(disputeService)
 	disputeHandler := handlers.NewDisputeHandler(disputeService)
 
+	// Internal handlers (for service-to-service communication)
+	updatesHandler := updates.NewUpdatesHandler(orderService, disputeService)
+
 	// Router (API endpoints only)
 	router := NewRouter(orderHandler, chargebackHandler, disputeHandler)
 	router.SetUp(engine)
+
+	// Internal router (service-to-service endpoints)
+	internalRouter := NewInternalRouter(updatesHandler)
+	internalRouter.SetUp(engine)
 
 	// Apply migrations
 	err = ApplyMigrations(cfg.PgURL, MIGRATION_FS)

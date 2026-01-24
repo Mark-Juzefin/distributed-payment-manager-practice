@@ -23,7 +23,7 @@ def find_active_feature(claude_md_content: str) -> Optional[str]:
     return None
 
 
-def parse_feature_readme(readme_content: str) -> dict:
+def parse_feature_readme(readme_content: str, feature_dir: str) -> dict:
     """Parse feature README.md to extract status info."""
     result = {
         "name": None,
@@ -32,6 +32,7 @@ def parse_feature_readme(readme_content: str) -> dict:
         "current_subtask_num": None,
         "has_plan": False,
         "plan_file": None,
+        "plan_file_exists": False,
     }
 
     # Extract feature name from first heading

@@ -25,24 +25,30 @@
 
 ## In Progress
 
-### Inter-Service Communication
-- Sync mode communication between Ingest and API services
-- Progressive approach: HTTP → HTTP + Protobuf → gRPC
-- Benchmarking different approaches (Kafka vs HTTP vs gRPC)
-- Practice: Protocol Buffers, gRPC, service-to-service communication
-- Details: [features/003-inter-service-communication/](features/003-inter-service-communication/)
-
----
-
-## Planned
-
-### Step 2: Observability
+### Observability
 - **Metrics**: Prometheus instrumentation, key SLIs (webhook latency p50/p95/p99, Kafka lag, error rates)
 - **Dashboards**: Grafana dashboards for services health, throughput, latency
 - **Tracing**: OpenTelemetry integration, distributed tracing (Jaeger)
 - **Profiling**: pprof endpoints for dev, continuous profiling basics
 - **SLO thinking**: define target latencies, alerting on violations
 - Practice: metrics design, Prometheus/Grafana, distributed tracing, SLO-based reliability
+- Details: [features/004-observability/](features/004-observability/)
+
+---
+
+## Paused
+
+### Inter-Service Communication
+- Sync mode communication between Ingest and API services
+- Progressive approach: HTTP → HTTP + Protobuf → gRPC
+- Benchmarking different approaches (Kafka vs HTTP vs gRPC)
+- Practice: Protocol Buffers, gRPC, service-to-service communication
+- Details: [features/003-inter-service-communication/](features/003-inter-service-communication/)
+- **Paused reason:** Need observability first for meaningful benchmarks
+
+---
+
+## Planned
 
 ### Step 3: Simple Deployment Profile + VPS Hosting
 - Single-node deployment without Kafka dependency (sync mode as default)

@@ -1,6 +1,6 @@
 # Feature 003: Inter-Service Communication
 
-**Status:** In Progress
+**Status:** Paused
 
 ## Overview
 
@@ -47,10 +47,7 @@ gRPC sync mode (target):
 - [ ] WEBHOOK_MODE: `kafka` / `http` / `grpc`
 - [ ] Benchmark: HTTP vs gRPC
 
-**Subtask 4:** Observability (optional)
-- [ ] Health checks для обох сервісів
-- [ ] Correlation IDs across services
-- [ ] Basic metrics (latency, error rates)
+**Subtask 4:** ~~Observability~~ → Moved to [Feature 004](../004-observability/)
 
 **Subtask 5:** E2E Test Refactoring — [plan-subtask-5.md](plan-subtask-5.md)
 - [ ] Process-based test infrastructure (запуск сервісів як окремих процесів)

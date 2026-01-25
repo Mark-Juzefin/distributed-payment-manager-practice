@@ -17,14 +17,15 @@ services:
         condition: service_started
       kafka-init:
         condition: service_completed_successfully
-    env_file: .env.api
+    env_file:
+      - env/common.env
+      - env/endpoints.docker.env
+      - env/api.env
     environment:
-      - PG_URL=user=postgres password=secret host=db port=5432 dbname=payments sslmode=disable
-      - OPENSEARCH_URLS=http://opensearch-node1:9200
-      - KAFKA_BROKERS=kafka:29092
+      - PORT=${API_PORT}
       - WEBHOOK_MODE=kafka
     ports:
-      - "3000:3000"
+      - "${API_PORT}:${API_PORT}"
 
   ingest-service:
     image: payment-ingest
@@ -39,11 +40,15 @@ services:
     depends_on:
       kafka-init:
         condition: service_completed_successfully
-    env_file: .env.ingest
+    env_file:
+      - env/common.env
+      - env/endpoints.docker.env
+      - env/ingest.env
     environment:
-      - KAFKA_BROKERS=kafka:29092
+      - PORT=${INGEST_PORT}
+      - WEBHOOK_MODE=kafka
     ports:
-      - "3001:3001"
+      - "${INGEST_PORT}:${INGEST_PORT}"
 
   # Legacy monolith (backward compatibility)
   payment-app:
@@ -134,6 +139,8 @@ services:
       echo 'Creating topics...'
       kafka-topics --bootstrap-server kafka:29092 --create --if-not-exists --topic webhooks.orders --partitions 3 --replication-factor 1
       kafka-topics --bootstrap-server kafka:29092 --create --if-not-exists --topic webhooks.disputes --partitions 3 --replication-factor 1
+      kafka-topics --bootstrap-server kafka:29092 --create --if-not-exists --topic webhooks.orders.dlq --partitions 1 --replication-factor 1
+      kafka-topics --bootstrap-server kafka:29092 --create --if-not-exists --topic webhooks.disputes.dlq --partitions 1 --replication-factor 1
 
       echo 'Topics created:'
       kafka-topics --bootstrap-server kafka:29092 --list

@@ -55,6 +55,12 @@
 - HTMX admin dashboard for viewing orders, disputes, events
 - Minimal infrastructure: single PostgreSQL instance
 - **VPS deployment**: deploy to a cheap VPS, systemd services, nginx reverse proxy, basic security hardening
+- **TODO: Local dev tooling** — research alternatives to goreman for better Procfile experience:
+  - [Overmind](https://github.com/DarthSim/overmind) — tmux-based, allows attaching to individual processes
+  - [Forego](https://github.com/ddollar/forego) — foreman port in Go
+  - [process-compose](https://github.com/F1bonacc1/process-compose) — TUI process manager
+  - [Devbox](https://www.jetify.com/devbox) — Nix-based dev environments
+  - Reference: [Orchestrate your dev environment using Devbox](https://meijer.works/articles/orchestrate-your-dev-environment-using-devbox/)
 - Practice: feature flags, multi-profile configuration, HTMX/SSR, Linux server administration
 
 ### Step 4: Outbox Pattern → CDC → Analytics

@@ -1,29 +1,25 @@
--include .env
+-include env/common.env
 export
 
 MIGRATION_DIR=internal/api/migrations
 
-.PHONY: run run-dev run-sync run-kafka run-http run-api run-ingest start_containers stop_containers stop_containers_remove lint test integration-test generate migrate seed-db print-db-size clean-db benchmark build-pg-image test-webhook test-webhook-ingest
+.PHONY: run run-dev run-kafka run-http run-api run-ingest start_containers stop_containers stop_containers_remove lint test integration-test generate migrate seed-db print-db-size clean-db benchmark build-pg-image test-webhook test-webhook-ingest
 
 run:
 	docker compose --profile prod up --build
 
-# Default: sync mode (simple for dev, API service only)
-run-dev: start_containers
-	@echo "Running in SYNC mode (API service only)"
-	WEBHOOK_MODE=sync go run ./cmd/api
-
-# Kafka mode: both services (requires goreman or two terminals)
-run-kafka: start_containers
-	@which goreman > /dev/null || (echo "Install goreman: go install github.com/mattn/goreman@latest" && exit 1)
-	@echo "Running in KAFKA mode (API + Ingest services)"
-	goreman start
-
-# HTTP mode: both services via HTTP (Ingest → HTTP → API)
+# HTTP mode: default dev mode (API + Ingest via HTTP)
 run-http: start_containers
-	@which goreman > /dev/null || (echo "Install goreman: go install github.com/mattn/goreman@latest" && exit 1)
 	@echo "Running in HTTP mode (API + Ingest services)"
-	goreman -f Procfile.http start
+	go run github.com/mattn/goreman@latest -f Procfile.http start
+
+# Alias for intuitive naming
+run-dev: run-http
+
+# Kafka mode: both services via Kafka
+run-kafka: start_containers
+	@echo "Running in KAFKA mode (API + Ingest services)"
+	go run github.com/mattn/goreman@latest start
 
 # Standalone targets
 run-api: start_containers
@@ -31,9 +27,6 @@ run-api: start_containers
 
 run-ingest:
 	go run ./cmd/ingest
-
-# Backward compatibility
-run-sync: run-dev
 
 start_containers:
 	docker-compose --profile infra up --build -d
@@ -86,9 +79,6 @@ print-db-size:
 
 clean-db:
 	psql -d "$(PG_URL)" -c  'TRUNCATE TABLE dispute_events, disputes, order_events, orders, evidence CASCADE'
-
-benchmark:
-	k6 run -e BASE_URL=http://localhost:3000 -e LIMIT=1000 -e VUS=8 -e DURATION=30s benchmark/disputes_bench.js
 
 # Test webhooks
 # test-webhook: direct to API internal endpoint (works with run-dev, run-http, run-kafka)

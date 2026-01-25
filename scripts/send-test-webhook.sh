@@ -4,9 +4,22 @@
 #   mode: "api" (direct to API /internal/updates/orders) or "ingest" (via Ingest /webhooks/...)
 #   status: created, updated, success, failed
 # Default: mode=api, status=created
+#
+# Ports are read from env/common.env (or fallback to defaults)
+
+# Load common env if not already exported
+if [ -z "$API_PORT" ]; then
+    set -a
+    source env/common.env 2>/dev/null || true
+    set +a
+fi
 
 MODE=${1:-api}
 STATUS=${2:-created}
+
+# Use env vars with defaults
+: ${API_PORT:=3000}
+: ${INGEST_PORT:=3001}
 
 # Generate random IDs
 ORDER_ID="$(uuidgen)"
@@ -15,10 +28,10 @@ EVENT_ID="$(uuidgen)"
 NOW=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
 
 if [ "$MODE" = "ingest" ]; then
-    URL="http://localhost:3001/webhooks/payments/orders"
+    URL="http://localhost:${INGEST_PORT}/webhooks/payments/orders"
     echo "Sending webhook via Ingest service (external endpoint)"
 else
-    URL="http://localhost:3000/internal/updates/orders"
+    URL="http://localhost:${API_PORT}/internal/updates/orders"
     echo "Sending webhook directly to API (internal endpoint)"
 fi
 

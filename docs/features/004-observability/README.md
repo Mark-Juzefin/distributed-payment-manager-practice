@@ -53,6 +53,11 @@
 - [ ] pprof endpoints (`/debug/pprof/`)
 - [ ] Basic profiling documentation
 
+**Subtask 8:** Dev Infrastructure Refactoring
+- [x] Simplify environment variable management
+- [x] Unify run modes (sync/kafka/http)
+- [x] Improve local development experience
+
 ---
 
 ## Architecture Decision Records
@@ -70,6 +75,27 @@
 ---
 
 ## Notes
+
+### 2026-01-25: Dev Infrastructure Refactoring
+
+Реорганізація env файлів для локальної розробки:
+
+```
+env/
+├── common.env           # Ports, Kafka topics
+├── endpoints.host.env   # localhost URLs (PG, Kafka, OpenSearch, Silvergate)
+├── endpoints.docker.env # docker URLs (для docker-compose)
+├── api.env              # API-specific config
+└── ingest.env           # Ingest-specific config
+```
+
+Зміни:
+- Прибрано дублювання портів та URLs між файлами
+- `run-dev` тепер аліас до `run-http` (default dev mode)
+- `run-kafka` для тестування Kafka-specific логіки
+- Goreman запускається через `go run github.com/mattn/goreman@latest` (без manual install)
+- DLQ topics створюються автоматично в kafka-init
+- Видалено застарілі `.env.*.example` файли
 
 ### 2026-01-23: Feature created
 

@@ -27,11 +27,15 @@ func StartWorkers(
 	defer orderDLQPub.Close()
 	defer disputeDLQPub.Close()
 
-	// Order consumer with retry + DLQ middleware
+	// Order consumer with metrics + retry + DLQ middleware
 	orderController := consumers.NewOrderMessageController(l, orderService)
-	orderHandler := messaging.WithDLQ(
-		messaging.WithRetry(orderController.HandleMessage, messaging.DefaultRetryConfig()),
-		orderDLQPub,
+	orderHandler := messaging.WithMetrics(
+		cfg.KafkaOrdersTopic,
+		cfg.KafkaOrdersConsumerGroup,
+		messaging.WithDLQ(
+			messaging.WithRetry(orderController.HandleMessage, messaging.DefaultRetryConfig()),
+			orderDLQPub,
+		),
 	)
 	orderConsumer := kafka.NewConsumer(
 		l,
@@ -41,11 +45,15 @@ func StartWorkers(
 	)
 	orderRunner := messaging.NewRunner(l, []messaging.Worker{orderConsumer}, orderHandler)
 
-	// Dispute consumer with retry + DLQ middleware
+	// Dispute consumer with metrics + retry + DLQ middleware
 	disputeController := consumers.NewDisputeMessageController(l, disputeService)
-	disputeHandler := messaging.WithDLQ(
-		messaging.WithRetry(disputeController.HandleMessage, messaging.DefaultRetryConfig()),
-		disputeDLQPub,
+	disputeHandler := messaging.WithMetrics(
+		cfg.KafkaDisputesTopic,
+		cfg.KafkaDisputesConsumerGroup,
+		messaging.WithDLQ(
+			messaging.WithRetry(disputeController.HandleMessage, messaging.DefaultRetryConfig()),
+			disputeDLQPub,
+		),
 	)
 	disputeConsumer := kafka.NewConsumer(
 		l,

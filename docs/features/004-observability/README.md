@@ -25,9 +25,9 @@
 - [x] HTTP handler latency histogram (p50/p95/p99)
 - [x] Request counter by endpoint and status
 
-**Subtask 2:** Kafka Metrics
+**Subtask 2:** Kafka Metrics — [plan-subtask-2.md](plan-subtask-2.md)
 - [ ] Kafka consumer lag metric
-- [ ] Kafka message processing duration histogram
+- [x] Kafka message processing duration histogram
 
 **Subtask 3:** Health Checks
 - [ ] `/health/live` — liveness (process alive)

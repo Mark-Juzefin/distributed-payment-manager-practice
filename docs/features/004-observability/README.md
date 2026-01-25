@@ -29,10 +29,10 @@
 - [ ] Kafka consumer lag metric
 - [x] Kafka message processing duration histogram
 
-**Subtask 3:** Health Checks
+**Subtask 3:** Health Checks — [plan-subtask-3.md](plan-subtask-3.md)
 - [ ] `/health/live` — liveness (process alive)
 - [ ] `/health/ready` — readiness (dependencies OK: DB, Kafka)
-- [ ] Health check middleware
+- [ ] Health check handlers
 
 **Subtask 4:** Correlation IDs
 - [ ] Generate/propagate X-Correlation-ID header

@@ -30,9 +30,9 @@
 - [x] Kafka message processing duration histogram
 
 **Subtask 3:** Health Checks — [plan-subtask-3.md](plan-subtask-3.md)
-- [ ] `/health/live` — liveness (process alive)
-- [ ] `/health/ready` — readiness (dependencies OK: DB, Kafka)
-- [ ] Health check handlers
+- [x] `/health/live` — liveness (process alive)
+- [x] `/health/ready` — readiness (dependencies OK: DB, Kafka)
+- [x] Health check handlers
 
 **Subtask 4:** Correlation IDs
 - [ ] Generate/propagate X-Correlation-ID header

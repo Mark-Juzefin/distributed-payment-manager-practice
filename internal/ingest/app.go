@@ -15,6 +15,7 @@ import (
 	"TestTaskJustPay/internal/ingest/apiclient"
 	"TestTaskJustPay/internal/ingest/handlers"
 	"TestTaskJustPay/internal/ingest/webhook"
+	"TestTaskJustPay/pkg/health"
 	"TestTaskJustPay/pkg/logger"
 	"TestTaskJustPay/pkg/metrics"
 
@@ -79,8 +80,16 @@ func Run(cfg config.IngestConfig) {
 	orderHandler := handlers.NewOrderHandler(processor)
 	chargebackHandler := handlers.NewChargebackHandler(processor)
 
+	// Health checks registry
+	var healthCheckers []health.Checker
+	if cfg.WebhookMode == "kafka" {
+		healthCheckers = append(healthCheckers, health.NewKafkaChecker(cfg.KafkaBrokers))
+	}
+	// HTTP mode: no external dependencies to check
+	healthRegistry := health.NewRegistry(healthCheckers...)
+
 	// Webhook-only routes
-	router := NewRouter(orderHandler, chargebackHandler)
+	router := NewRouter(orderHandler, chargebackHandler, healthRegistry)
 	router.SetUp(engine)
 
 	// Start HTTP server

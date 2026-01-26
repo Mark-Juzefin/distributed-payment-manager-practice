@@ -19,6 +19,7 @@ import (
 	"TestTaskJustPay/internal/api/repo/dispute_eventsink"
 	order_repo "TestTaskJustPay/internal/api/repo/order"
 	"TestTaskJustPay/internal/api/repo/order_eventsink"
+	"TestTaskJustPay/pkg/health"
 	"TestTaskJustPay/pkg/logger"
 	"TestTaskJustPay/pkg/postgres"
 )
@@ -65,8 +66,16 @@ func Run(cfg config.Config) {
 	// Internal handlers (for service-to-service communication)
 	updatesHandler := updates.NewUpdatesHandler(orderService, disputeService)
 
+	// Health checks registry
+	var healthCheckers []health.Checker
+	healthCheckers = append(healthCheckers, health.NewPostgresChecker(pool.Pool))
+	if cfg.WebhookMode == "kafka" {
+		healthCheckers = append(healthCheckers, health.NewKafkaChecker(cfg.KafkaBrokers))
+	}
+	healthRegistry := health.NewRegistry(healthCheckers...)
+
 	// Router (API endpoints only)
-	router := NewRouter(orderHandler, chargebackHandler, disputeHandler)
+	router := NewRouter(orderHandler, chargebackHandler, disputeHandler, healthRegistry)
 	router.SetUp(engine)
 
 	// Internal router (service-to-service endpoints)

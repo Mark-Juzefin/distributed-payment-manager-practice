@@ -4,9 +4,11 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"log/slog"
 	"net/http"
 	"os"
 	"os/signal"
+	"strings"
 	"syscall"
 	"time"
 
@@ -24,7 +26,10 @@ import (
 
 // Run bootstraps and runs the Ingest service
 func Run(cfg config.IngestConfig) {
-	l := logger.New(cfg.LogLevel)
+	logger.Setup(logger.Options{
+		Level:   cfg.LogLevel,
+		Console: strings.ToLower(os.Getenv("LOG_FORMAT")) == "console",
+	})
 
 	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer cancel()
@@ -35,7 +40,7 @@ func Run(cfg config.IngestConfig) {
 	engine.Use(
 		logger.CorrelationMiddleware(), // Extract/generate correlation ID first
 		metrics.GinMiddleware(),
-		l.GinBodyLogger(),
+		logger.GinBodyLogger(),
 		gin.Recovery(),
 	)
 
@@ -45,20 +50,24 @@ func Run(cfg config.IngestConfig) {
 
 	switch cfg.WebhookMode {
 	case "kafka":
-		l.Info("Webhook mode: kafka - initializing Kafka publishers")
-		l.Info("Kafka publishers: brokers=%v, ordersTopic=%s, disputesTopic=%s",
-			cfg.KafkaBrokers, cfg.KafkaOrdersTopic, cfg.KafkaDisputesTopic)
+		slog.Info("Webhook mode: kafka - initializing Kafka publishers")
+		slog.Info("Kafka publishers configured",
+			"brokers", cfg.KafkaBrokers,
+			"orders_topic", cfg.KafkaOrdersTopic,
+			"disputes_topic", cfg.KafkaDisputesTopic)
 
-		orderPublisher := kafka.NewPublisher(l, cfg.KafkaBrokers, cfg.KafkaOrdersTopic)
-		disputePublisher := kafka.NewPublisher(l, cfg.KafkaBrokers, cfg.KafkaDisputesTopic)
+		orderPublisher := kafka.NewPublisher(cfg.KafkaBrokers, cfg.KafkaOrdersTopic)
+		disputePublisher := kafka.NewPublisher(cfg.KafkaBrokers, cfg.KafkaDisputesTopic)
 		closers = append(closers, orderPublisher, disputePublisher)
 
 		processor = webhook.NewAsyncProcessor(orderPublisher, disputePublisher)
 
 	case "http":
-		l.Info("Webhook mode: http - initializing HTTP client")
-		l.Info("API client: baseURL=%s, timeout=%s, retryAttempts=%d",
-			cfg.APIBaseURL, cfg.APITimeout, cfg.APIRetryAttempts)
+		slog.Info("Webhook mode: http - initializing HTTP client")
+		slog.Info("API client configured",
+			"base_url", cfg.APIBaseURL,
+			"timeout", cfg.APITimeout,
+			"retry_attempts", cfg.APIRetryAttempts)
 
 		client := apiclient.NewHTTPClient(apiclient.HTTPClientConfig{
 			BaseURL:        cfg.APIBaseURL,
@@ -72,7 +81,10 @@ func Run(cfg config.IngestConfig) {
 		processor = webhook.NewHTTPSyncProcessor(client)
 
 	default:
-		l.Fatal(fmt.Errorf("ingest - Run - unsupported webhook mode: %s (supported: 'kafka', 'http')", cfg.WebhookMode))
+		slog.Error("Unsupported webhook mode",
+			"mode", cfg.WebhookMode,
+			"supported", []string{"kafka", "http"})
+		os.Exit(1)
 	}
 
 	defer func() {
@@ -104,21 +116,21 @@ func Run(cfg config.IngestConfig) {
 	}
 
 	go func() {
-		l.Info("Ingest service started: port=%d", cfg.Port)
+		slog.Info("Ingest service started", "port", cfg.Port)
 		if err := server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
-			l.Error("HTTP server error: %v", err)
+			slog.Error("HTTP server error", slog.Any("error", err))
 		}
 	}()
 
 	<-ctx.Done()
-	l.Info("Shutting down Ingest service...")
+	slog.Info("Shutting down Ingest service...")
 
 	shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer shutdownCancel()
 
 	if err := server.Shutdown(shutdownCtx); err != nil {
-		l.Error("Server shutdown error: %v", err)
+		slog.Error("Server shutdown error", slog.Any("error", err))
 	}
 
-	l.Info("Ingest service stopped")
+	slog.Info("Ingest service stopped")
 }

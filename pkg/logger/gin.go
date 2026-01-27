@@ -4,10 +4,11 @@ import (
 	"bytes"
 	"encoding/json"
 	"io"
+	"log/slog"
 
 	"TestTaskJustPay/pkg/correlation"
+
 	"github.com/gin-gonic/gin"
-	"github.com/rs/zerolog"
 )
 
 const maxBody = 8 * 1024 // 8KB
@@ -49,7 +50,8 @@ func CorrelationMiddleware() gin.HandlerFunc {
 	}
 }
 
-func (l *Logger) GinBodyLogger() gin.HandlerFunc {
+// GinBodyLogger returns a Gin middleware that logs HTTP request/response details.
+func GinBodyLogger() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		var requestBody []byte
 		if c.Request.Body != nil {
@@ -66,41 +68,39 @@ func (l *Logger) GinBodyLogger() gin.HandlerFunc {
 
 		c.Next()
 
-		logEvent := l.logger.Info()
-
-		if corrID := correlation.FromContext(c.Request.Context()); corrID != "" {
-			logEvent = logEvent.Str("correlation_id", corrID)
+		// Build log attributes
+		attrs := []any{
+			"method", c.Request.Method,
+			"path", c.Request.URL.Path,
+			"query", c.Request.URL.RawQuery,
+			"status", c.Writer.Status(),
 		}
 
-		logEvent = logEvent.
-			Str("method", c.Request.Method).
-			Str("path", c.Request.URL.Path).
-			Str("query", c.Request.URL.RawQuery).
-			Int("status", c.Writer.Status())
+		// Add request body
+		attrs = append(attrs, bodyAttr("request_body", limit(requestBody))...)
+		// Add response body
+		attrs = append(attrs, bodyAttr("response_body", limit(responseBuffer.Bytes()))...)
 
-		//// Only log bodies for error responses (status >= 400)
-		//if c.Writer.Status() >= 400 {
-		logEvent = addMaybeJSON(logEvent, "request_body", limit(requestBody))
-		logEvent = addMaybeJSON(logEvent, "response_body", limit(responseBuffer.Bytes()))
-		//}
-
-		logEvent.Msg("HTTP Request")
+		slog.InfoContext(c.Request.Context(), "HTTP Request", attrs...)
 	}
 }
 
-func addMaybeJSON(e *zerolog.Event, key string, b []byte) *zerolog.Event {
+// bodyAttr returns the appropriate log attributes for a body payload.
+func bodyAttr(key string, b []byte) []any {
 	bb := bytes.TrimSpace(b)
 
-	// порожнє тіло -> null
 	if len(bb) == 0 {
-		return e.RawJSON(key, []byte("null"))
+		return []any{key, nil}
 	}
 
-	// валідний JSON -> вставляємо як JSON
 	if json.Valid(bb) {
-		return e.RawJSON(key, bb)
+		// For valid JSON, log as raw JSON by unmarshaling first
+		var v any
+		if err := json.Unmarshal(bb, &v); err == nil {
+			return []any{key, v}
+		}
 	}
 
-	// не JSON -> як строка (інакше зламає формат)
-	return e.Str(key, string(bb))
+	// Not JSON or unmarshal failed - log as string
+	return []any{key, string(bb)}
 }

@@ -7,12 +7,12 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-func NewGinEngine(l *logger.Logger) *gin.Engine {
+func NewGinEngine() *gin.Engine {
 	engine := gin.New()
 	engine.Use(
 		logger.CorrelationMiddleware(), // Extract/generate correlation ID first
 		metrics.GinMiddleware(),
-		l.GinBodyLogger(),
+		logger.GinBodyLogger(),
 		gin.Recovery(),
 	)
 	return engine

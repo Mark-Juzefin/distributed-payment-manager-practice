@@ -2,24 +2,21 @@ package messaging
 
 import (
 	"context"
+	"log/slog"
 	"runtime/debug"
-
-	"TestTaskJustPay/pkg/logger"
 
 	"golang.org/x/sync/errgroup"
 )
 
 // Runner manages multiple workers and runs them concurrently.
 type Runner struct {
-	logger  *logger.Logger
 	workers []Worker
 	handler MessageHandler
 }
 
 // NewRunner creates a new runner with the given workers and handler.
-func NewRunner(l *logger.Logger, workers []Worker, handler MessageHandler) *Runner {
+func NewRunner(workers []Worker, handler MessageHandler) *Runner {
 	return &Runner{
-		logger:  l,
 		workers: workers,
 		handler: handler,
 	}
@@ -35,11 +32,15 @@ func (r *Runner) Start(ctx context.Context) error {
 		g.Go(func() error {
 			defer func() {
 				if rec := recover(); rec != nil {
-					r.logger.Error("Worker panic recovered: worker_idx=%d panic=%v stack=%s",
-						i, rec, string(debug.Stack()))
+					slog.Error("Worker panic recovered",
+						"worker_idx", i,
+						"panic", rec,
+						"stack", string(debug.Stack()))
 				}
 				if err := w.Close(); err != nil {
-					r.logger.Error("Failed to close worker: worker_idx=%d error=%v", i, err)
+					slog.Error("Failed to close worker",
+						"worker_idx", i,
+						slog.Any("error", err))
 				}
 			}()
 			return w.Start(ctx, r.handler)
@@ -53,7 +54,7 @@ func (r *Runner) Start(ctx context.Context) error {
 func (r *Runner) Close() error {
 	for _, w := range r.workers {
 		if err := w.Close(); err != nil {
-			r.logger.Error("Failed to close worker: error=%v", err)
+			slog.Error("Failed to close worker", slog.Any("error", err))
 		}
 	}
 	return nil

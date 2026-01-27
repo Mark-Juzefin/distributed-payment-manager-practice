@@ -58,12 +58,19 @@
 - [x] Unify run modes (sync/kafka/http)
 - [x] Improve local development experience
 
-**Subtask 9:** Logger Refactoring (Tech Debt)
-- [ ] Structured logging API (fluent builder pattern)
-- [ ] Automatic source location (file:line)
-- [ ] Context-first design (correlation ID as default)
-- [ ] Log sampling for high-frequency events
-- [ ] Evaluate slog (Go 1.21+ stdlib) vs zerolog
+**Subtask 9:** Logger Refactoring (Tech Debt) — [plan-subtask-9.md](plan-subtask-9.md)
+- [x] Migrate to slog (Go stdlib)
+- [x] Structured logging API (slog native)
+- [x] Automatic source location (file:line)
+- [x] Context-first design (correlation ID via custom handler)
+- [ ] Log sampling for high-frequency events (out of scope for now)
+- [ ] Evaluate slog (Go 1.21+ stdlib) vs zerolog (out of scope for now)
+
+**Subtask 10:** Audit Logging (deferred)
+- [ ] Separate audit log stream for business operations
+- [ ] Track: who called what (user/system), what changed, correlation_id
+- [ ] Key operations: capture, hold, dispute transitions
+- [ ] Structured format for compliance/forensics
 
 ---
 
@@ -82,6 +89,32 @@
 ---
 
 ## Notes
+
+### 2026-01-27: Logger Migration to slog
+
+Мігровано з zerolog на Go stdlib slog:
+- `pkg/logger/logger.go` - `Setup(Options)` замість `New(level)`
+- `pkg/logger/correlation.go` - `CorrelationHandler` автоматично додає `correlation_id` з context
+- `pkg/logger/gin.go` - `GinBodyLogger()` тепер standalone функція
+
+**Зміни в API:**
+```go
+// Before (zerolog)
+l := logger.New("debug")
+l.Info("Starting server: port=%d", cfg.Port)
+l.ErrorCtx(ctx, "Failed: error=%v", err)
+
+// After (slog)
+logger.Setup(logger.Options{Level: "debug", Console: true})
+slog.Info("Starting server", "port", cfg.Port)
+slog.ErrorContext(ctx, "Failed", slog.Any("error", err))
+```
+
+**Переваги:**
+- Structured logging (key-value pairs замість printf)
+- Automatic source location (file:line)
+- correlation_id автоматично з context
+- No external dependencies (zerolog removed)
 
 ### 2026-01-25: Dev Infrastructure Refactoring
 

@@ -4,9 +4,11 @@ import (
 	"context"
 	"embed"
 	"fmt"
+	"log/slog"
 	"net/http"
 	"os"
 	"os/signal"
+	"strings"
 	"syscall"
 
 	"TestTaskJustPay/config"
@@ -28,17 +30,21 @@ import (
 var MIGRATION_FS embed.FS
 
 func Run(cfg config.Config) {
-	l := logger.New(cfg.LogLevel)
+	logger.Setup(logger.Options{
+		Level:   cfg.LogLevel,
+		Console: strings.ToLower(os.Getenv("LOG_FORMAT")) == "console",
+	})
 
 	// Setup graceful shutdown
 	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer cancel()
 
-	engine := NewGinEngine(l)
+	engine := NewGinEngine()
 
 	pool, err := postgres.New(cfg.PgURL, postgres.MaxPoolSize(cfg.PgPoolMax))
 	if err != nil {
-		l.Fatal(fmt.Errorf("api - Run - postgres.NewPgPool: %w", err))
+		slog.Error("Failed to connect to postgres", slog.Any("error", err))
+		os.Exit(1)
 	}
 	defer pool.Close()
 
@@ -55,8 +61,8 @@ func Run(cfg config.Config) {
 	)
 
 	// Services
-	orderService := order.NewOrderService(orderRepo, silvergateClient, orderEventSink, l)
-	disputeService := dispute.NewDisputeService(disputeRepo, silvergateClient, disputeEventSink, l)
+	orderService := order.NewOrderService(orderRepo, silvergateClient, orderEventSink)
+	disputeService := dispute.NewDisputeService(disputeRepo, silvergateClient, disputeEventSink)
 
 	// Handlers (clean - no processor dependency)
 	orderHandler := handlers.NewOrderHandler(orderService)
@@ -85,24 +91,25 @@ func Run(cfg config.Config) {
 	// Apply migrations
 	err = ApplyMigrations(cfg.PgURL, MIGRATION_FS)
 	if err != nil {
-		l.Fatal(fmt.Errorf("api - Run - ApplyMigrations: %w", err))
+		slog.Error("Failed to apply migrations", slog.Any("error", err))
+		os.Exit(1)
 	}
 
 	// Start Kafka consumers if in kafka mode
 	if cfg.WebhookMode == "kafka" {
-		l.Info("Webhook mode: kafka - starting Kafka consumers")
-		StartWorkers(ctx, l, cfg, orderService, disputeService)
+		slog.Info("Webhook mode: kafka - starting Kafka consumers")
+		StartWorkers(ctx, cfg, orderService, disputeService)
 	}
 
 	// Start HTTP server in a goroutine
 	go func() {
-		l.Info("Starting API HTTP server: port=%d", cfg.Port)
+		slog.Info("Starting API HTTP server", "port", cfg.Port)
 		if err := engine.Run(fmt.Sprintf(":%d", cfg.Port)); err != nil {
-			l.Error("HTTP server error: error=%v", err)
+			slog.Error("HTTP server error", slog.Any("error", err))
 		}
 	}()
 
 	// Wait for shutdown signal
 	<-ctx.Done()
-	l.Info("Shutting down API service gracefully...")
+	slog.Info("Shutting down API service gracefully...")
 }

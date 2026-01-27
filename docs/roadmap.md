@@ -37,6 +37,12 @@
 
 ---
 
+## Tech Debt
+
+- [ ] **Graceful Shutdown for Kafka Components** - DLQ publisher closes before pending messages are sent, causing "io: read/write on closed pipe" errors. Need proper shutdown ordering: stop consumers → flush DLQ → close publishers.
+
+---
+
 ## Paused
 
 ### Inter-Service Communication

@@ -24,28 +24,32 @@ Go, PostgreSQL, pg_partman, Docker, MongoDB, OpenSearch, Kafka, testcontainers-g
 - Achieving real performance gains from scaling (metrics and benchmarks here are for learning, not for driving design decisions)
 
 # Status
-Currently working on **Inter-Service Communication** (HTTP → Protobuf → gRPC).
 
-# Notes
-- [Postgres Time Series Partitioning Notes](./Postgres%20Time%20Series%20Partitioning%20Notes.md) - Query optimization with pg_partman
-- [Claude Code Workflow Notes](./Claude%20Code%20Workflow%20Notes.md) - How I use Claude Code to accelerate learning
+Building **Observability** infrastructure — Prometheus metrics, Grafana dashboards, and distributed tracing. This is a prerequisite for meaningful benchmarks in the paused Inter-Service Communication feature. Added **Security Foundations** track to the roadmap to align with miltech job requirements (TLS, secrets management, least privilege, AuthN/AuthZ).
 
 # Roadmap
 
 Detailed plan: **[docs/roadmap.md](./docs/roadmap.md)**
 
-| Step | Feature | Status |
-|------|---------|--------|
-| - | Time-series Partitioning (pg_partman) | Done |
-| 1 | Webhooks ingestion with Kafka | Done |
-| 1.5 | Ingest Service Extraction | Done |
-| 1.6 | Inter-Service Communication | In Progress |
-| 2 | Observability | Planned |
-| 3 | Simple Deployment Profile + VPS | Planned |
-| 4 | Outbox Pattern → CDC → Analytics | Planned |
-| 5 | PostgreSQL Replication | Planned |
-| 6 | Sharding Experiments | Planned |
-| 7 | Infrastructure (K8s, Service Mesh) | Planned |
+**Done:**
+- **Time-series Partitioning** — pg_partman for dispute_events, query I/O reduced from 200MB to 30MB
+- **Kafka Ingestion** — async webhook processing, DLQ, retry with backoff, topic partitioning
+- **Ingest Service** — extracted lightweight HTTP→Kafka gateway as separate microservice
+
+**In Progress:**
+- **Observability** — Prometheus metrics, Grafana dashboards, correlation IDs, distributed tracing
+
+**Planned:**
+- **Security Foundations** — TLS, secrets management, Postgres roles, AuthN/AuthZ
+- **VPS Deployment** — single-node prod profile, HTMX admin, nginx, systemd
+- **Outbox + CDC** — reliable event publishing, Debezium, exactly-once semantics
+- **PostgreSQL HA & DR** — streaming replication, failover, backup/restore
+- **Sharding** — horizontal partitioning by user_id
+- **K8s + Service Mesh** — HPA, ingress, circuit breakers, Temporal workflows
+
+# Notes
+- [Postgres Time Series Partitioning Notes](./Postgres%20Time%20Series%20Partitioning%20Notes.md) - Query optimization with pg_partman
+- [Claude Code Workflow Notes](./Claude%20Code%20Workflow%20Notes.md) - How I use Claude Code to accelerate learning
 
 # Services Architecture
 
@@ -68,44 +72,3 @@ The system consists of two services:
   - Publishes to Kafka topics
   - No database, no business logic
 - **Port**: 3001
-
-# Running Modes
-
-## Sync Mode (default for dev)
-Runs API service only with WEBHOOK_MODE=sync. Webhooks are processed directly by API service.
-
-```bash
-make run-dev  # Runs API service only with WEBHOOK_MODE=sync
-```
-
-**Architecture:**
-```
-Webhook → API Service (HTTP) → Domain Logic → PostgreSQL
-```
-
-## Kafka Mode (production)
-Runs both API + Ingest services. Webhooks are routed through Kafka.
-
-```bash
-make run-kafka  # Runs both API + Ingest services via goreman
-```
-
-**Architecture:**
-```
-Webhook → Ingest Service (HTTP) → Kafka → API Consumer → Domain Logic → PostgreSQL
-```
-
-**Note**: Requires [goreman](https://github.com/mattn/goreman): `go install github.com/mattn/goreman@latest`
-
-## Standalone Services
-
-```bash
-make run-api     # Run API service only
-make run-ingest  # Run Ingest service only
-```
-
-## Docker Compose
-
-```bash
-make run  # Runs both services + infrastructure in containers
-```

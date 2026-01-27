@@ -30,6 +30,7 @@
 - **Dashboards**: Grafana dashboards for services health, throughput, latency
 - **Tracing**: OpenTelemetry integration, distributed tracing (Jaeger)
 - **Profiling**: pprof endpoints for dev, continuous profiling basics
+- **Audit logging**: structured audit trail for business operations
 - **SLO thinking**: define target latencies, alerting on violations
 - Practice: metrics design, Prometheus/Grafana, distributed tracing, SLO-based reliability
 - Details: [features/004-observability/](features/004-observability/)
@@ -50,6 +51,15 @@
 
 ## Planned
 
+### Security Foundations
+- **TLS**: TLS termination on reverse proxy (nginx/traefik), HTTPS for external endpoints
+- **Secrets management**: separate config vs secrets, sops/age or docker secrets (not .env in git)
+- **Least privilege**: separate Postgres roles (migrations user, app RW, readonly for reports)
+- **AuthN/AuthZ basics**: API key or JWT for admin endpoints, HMAC signature for webhooks
+- **mTLS** (optional): internal service-to-service TLS for gRPC
+- Practice: certificate management, secrets lifecycle, role-based access, webhook security
+- Relevance: miltech/security-focused roles require these fundamentals
+
 ### Step 3: Simple Deployment Profile + VPS Hosting
 - Single-node deployment without Kafka dependency (sync mode as default)
 - HTMX admin dashboard for viewing orders, disputes, events
@@ -69,12 +79,13 @@
 - Exactly-once semantics: demonstrate the tradeoffs and limitations
 - Practice: event-driven consistency, CDC pipelines, projections, analytical indexing
 
-### Step 5: PostgreSQL Replication
+### Step 5: PostgreSQL HA & DR
 - **Streaming replication**: primary-standby setup, synchronous vs asynchronous
 - **Read replica routing**: write → primary, read → replica (pgpool or application-level)
 - **Failover/switchover**: manual and automated (Patroni basics)
-- **Monitoring**: replication lag metrics, alerting on lag thresholds
-- Practice: HA patterns, read scaling, failover procedures
+- **Backup/restore**: pg_dump logical backups, pg_basebackup for PITR, restore verification
+- **Monitoring**: replication lag metrics, backup success/failure alerts, RTO/RPO tracking
+- Practice: HA patterns, read scaling, failover procedures, disaster recovery
 
 ### Step 6: Sharding Experiments
 - Split orders/disputes across multiple Postgres shards by hash(user_id)

@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"io"
 
+	"TestTaskJustPay/pkg/correlation"
 	"github.com/gin-gonic/gin"
 	"github.com/rs/zerolog"
 )
@@ -28,6 +29,26 @@ func (r *responseBodyWriter) Write(b []byte) (int, error) {
 	return r.ResponseWriter.Write(b)
 }
 
+// CorrelationMiddleware extracts X-Correlation-ID from request header or generates a new one.
+// It stores the ID in the request context and adds it to the response header.
+func CorrelationMiddleware() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		corrID := c.GetHeader(correlation.HeaderName)
+		if corrID == "" {
+			corrID = correlation.NewID()
+		}
+
+		// Store in request context (accessible via c.Request.Context())
+		ctx := correlation.WithID(c.Request.Context(), corrID)
+		c.Request = c.Request.WithContext(ctx)
+
+		// Add to response header
+		c.Header(correlation.HeaderName, corrID)
+
+		c.Next()
+	}
+}
+
 func (l *Logger) GinBodyLogger() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		var requestBody []byte
@@ -45,7 +66,13 @@ func (l *Logger) GinBodyLogger() gin.HandlerFunc {
 
 		c.Next()
 
-		logEvent := l.logger.Info().
+		logEvent := l.logger.Info()
+
+		if corrID := correlation.FromContext(c.Request.Context()); corrID != "" {
+			logEvent = logEvent.Str("correlation_id", corrID)
+		}
+
+		logEvent = logEvent.
 			Str("method", c.Request.Method).
 			Str("path", c.Request.URL.Path).
 			Str("query", c.Request.URL.RawQuery).

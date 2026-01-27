@@ -1,12 +1,14 @@
 package logger
 
 import (
+	"context"
 	"fmt"
 	"io"
 	"os"
 	"strings"
 	"time"
 
+	"TestTaskJustPay/pkg/correlation"
 	"github.com/rs/zerolog"
 )
 
@@ -80,8 +82,49 @@ func (l *Logger) Fatal(message interface{}, args ...interface{}) {
 	os.Exit(1)
 }
 
+// Context-aware logging methods that automatically include correlation ID.
+
+func (l *Logger) DebugCtx(ctx context.Context, message interface{}, args ...interface{}) {
+	l.writeCtx(ctx, zerolog.DebugLevel, message, args...)
+}
+func (l *Logger) InfoCtx(ctx context.Context, message string, args ...interface{}) {
+	l.writeCtx(ctx, zerolog.InfoLevel, message, args...)
+}
+func (l *Logger) WarnCtx(ctx context.Context, message string, args ...interface{}) {
+	l.writeCtx(ctx, zerolog.WarnLevel, message, args...)
+}
+func (l *Logger) ErrorCtx(ctx context.Context, message interface{}, args ...interface{}) {
+	l.writeCtx(ctx, zerolog.ErrorLevel, message, args...)
+}
+
 func (l *Logger) write(level zerolog.Level, message interface{}, args ...interface{}) {
 	ev := l.logger.WithLevel(level)
+
+	switch m := message.(type) {
+	case error:
+		ev = ev.Err(m)
+		if len(args) > 0 {
+			ev.Msgf(m.Error(), args...)
+		} else {
+			ev.Msg(m.Error())
+		}
+	case string:
+		if len(args) > 0 {
+			ev.Msgf(m, args...)
+		} else {
+			ev.Msg(m)
+		}
+	default:
+		ev.Msg(fmt.Sprintf("unknown message type: %T value=%v", message, message))
+	}
+}
+
+func (l *Logger) writeCtx(ctx context.Context, level zerolog.Level, message interface{}, args ...interface{}) {
+	ev := l.logger.WithLevel(level)
+
+	if corrID := correlation.FromContext(ctx); corrID != "" {
+		ev = ev.Str("correlation_id", corrID)
+	}
 
 	switch m := message.(type) {
 	case error:

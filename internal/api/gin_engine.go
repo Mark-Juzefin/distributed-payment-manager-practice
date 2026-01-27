@@ -9,6 +9,11 @@ import (
 
 func NewGinEngine(l *logger.Logger) *gin.Engine {
 	engine := gin.New()
-	engine.Use(metrics.GinMiddleware(), l.GinBodyLogger(), gin.Recovery())
+	engine.Use(
+		logger.CorrelationMiddleware(), // Extract/generate correlation ID first
+		metrics.GinMiddleware(),
+		l.GinBodyLogger(),
+		gin.Recovery(),
+	)
 	return engine
 }

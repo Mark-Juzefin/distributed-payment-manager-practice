@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"TestTaskJustPay/internal/api/messaging"
+	"TestTaskJustPay/pkg/correlation"
 	"TestTaskJustPay/pkg/logger"
 
 	"github.com/segmentio/kafka-go"
@@ -60,11 +61,14 @@ func (c *Consumer) Start(ctx context.Context, handler messaging.MessageHandler) 
 			return err
 		}
 
-		c.logger.Debug("Message received: topic=%s partition=%d offset=%d key=%s",
+		// Extract correlation ID from Kafka headers and inject into context
+		msgCtx := extractCorrelationID(ctx, msg.Headers)
+
+		c.logger.DebugCtx(msgCtx, "Message received: topic=%s partition=%d offset=%d key=%s",
 			msg.Topic, msg.Partition, msg.Offset, string(msg.Key))
 
-		if err := handler(ctx, msg.Key, msg.Value); err != nil {
-			c.logger.Error("Handler error, message not committed: topic=%s partition=%d offset=%d key=%s error=%v",
+		if err := handler(msgCtx, msg.Key, msg.Value); err != nil {
+			c.logger.ErrorCtx(msgCtx, "Handler error, message not committed: topic=%s partition=%d offset=%d key=%s error=%v",
 				msg.Topic, msg.Partition, msg.Offset, string(msg.Key), err)
 			// Don't commit - message will be redelivered on restart
 			continue
@@ -76,13 +80,13 @@ func (c *Consumer) Start(ctx context.Context, handler messaging.MessageHandler) 
 		err = c.reader.CommitMessages(commitCtx, msg)
 		cancel()
 		if err != nil {
-			c.logger.Error("Failed to commit message: topic=%s partition=%d offset=%d error=%v",
+			c.logger.ErrorCtx(msgCtx, "Failed to commit message: topic=%s partition=%d offset=%d error=%v",
 				msg.Topic, msg.Partition, msg.Offset, err)
 			// Don't return error - message was processed, commit failure is not critical
 			// It will be redelivered on restart but idempotency will handle it
 		}
 
-		c.logger.Debug("Message committed: topic=%s partition=%d offset=%d",
+		c.logger.DebugCtx(msgCtx, "Message committed: topic=%s partition=%d offset=%d",
 			msg.Topic, msg.Partition, msg.Offset)
 	}
 }
@@ -92,4 +96,16 @@ func (c *Consumer) Close() error {
 	c.logger.Info("Closing consumer: topic=%s group_id=%s",
 		c.reader.Config().Topic, c.reader.Config().GroupID)
 	return c.reader.Close()
+}
+
+// extractCorrelationID extracts correlation ID from Kafka headers and returns enriched context.
+// If no correlation ID header found, generates a new one.
+func extractCorrelationID(ctx context.Context, headers []kafka.Header) context.Context {
+	for _, h := range headers {
+		if h.Key == correlation.KafkaHeaderName {
+			return correlation.WithID(ctx, string(h.Value))
+		}
+	}
+	// Generate new ID if not present (for messages published before this feature)
+	return correlation.WithID(ctx, correlation.NewID())
 }

@@ -1,10 +1,12 @@
 package kafka
 
 import (
-	"TestTaskJustPay/internal/api/messaging"
-	"TestTaskJustPay/pkg/logger"
 	"context"
 	"encoding/json"
+
+	"TestTaskJustPay/internal/api/messaging"
+	"TestTaskJustPay/pkg/correlation"
+	"TestTaskJustPay/pkg/logger"
 
 	"github.com/segmentio/kafka-go"
 )
@@ -42,13 +44,21 @@ func (p *Publisher) Publish(ctx context.Context, env messaging.Envelope) error {
 		Value: value,
 	}
 
+	// Add correlation ID header if present in context
+	if corrID := correlation.FromContext(ctx); corrID != "" {
+		msg.Headers = append(msg.Headers, kafka.Header{
+			Key:   correlation.KafkaHeaderName,
+			Value: []byte(corrID),
+		})
+	}
+
 	if err = p.writer.WriteMessages(ctx, msg); err != nil {
 		p.logger.Error("Failed to publish message: topic=%s key=%s error=%v",
 			p.writer.Topic, env.Key, err)
 		return err
 	}
 
-	p.logger.Debug("Message published: topic=%s key=%s event_id=%s",
+	p.logger.DebugCtx(ctx, "Message published: topic=%s key=%s event_id=%s",
 		p.writer.Topic, env.Key, env.EventID)
 	return nil
 

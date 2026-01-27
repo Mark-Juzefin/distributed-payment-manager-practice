@@ -32,7 +32,12 @@ func Run(cfg config.IngestConfig) {
 	// Setup Gin engine
 	gin.SetMode(gin.ReleaseMode)
 	engine := gin.New()
-	engine.Use(metrics.GinMiddleware(), gin.Recovery())
+	engine.Use(
+		logger.CorrelationMiddleware(), // Extract/generate correlation ID first
+		metrics.GinMiddleware(),
+		l.GinBodyLogger(),
+		gin.Recovery(),
+	)
 
 	// Create processor based on webhook mode
 	var processor webhook.Processor

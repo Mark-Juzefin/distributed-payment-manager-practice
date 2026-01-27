@@ -34,10 +34,10 @@
 - [x] `/health/ready` — readiness (dependencies OK: DB, Kafka)
 - [x] Health check handlers
 
-**Subtask 4:** Correlation IDs
-- [ ] Generate/propagate X-Correlation-ID header
-- [ ] Include in all log entries
-- [ ] Pass through Kafka messages
+**Subtask 4:** Correlation IDs — [plan-subtask-4.md](plan-subtask-4.md)
+- [x] Generate/propagate X-Correlation-ID header
+- [x] Include in all log entries
+- [x] Pass through Kafka messages
 
 **Subtask 5:** Grafana Dashboards
 - [ ] Docker compose з Prometheus + Grafana
@@ -57,6 +57,13 @@
 - [x] Simplify environment variable management
 - [x] Unify run modes (sync/kafka/http)
 - [x] Improve local development experience
+
+**Subtask 9:** Logger Refactoring (Tech Debt)
+- [ ] Structured logging API (fluent builder pattern)
+- [ ] Automatic source location (file:line)
+- [ ] Context-first design (correlation ID as default)
+- [ ] Log sampling for high-frequency events
+- [ ] Evaluate slog (Go 1.21+ stdlib) vs zerolog
 
 ---
 

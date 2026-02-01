@@ -1,16 +1,15 @@
 # Feature 003: Inter-Service Communication
 
-**Status:** Paused
+**Status:** Done
 
 ## Overview
 
-Реалізація sync mode комунікації між Ingest та API сервісами. Поступовий перехід від HTTP до gRPC з проміжним етапом HTTP + Protobuf.
+Реалізація sync mode комунікації між Ingest та API сервісами через HTTP.
 
-**Мотивація:**
-- Чітка межа між сервісами (HTTP/gRPC замість прямого виклику)
-- Підготовка до gRPC через проміжні кроки
-- Можливість бенчмаркінгу різних підходів (Kafka vs HTTP vs gRPC)
-- Практика з Protocol Buffers та gRPC
+**Результат:**
+- Чітка межа між сервісами через HTTP endpoints
+- Можливість вибору режиму: Kafka (async) або HTTP (sync)
+- Internal API endpoints для service-to-service комунікації
 
 **Архітектура:**
 
@@ -20,9 +19,6 @@ Kafka mode (async, production):
 
 HTTP sync mode:
   Webhook → Ingest → HTTP → API endpoint → domain logic
-
-gRPC sync mode (target):
-  Webhook → Ingest → gRPC → API server → domain logic
 ```
 
 ## Subtasks
@@ -33,29 +29,6 @@ gRPC sync mode (target):
 - [x] HTTPSyncProcessor що використовує apiclient
 - [x] WEBHOOK_MODE: `kafka` / `http`
 - [x] Unit tests for new components
-- [ ] k6 benchmark: Kafka vs HTTP (moved E2E tests to Subtask 5)
-
-**Subtask 2:** HTTP + Protobuf
-- [ ] Proto definitions для webhook payloads
-- [ ] Protobuf serialization замість JSON
-- [ ] Benchmark: JSON vs Protobuf over HTTP
-
-**Subtask 3:** gRPC
-- [ ] gRPC service definition
-- [ ] gRPC server в API service
-- [ ] gRPC client в Ingest (`GRPCSyncProcessor`)
-- [ ] WEBHOOK_MODE: `kafka` / `http` / `grpc`
-- [ ] Benchmark: HTTP vs gRPC
-
-**Subtask 4:** ~~Observability~~ → Moved to [Feature 004](../004-observability/)
-
-**Subtask 5:** E2E Test Refactoring — [plan-subtask-5.md](plan-subtask-5.md)
-- [ ] Process-based test infrastructure (запуск сервісів як окремих процесів)
-- [ ] E2E tests for Kafka mode
-- [ ] E2E tests for HTTP mode
-- [ ] Видалити дублювання setupTestServer (~75 рядків)
-- [ ] Makefile targets: e2e-test, e2e-test-kafka, e2e-test-http
-
 ---
 
 ## Architecture Decision Records

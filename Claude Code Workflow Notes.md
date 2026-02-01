@@ -68,7 +68,8 @@ docs/
 │   └── pr-summary.md               ← /pr-summary for squash merges
 └── rules/
     ├── feature-planning.md         ← Plan file naming rules
-    └── migrations.md               ← DB migration test requirements
+    ├── migrations.md               ← DB migration test requirements
+    └── status-updates.md           ← When to update README Status
 ```
 
 ## Hooks
@@ -141,3 +142,8 @@ docs/
 - Every schema change needs integration tests
 - Unique constraints must be tested
 - Partitioned tables: include partition key in constraints
+
+### Status Updates (`.claude/rules/status-updates.md`)
+- Update README Status on strategic changes (new direction, milestone, focus shift)
+- Don't update on routine work (subtasks, bugs, refactoring)
+- Keep it to 2-4 sentences with context

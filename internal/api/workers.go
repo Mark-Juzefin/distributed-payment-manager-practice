@@ -2,6 +2,7 @@ package api
 
 import (
 	"context"
+	"log/slog"
 
 	"TestTaskJustPay/config"
 	"TestTaskJustPay/internal/api/consumers"
@@ -9,67 +10,73 @@ import (
 	"TestTaskJustPay/internal/api/domain/order"
 	"TestTaskJustPay/internal/api/external/kafka"
 	"TestTaskJustPay/internal/api/messaging"
-	"TestTaskJustPay/pkg/logger"
 )
 
 // StartWorkers starts Kafka consumers for order and dispute processing.
 // It runs in a separate goroutine and will stop when ctx is cancelled.
 func StartWorkers(
 	ctx context.Context,
-	l *logger.Logger,
 	cfg config.Config,
 	orderService *order.OrderService,
 	disputeService *dispute.DisputeService,
 ) {
 	// Create DLQ publishers
-	orderDLQPub := kafka.NewDLQPublisher(l, cfg.KafkaBrokers, cfg.KafkaOrdersDLQTopic)
-	disputeDLQPub := kafka.NewDLQPublisher(l, cfg.KafkaBrokers, cfg.KafkaDisputesDLQTopic)
+	orderDLQPub := kafka.NewDLQPublisher(cfg.KafkaBrokers, cfg.KafkaOrdersDLQTopic)
+	disputeDLQPub := kafka.NewDLQPublisher(cfg.KafkaBrokers, cfg.KafkaDisputesDLQTopic)
 	defer orderDLQPub.Close()
 	defer disputeDLQPub.Close()
 
-	// Order consumer with retry + DLQ middleware
-	orderController := consumers.NewOrderMessageController(l, orderService)
-	orderHandler := messaging.WithDLQ(
-		messaging.WithRetry(orderController.HandleMessage, messaging.DefaultRetryConfig()),
-		orderDLQPub,
+	// Order consumer with metrics + retry + DLQ middleware
+	orderController := consumers.NewOrderMessageController(orderService)
+	orderHandler := messaging.WithMetrics(
+		cfg.KafkaOrdersTopic,
+		cfg.KafkaOrdersConsumerGroup,
+		messaging.WithDLQ(
+			messaging.WithRetry(orderController.HandleMessage, messaging.DefaultRetryConfig()),
+			orderDLQPub,
+		),
 	)
 	orderConsumer := kafka.NewConsumer(
-		l,
 		cfg.KafkaBrokers,
 		cfg.KafkaOrdersTopic,
 		cfg.KafkaOrdersConsumerGroup,
 	)
-	orderRunner := messaging.NewRunner(l, []messaging.Worker{orderConsumer}, orderHandler)
+	orderRunner := messaging.NewRunner([]messaging.Worker{orderConsumer}, orderHandler)
 
-	// Dispute consumer with retry + DLQ middleware
-	disputeController := consumers.NewDisputeMessageController(l, disputeService)
-	disputeHandler := messaging.WithDLQ(
-		messaging.WithRetry(disputeController.HandleMessage, messaging.DefaultRetryConfig()),
-		disputeDLQPub,
+	// Dispute consumer with metrics + retry + DLQ middleware
+	disputeController := consumers.NewDisputeMessageController(disputeService)
+	disputeHandler := messaging.WithMetrics(
+		cfg.KafkaDisputesTopic,
+		cfg.KafkaDisputesConsumerGroup,
+		messaging.WithDLQ(
+			messaging.WithRetry(disputeController.HandleMessage, messaging.DefaultRetryConfig()),
+			disputeDLQPub,
+		),
 	)
 	disputeConsumer := kafka.NewConsumer(
-		l,
 		cfg.KafkaBrokers,
 		cfg.KafkaDisputesTopic,
 		cfg.KafkaDisputesConsumerGroup,
 	)
-	disputeRunner := messaging.NewRunner(l, []messaging.Worker{disputeConsumer}, disputeHandler)
+	disputeRunner := messaging.NewRunner([]messaging.Worker{disputeConsumer}, disputeHandler)
 
 	// Start order runner in background
 	go func() {
-		l.Info("Starting order webhook consumer: topic=%s group=%s",
-			cfg.KafkaOrdersTopic, cfg.KafkaOrdersConsumerGroup)
+		slog.Info("Starting order webhook consumer",
+			"topic", cfg.KafkaOrdersTopic,
+			"group", cfg.KafkaOrdersConsumerGroup)
 		if err := orderRunner.Start(ctx); err != nil {
-			l.Error("Order runner failed: error=%v", err)
+			slog.Error("Order runner failed", slog.Any("error", err))
 		}
 	}()
 
 	// Start dispute runner in background
 	go func() {
-		l.Info("Starting dispute webhook consumer: topic=%s group=%s",
-			cfg.KafkaDisputesTopic, cfg.KafkaDisputesConsumerGroup)
+		slog.Info("Starting dispute webhook consumer",
+			"topic", cfg.KafkaDisputesTopic,
+			"group", cfg.KafkaDisputesConsumerGroup)
 		if err := disputeRunner.Start(ctx); err != nil {
-			l.Error("Dispute runner failed: error=%v", err)
+			slog.Error("Dispute runner failed", slog.Any("error", err))
 		}
 	}()
 }

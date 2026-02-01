@@ -1,10 +1,12 @@
 package kafka
 
 import (
-	"TestTaskJustPay/internal/api/messaging"
-	"TestTaskJustPay/pkg/logger"
 	"context"
 	"encoding/json"
+	"log/slog"
+
+	"TestTaskJustPay/internal/api/messaging"
+	"TestTaskJustPay/pkg/correlation"
 
 	"github.com/segmentio/kafka-go"
 )
@@ -12,11 +14,10 @@ import (
 // Publisher implements messaging.Publisher using Kafka.
 type Publisher struct {
 	writer *kafka.Writer
-	logger *logger.Logger
 }
 
 // NewPublisher creates a new Kafka publisher.
-func NewPublisher(l *logger.Logger, brokers []string, topic string) *Publisher {
+func NewPublisher(brokers []string, topic string) *Publisher {
 	writer := &kafka.Writer{
 		Addr:         kafka.TCP(brokers...),
 		Topic:        topic,
@@ -26,7 +27,6 @@ func NewPublisher(l *logger.Logger, brokers []string, topic string) *Publisher {
 
 	return &Publisher{
 		writer: writer,
-		logger: l,
 	}
 }
 
@@ -42,14 +42,26 @@ func (p *Publisher) Publish(ctx context.Context, env messaging.Envelope) error {
 		Value: value,
 	}
 
+	// Add correlation ID header if present in context
+	if corrID := correlation.FromContext(ctx); corrID != "" {
+		msg.Headers = append(msg.Headers, kafka.Header{
+			Key:   correlation.KafkaHeaderName,
+			Value: []byte(corrID),
+		})
+	}
+
 	if err = p.writer.WriteMessages(ctx, msg); err != nil {
-		p.logger.Error("Failed to publish message: topic=%s key=%s error=%v",
-			p.writer.Topic, env.Key, err)
+		slog.Error("Failed to publish message",
+			"topic", p.writer.Topic,
+			"key", env.Key,
+			slog.Any("error", err))
 		return err
 	}
 
-	p.logger.Debug("Message published: topic=%s key=%s event_id=%s",
-		p.writer.Topic, env.Key, env.EventID)
+	slog.DebugContext(ctx, "Message published",
+		"topic", p.writer.Topic,
+		"key", env.Key,
+		"event_id", env.EventID)
 	return nil
 
 }

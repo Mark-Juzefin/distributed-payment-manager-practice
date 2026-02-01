@@ -24,28 +24,33 @@ Go, PostgreSQL, pg_partman, Docker, MongoDB, OpenSearch, Kafka, testcontainers-g
 - Achieving real performance gains from scaling (metrics and benchmarks here are for learning, not for driving design decisions)
 
 # Status
-Currently working on **Inter-Service Communication** (HTTP → Protobuf → gRPC).
 
-# Notes
-- [Postgres Time Series Partitioning Notes](./Postgres%20Time%20Series%20Partitioning%20Notes.md) - Query optimization with pg_partman
-- [Claude Code Workflow Notes](./Claude%20Code%20Workflow%20Notes.md) - How I use Claude Code to accelerate learning
+Starting **Inter-Service Communication** benchmarks — comparing HTTP JSON vs Protobuf vs gRPC for sync mode between Ingest and API services. Observability (Prometheus + Grafana) is ready for measuring latency and throughput differences.
 
 # Roadmap
 
 Detailed plan: **[docs/roadmap.md](./docs/roadmap.md)**
 
-| Step | Feature | Status |
-|------|---------|--------|
-| - | Time-series Partitioning (pg_partman) | Done |
-| 1 | Webhooks ingestion with Kafka | Done |
-| 1.5 | Ingest Service Extraction | Done |
-| 1.6 | Inter-Service Communication | In Progress |
-| 2 | Observability | Planned |
-| 3 | Simple Deployment Profile + VPS | Planned |
-| 4 | Outbox Pattern → CDC → Analytics | Planned |
-| 5 | PostgreSQL Replication | Planned |
-| 6 | Sharding Experiments | Planned |
-| 7 | Infrastructure (K8s, Service Mesh) | Planned |
+**Done:**
+- **Time-series Partitioning** — pg_partman for dispute_events, query I/O reduced from 200MB to 30MB
+- **Kafka Ingestion** — async webhook processing, DLQ, retry with backoff, topic partitioning
+- **Ingest Service** — extracted lightweight HTTP→Kafka gateway as separate microservice
+- **Observability** — Prometheus metrics, Grafana dashboards, correlation IDs, health checks
+
+**In Progress:**
+- **Inter-Service Communication** — HTTP vs Protobuf vs gRPC benchmarking
+
+**Planned:**
+- **Security Foundations** — TLS, secrets management, Postgres roles, AuthN/AuthZ
+- **VPS Deployment** — single-node prod profile, HTMX admin, nginx, systemd
+- **Outbox + CDC** — reliable event publishing, Debezium, exactly-once semantics
+- **PostgreSQL HA & DR** — streaming replication, failover, backup/restore
+- **Sharding** — horizontal partitioning by user_id
+- **K8s + Service Mesh** — HPA, ingress, circuit breakers, Temporal workflows
+
+# Notes
+- [Postgres Time Series Partitioning Notes](./Postgres%20Time%20Series%20Partitioning%20Notes.md) - Query optimization with pg_partman
+- [Claude Code Workflow Notes](./Claude%20Code%20Workflow%20Notes.md) - How I use Claude Code to accelerate learning
 
 # Services Architecture
 
@@ -69,43 +74,51 @@ The system consists of two services:
   - No database, no business logic
 - **Port**: 3001
 
-# Running Modes
+# Domain Entities
 
-## Sync Mode (default for dev)
-Runs API service only with WEBHOOK_MODE=sync. Webhooks are processed directly by API service.
+## Order
+Payment order from external provider.
+
+| Field | Description |
+|-------|-------------|
+| `order_id` | Provider's order identifier |
+| `user_id` | Customer UUID |
+| `status` | `created` → `updated` → `success` / `failed` |
+| `on_hold` | Manual hold flag |
+| `hold_reason` | `manual_review` or `risk` |
+
+**Events:** `webhook_received`, `hold_set`, `hold_cleared`, `capture_requested`, `capture_completed`, `capture_failed`
+
+## Dispute
+Chargeback/dispute linked to an order.
+
+| Field | Description |
+|-------|-------------|
+| `dispute_id` | Internal dispute identifier |
+| `order_id` | FK to related order |
+| `status` | `open` → `under_review` → `submitted` → `won` / `lost` / `closed` / `canceled` |
+| `reason` | Dispute reason from provider |
+| `amount`, `currency` | Disputed amount |
+| `evidence_due_at` | Deadline for evidence submission |
+
+**Events:** `webhook_opened`, `webhook_updated`, `provider_decision`, `evidence_submitted`, `evidence_added`
+
+## State Machines
+
+```
+Order:   created ──→ updated ──→ success
+                           └──→ failed
+
+Dispute: open ──→ under_review ──→ submitted ──→ won
+                                          └──→ lost
+                                          └──→ closed
+                       └──→ canceled
+```
+
+# Monitoring
+
+Services expose Prometheus metrics at `/metrics`; Grafana dashboards visualize HTTP latency, error rates, and Kafka throughput.
 
 ```bash
-make run-dev  # Runs API service only with WEBHOOK_MODE=sync
-```
-
-**Architecture:**
-```
-Webhook → API Service (HTTP) → Domain Logic → PostgreSQL
-```
-
-## Kafka Mode (production)
-Runs both API + Ingest services. Webhooks are routed through Kafka.
-
-```bash
-make run-kafka  # Runs both API + Ingest services via goreman
-```
-
-**Architecture:**
-```
-Webhook → Ingest Service (HTTP) → Kafka → API Consumer → Domain Logic → PostgreSQL
-```
-
-**Note**: Requires [goreman](https://github.com/mattn/goreman): `go install github.com/mattn/goreman@latest`
-
-## Standalone Services
-
-```bash
-make run-api     # Run API service only
-make run-ingest  # Run Ingest service only
-```
-
-## Docker Compose
-
-```bash
-make run  # Runs both services + infrastructure in containers
+make start-monitoring  # Prometheus :9090, Grafana :3100 (admin/admin)
 ```

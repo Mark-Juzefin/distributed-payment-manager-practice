@@ -2,21 +2,27 @@ package api
 
 import (
 	"TestTaskJustPay/internal/api/handlers"
+	"TestTaskJustPay/pkg/health"
+	"TestTaskJustPay/pkg/metrics"
 
 	"github.com/gin-gonic/gin"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 )
 
 type Router struct {
-	order      *handlers.OrderHandler
-	chargeback *handlers.ChargebackHandler
-	dispute    *handlers.DisputeHandler
+	order          *handlers.OrderHandler
+	chargeback     *handlers.ChargebackHandler
+	dispute        *handlers.DisputeHandler
+	healthRegistry *health.Registry
 }
 
 func (r *Router) SetUp(engine *gin.Engine) {
-	// Health check
-	engine.GET("/health", func(c *gin.Context) {
-		c.JSON(200, gin.H{"service": "api", "status": "ok"})
-	})
+	// Health checks (Kubernetes-style)
+	engine.GET("/health/live", health.LivenessHandler())
+	engine.GET("/health/ready", health.ReadinessHandler(r.healthRegistry, health.DefaultTimeout))
+
+	// Prometheus metrics
+	engine.GET("/metrics", gin.WrapH(promhttp.HandlerFor(metrics.Registry, promhttp.HandlerOpts{})))
 
 	// Manual operations + reads (no webhooks)
 	engine.GET("/orders", r.order.Filter)
@@ -36,10 +42,12 @@ func NewRouter(
 	order *handlers.OrderHandler,
 	chargeback *handlers.ChargebackHandler,
 	dispute *handlers.DisputeHandler,
+	healthRegistry *health.Registry,
 ) *Router {
 	return &Router{
-		order:      order,
-		chargeback: chargeback,
-		dispute:    dispute,
+		order:          order,
+		chargeback:     chargeback,
+		dispute:        dispute,
+		healthRegistry: healthRegistry,
 	}
 }

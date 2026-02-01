@@ -2,9 +2,8 @@ package kafka
 
 import (
 	"context"
+	"log/slog"
 	"time"
-
-	"TestTaskJustPay/pkg/logger"
 
 	"github.com/segmentio/kafka-go"
 )
@@ -12,11 +11,10 @@ import (
 // DLQPublisher publishes failed messages to a Dead Letter Queue topic.
 type DLQPublisher struct {
 	writer *kafka.Writer
-	logger *logger.Logger
 }
 
 // NewDLQPublisher creates a new DLQ publisher.
-func NewDLQPublisher(l *logger.Logger, brokers []string, dlqTopic string) *DLQPublisher {
+func NewDLQPublisher(brokers []string, dlqTopic string) *DLQPublisher {
 	writer := &kafka.Writer{
 		Addr:         kafka.TCP(brokers...),
 		Topic:        dlqTopic,
@@ -26,7 +24,6 @@ func NewDLQPublisher(l *logger.Logger, brokers []string, dlqTopic string) *DLQPu
 
 	return &DLQPublisher{
 		writer: writer,
-		logger: l,
 	}
 }
 
@@ -42,13 +39,18 @@ func (p *DLQPublisher) PublishToDLQ(ctx context.Context, key, value []byte, err 
 	}
 
 	if writeErr := p.writer.WriteMessages(ctx, msg); writeErr != nil {
-		p.logger.Error("Failed to publish to DLQ: topic=%s key=%s error=%v original_error=%v",
-			p.writer.Topic, string(key), writeErr, err)
+		slog.Error("Failed to publish to DLQ",
+			"topic", p.writer.Topic,
+			"key", string(key),
+			slog.Any("error", writeErr),
+			slog.Any("original_error", err))
 		return writeErr
 	}
 
-	p.logger.Warn("Message sent to DLQ: topic=%s key=%s error=%v",
-		p.writer.Topic, string(key), err)
+	slog.Warn("Message sent to DLQ",
+		"topic", p.writer.Topic,
+		"key", string(key),
+		slog.Any("error", err))
 	return nil
 }
 

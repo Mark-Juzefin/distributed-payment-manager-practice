@@ -5,22 +5,20 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log/slog"
 
 	"TestTaskJustPay/internal/api/domain/dispute"
 	"TestTaskJustPay/internal/api/messaging"
-	"TestTaskJustPay/pkg/logger"
 )
 
 // DisputeMessageController handles dispute/chargeback messages from Kafka.
 type DisputeMessageController struct {
-	logger  *logger.Logger
 	service *dispute.DisputeService
 }
 
 // NewDisputeMessageController creates a new dispute message controller.
-func NewDisputeMessageController(l *logger.Logger, s *dispute.DisputeService) *DisputeMessageController {
+func NewDisputeMessageController(s *dispute.DisputeService) *DisputeMessageController {
 	return &DisputeMessageController{
-		logger:  l,
 		service: s,
 	}
 }
@@ -29,34 +27,49 @@ func NewDisputeMessageController(l *logger.Logger, s *dispute.DisputeService) *D
 func (c *DisputeMessageController) HandleMessage(ctx context.Context, key, value []byte) error {
 	var env messaging.Envelope
 	if err := json.Unmarshal(value, &env); err != nil {
-		c.logger.Error("Failed to unmarshal envelope: key=%s error=%v", string(key), err)
+		slog.ErrorContext(ctx, "Failed to unmarshal envelope",
+			"key", string(key),
+			slog.Any("error", err))
 		return fmt.Errorf("unmarshal envelope: %w", err)
 	}
 
-	c.logger.Debug("Processing dispute message: event_id=%s key=%s type=%s",
-		env.EventID, env.Key, env.Type)
+	slog.DebugContext(ctx, "Processing dispute message",
+		"event_id", env.EventID,
+		"key", env.Key,
+		"type", env.Type)
 
 	var webhook dispute.ChargebackWebhook
 	if err := json.Unmarshal(env.Payload, &webhook); err != nil {
-		c.logger.Error("Failed to unmarshal webhook payload: event_id=%s error=%v", env.EventID, err)
+		slog.ErrorContext(ctx, "Failed to unmarshal webhook payload",
+			"event_id", env.EventID,
+			slog.Any("error", err))
 		return fmt.Errorf("unmarshal webhook: %w", err)
 	}
 
 	if err := c.service.ProcessChargeback(ctx, webhook); err != nil {
 		// Idempotency: duplicate events are not errors
 		if errors.Is(err, dispute.ErrEventAlreadyStored) {
-			c.logger.Info("Duplicate dispute event ignored: event_id=%s user_id=%s order_id=%s provider_event_id=%s",
-				env.EventID, webhook.UserID, webhook.OrderID, webhook.ProviderEventID)
+			slog.InfoContext(ctx, "Duplicate dispute event ignored",
+				"event_id", env.EventID,
+				"user_id", webhook.UserID,
+				"order_id", webhook.OrderID,
+				"provider_event_id", webhook.ProviderEventID)
 			return nil
 		}
 
-		c.logger.Error("Failed to process chargeback webhook: event_id=%s user_id=%s order_id=%s error=%v",
-			env.EventID, webhook.UserID, webhook.OrderID, err)
+		slog.ErrorContext(ctx, "Failed to process chargeback webhook",
+			"event_id", env.EventID,
+			"user_id", webhook.UserID,
+			"order_id", webhook.OrderID,
+			slog.Any("error", err))
 		return err
 	}
 
-	c.logger.Info("Chargeback webhook processed: event_id=%s user_id=%s order_id=%s status=%s",
-		env.EventID, webhook.UserID, webhook.OrderID, webhook.Status)
+	slog.InfoContext(ctx, "Chargeback webhook processed",
+		"event_id", env.EventID,
+		"user_id", webhook.UserID,
+		"order_id", webhook.OrderID,
+		"status", webhook.Status)
 
 	return nil
 }

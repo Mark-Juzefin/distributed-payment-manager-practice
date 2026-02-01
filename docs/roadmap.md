@@ -7,68 +7,72 @@
 - [x] **Time-series Partitioning** - PostgreSQL pg_partman для dispute_events
   - Див: [Postgres Time Series Partitioning Notes](../Postgres%20Time%20Series%20Partitioning%20Notes.md)
 
-- [x] **Step 1: Webhooks ingestion with Kafka**
+- [x] **Step 1: Kafka Ingestion Pipeline**
   - Async webhook processing via Kafka topics
   - Sync/Kafka mode switch via WEBHOOK_MODE env variable
   - Consumer resilience: retry with exponential backoff, panic recovery, DLQ
   - Topic partitioning
-  - Details: [features/001-kafka-ingestion/](features/001-kafka-ingestion/) | Notes: [notes.md](features/001-kafka-ingestion/notes.md)
+  - Ingest Service extraction: separate microservice (`cmd/ingest/`), service-based monorepo
+  - HTTP sync mode: internal endpoints for service-to-service calls
+  - Details: [001-kafka-ingestion/](features/001-kafka-ingestion/) | [002-ingest-service-extraction/](features/002-ingest-service-extraction/) | [003-inter-service-communication/](features/003-inter-service-communication/)
 
-- [x] **Ingest Service Extraction**
-  - Extracted Ingest service as a separate microservice
-  - Kafka mode: Ingest → Kafka → API consumer
-  - Separate binaries: `cmd/ingest/` + `cmd/api/`
-  - Service-based monorepo architecture (`internal/api/`, `internal/ingest/`)
-  - Details: [features/002-ingest-service-extraction/](features/002-ingest-service-extraction/)
+- [x] **Step 2: Observability**
+  - Prometheus metrics: HTTP latency histograms, request counters, Kafka processing
+  - Grafana dashboards: service health, Kafka throughput
+  - Correlation IDs across services
+  - Health checks (/health/live, /health/ready)
+  - Details: [004-observability/](features/004-observability/)
 
 ---
 
 ## In Progress
 
-### Observability
-- **Metrics**: Prometheus instrumentation, key SLIs (webhook latency p50/p95/p99, Kafka lag, error rates)
-- **Dashboards**: Grafana dashboards for services health, throughput, latency
-- **Tracing**: OpenTelemetry integration, distributed tracing (Jaeger)
-- **Profiling**: pprof endpoints for dev, continuous profiling basics
-- **SLO thinking**: define target latencies, alerting on violations
-- Practice: metrics design, Prometheus/Grafana, distributed tracing, SLO-based reliability
-- Details: [features/004-observability/](features/004-observability/)
-
----
-
-## Paused
-
-### Inter-Service Communication
-- Sync mode communication between Ingest and API services
-- Progressive approach: HTTP → HTTP + Protobuf → gRPC
-- Benchmarking different approaches (Kafka vs HTTP vs gRPC)
-- Practice: Protocol Buffers, gRPC, service-to-service communication
-- Details: [features/003-inter-service-communication/](features/003-inter-service-communication/)
-- **Paused reason:** Need observability first for meaningful benchmarks
-
----
-
-## Planned
-
-### Step 3: Simple Deployment Profile + VPS Hosting
-- Single-node deployment without Kafka dependency (sync mode as default)
-- HTMX admin dashboard for viewing orders, disputes, events
-- Minimal infrastructure: single PostgreSQL instance
-- **VPS deployment**: deploy to a cheap VPS, systemd services, nginx reverse proxy, basic security hardening
-- Practice: feature flags, multi-profile configuration, HTMX/SSR, Linux server administration
-
-### Step 4: Outbox Pattern → CDC → Analytics
+### Step 3: Outbox Pattern → CDC → Analytics
 - Implement outbox tables for reliable event publishing
 - Use Debezium/CDC to stream events into OpenSearch or ClickHouse
 - Exactly-once semantics: demonstrate the tradeoffs and limitations
 - Practice: event-driven consistency, CDC pipelines, projections, analytical indexing
 
-### Step 5: PostgreSQL Replication
+---
+
+## Tech Debt
+
+- [ ] **Graceful Shutdown for Kafka Components** - DLQ publisher closes before pending messages are sent, causing "io: read/write on closed pipe" errors. Need proper shutdown ordering: stop consumers → flush DLQ → close publishers.
+
+- [ ] **Testing Infrastructure** (from Feature 003)
+  - E2E Test Refactoring: process-based test infrastructure, tests for Kafka/HTTP modes
+  - Go-based Load Testing: `loadtest/main.go`, order lifecycle, dispute scenarios
+  - Plans: [plan-subtask-5.md](features/003-inter-service-communication/plan-subtask-5.md), [plan-subtask-6.md](features/003-inter-service-communication/plan-subtask-6.md)
+
+- [ ] **Advanced Observability** (from Step 2)
+  - Distributed tracing: Jaeger/OTLP integration
+  - Profiling: pprof endpoints for CPU/memory profiling
+  - Audit logging: structured audit trail for compliance
+
+---
+
+## Planned
+
+### Step 4: PostgreSQL HA & DR
 - **Streaming replication**: primary-standby setup, synchronous vs asynchronous
 - **Read replica routing**: write → primary, read → replica (pgpool or application-level)
 - **Failover/switchover**: manual and automated (Patroni basics)
-- **Monitoring**: replication lag metrics, alerting on lag thresholds
-- Practice: HA patterns, read scaling, failover procedures
+- **Backup/restore**: pg_dump logical backups, pg_basebackup for PITR, restore verification
+- **Monitoring**: replication lag metrics, backup success/failure alerts, RTO/RPO tracking
+- Practice: HA patterns, read scaling, failover procedures, disaster recovery
+
+### Step 5: Simple Deployment Profile + VPS Hosting
+- Single-node deployment without Kafka dependency (sync mode as default)
+- HTMX admin dashboard for viewing orders, disputes, events
+- Minimal infrastructure: single PostgreSQL instance
+- **VPS deployment**: deploy to a cheap VPS, systemd services, nginx reverse proxy, basic security hardening
+- **TODO: Local dev tooling** — research alternatives to goreman for better Procfile experience:
+  - [Overmind](https://github.com/DarthSim/overmind) — tmux-based, allows attaching to individual processes
+  - [Forego](https://github.com/ddollar/forego) — foreman port in Go
+  - [process-compose](https://github.com/F1bonacc1/process-compose) — TUI process manager
+  - [Devbox](https://www.jetify.com/devbox) — Nix-based dev environments
+  - Reference: [Orchestrate your dev environment using Devbox](https://meijer.works/articles/orchestrate-your-dev-environment-using-devbox/)
+- Practice: feature flags, multi-profile configuration, HTMX/SSR, Linux server administration
 
 ### Step 6: Sharding Experiments
 - Split orders/disputes across multiple Postgres shards by hash(user_id)
@@ -84,7 +88,16 @@
 - **CI/CD**: build pipelines, image tagging, per-env configs
 - Practice: service boundaries, platform primitives, reliability patterns
 
-### Experiment — Second Language Module (Rust/C++)
+### Step 8: Security Foundations
+- **TLS**: TLS termination on reverse proxy (nginx/traefik), HTTPS for external endpoints
+- **Secrets management**: separate config vs secrets, sops/age or docker secrets (not .env in git)
+- **Least privilege**: separate Postgres roles (migrations user, app RW, readonly for reports)
+- **AuthN/AuthZ basics**: API key or JWT for admin endpoints, HMAC signature for webhooks
+- **mTLS** (optional): internal service-to-service TLS for gRPC
+- Practice: certificate management, secrets lifecycle, role-based access, webhook security
+- Relevance: miltech/security-focused roles require these fundamentals
+
+### Experiment: Second Language Module (Rust/C++)
 - Separate microservice: Go calls Rust/C++ over gRPC
 - Library: Rust crate → shared library + FFI into Go (cgo)
 - WASM plugin: rules/logic compiled to wasm, executed by Go
@@ -98,7 +111,7 @@ ADRs document significant architectural decisions with context and tradeoffs.
 
 | ADR | Topic | Status |
 |-----|-------|--------|
-| ADR-001 | Kafka Architecture & Abstractions | Planned (after 003) |
-| ADR-002 | Sync vs Async Webhook Processing | Planned (after 003) |
+| ADR-001 | Kafka Architecture & Abstractions | Planned |
+| ADR-002 | Sync vs Async Webhook Processing | Planned |
 
 Location: `docs/adr/`

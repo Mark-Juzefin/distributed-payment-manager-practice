@@ -5,6 +5,8 @@ import (
 	"errors"
 	"math/rand"
 	"time"
+
+	"TestTaskJustPay/pkg/metrics"
 )
 
 const dlqPublishTimeout = 5 * time.Second
@@ -83,5 +85,26 @@ func WithDLQ(handler MessageHandler, dlq DLQPublisher) MessageHandler {
 			return nil
 		}
 		return nil
+	}
+}
+
+// WithMetrics wraps handler to record processing duration and message counts.
+// Should be the outermost middleware to capture total processing time including retries.
+func WithMetrics(topic, consumerGroup string, handler MessageHandler) MessageHandler {
+	return func(ctx context.Context, key, value []byte) error {
+		start := time.Now()
+
+		err := handler(ctx, key, value)
+
+		duration := time.Since(start).Seconds()
+		status := "success"
+		if err != nil {
+			status = "error"
+		}
+
+		metrics.KafkaProcessingDuration.WithLabelValues(topic, consumerGroup, status).Observe(duration)
+		metrics.KafkaMessagesProcessed.WithLabelValues(topic, consumerGroup, status).Inc()
+
+		return err
 	}
 }

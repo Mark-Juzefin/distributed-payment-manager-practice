@@ -4,12 +4,27 @@ import (
 	"bytes"
 	"encoding/json"
 	"io"
+	"log/slog"
+
+	"TestTaskJustPay/pkg/correlation"
 
 	"github.com/gin-gonic/gin"
-	"github.com/rs/zerolog"
 )
 
 const maxBody = 8 * 1024 // 8KB
+
+// skipBodyLogPaths contains paths where body logging should be skipped.
+// These are typically high-frequency endpoints (health checks, metrics)
+// or endpoints returning binary/compressed data.
+var skipBodyLogPaths = map[string]bool{
+	"/metrics":      true,
+	"/health/live":  true,
+	"/health/ready": true,
+}
+
+func shouldSkipBodyLog(path string) bool {
+	return skipBodyLogPaths[path]
+}
 
 func limit(b []byte) []byte {
 	if len(b) > maxBody {
@@ -28,52 +43,85 @@ func (r *responseBodyWriter) Write(b []byte) (int, error) {
 	return r.ResponseWriter.Write(b)
 }
 
-func (l *Logger) GinBodyLogger() gin.HandlerFunc {
+// CorrelationMiddleware extracts X-Correlation-ID from request header or generates a new one.
+// It stores the ID in the request context and adds it to the response header.
+func CorrelationMiddleware() gin.HandlerFunc {
 	return func(c *gin.Context) {
+		corrID := c.GetHeader(correlation.HeaderName)
+		if corrID == "" {
+			corrID = correlation.NewID()
+		}
+
+		// Store in request context (accessible via c.Request.Context())
+		ctx := correlation.WithID(c.Request.Context(), corrID)
+		c.Request = c.Request.WithContext(ctx)
+
+		// Add to response header
+		c.Header(correlation.HeaderName, corrID)
+
+		c.Next()
+	}
+}
+
+// GinBodyLogger returns a Gin middleware that logs HTTP request/response details.
+func GinBodyLogger() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		path := c.Request.URL.Path
+		skipBody := shouldSkipBodyLog(path)
+
 		var requestBody []byte
-		if c.Request.Body != nil {
+		if !skipBody && c.Request.Body != nil {
 			requestBody, _ = io.ReadAll(c.Request.Body)
 			c.Request.Body = io.NopCloser(bytes.NewBuffer(requestBody))
 		}
 
-		responseBuffer := &bytes.Buffer{}
-		writer := &responseBodyWriter{
-			body:           responseBuffer,
-			ResponseWriter: c.Writer,
+		var responseBuffer *bytes.Buffer
+		if !skipBody {
+			responseBuffer = &bytes.Buffer{}
+			writer := &responseBodyWriter{
+				body:           responseBuffer,
+				ResponseWriter: c.Writer,
+			}
+			c.Writer = writer
 		}
-		c.Writer = writer
 
 		c.Next()
 
-		logEvent := l.logger.Info().
-			Str("method", c.Request.Method).
-			Str("path", c.Request.URL.Path).
-			Str("query", c.Request.URL.RawQuery).
-			Int("status", c.Writer.Status())
+		// Build log attributes
+		attrs := []any{
+			"method", c.Request.Method,
+			"path", path,
+			"query", c.Request.URL.RawQuery,
+			"status", c.Writer.Status(),
+		}
 
-		//// Only log bodies for error responses (status >= 400)
-		//if c.Writer.Status() >= 400 {
-		logEvent = addMaybeJSON(logEvent, "request_body", limit(requestBody))
-		logEvent = addMaybeJSON(logEvent, "response_body", limit(responseBuffer.Bytes()))
-		//}
+		if !skipBody {
+			// Add request body
+			attrs = append(attrs, bodyAttr("request_body", limit(requestBody))...)
+			// Add response body
+			attrs = append(attrs, bodyAttr("response_body", limit(responseBuffer.Bytes()))...)
+		}
 
-		logEvent.Msg("HTTP Request")
+		slog.InfoContext(c.Request.Context(), "HTTP Request", attrs...)
 	}
 }
 
-func addMaybeJSON(e *zerolog.Event, key string, b []byte) *zerolog.Event {
+// bodyAttr returns the appropriate log attributes for a body payload.
+func bodyAttr(key string, b []byte) []any {
 	bb := bytes.TrimSpace(b)
 
-	// порожнє тіло -> null
 	if len(bb) == 0 {
-		return e.RawJSON(key, []byte("null"))
+		return []any{key, nil}
 	}
 
-	// валідний JSON -> вставляємо як JSON
 	if json.Valid(bb) {
-		return e.RawJSON(key, bb)
+		// For valid JSON, log as raw JSON by unmarshaling first
+		var v any
+		if err := json.Unmarshal(bb, &v); err == nil {
+			return []any{key, v}
+		}
 	}
 
-	// не JSON -> як строка (інакше зламає формат)
-	return e.Str(key, string(bb))
+	// Not JSON or unmarshal failed - log as string
+	return []any{key, string(bb)}
 }

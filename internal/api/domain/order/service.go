@@ -1,12 +1,13 @@
 package order
 
 import (
-	"TestTaskJustPay/internal/api/domain/gateway"
-	"TestTaskJustPay/pkg/logger"
 	"context"
 	"encoding/json"
 	"fmt"
+	"log/slog"
 	"time"
+
+	"TestTaskJustPay/internal/api/domain/gateway"
 
 	"github.com/google/uuid"
 )
@@ -15,15 +16,13 @@ type OrderService struct {
 	orderRepo OrderRepo
 	provider  gateway.Provider
 	eventSink EventSink
-	logger    logger.Interface
 }
 
-func NewOrderService(orderRepo OrderRepo, provider gateway.Provider, eventSink EventSink, l logger.Interface) *OrderService {
+func NewOrderService(orderRepo OrderRepo, provider gateway.Provider, eventSink EventSink) *OrderService {
 	return &OrderService{
 		orderRepo: orderRepo,
 		provider:  provider,
 		eventSink: eventSink,
-		logger:    l,
 	}
 }
 
@@ -159,7 +158,7 @@ func (s *OrderService) UpdateOrderHold(ctx context.Context, orderID string, requ
 		eventKind = OrderEventHoldCleared
 	}
 	if err := s.createHoldEvent(ctx, orderID, eventKind, request); err != nil {
-		s.logger.Error("Failed to create hold event: %v", err)
+		slog.ErrorContext(ctx, "Failed to create hold event", slog.Any("error", err))
 	}
 
 	return response, nil
@@ -213,7 +212,7 @@ func (s *OrderService) CapturePayment(ctx context.Context, orderID string, reque
 
 	// Create capture events after successful transaction
 	if err := s.createCaptureRequestedEvent(ctx, orderID, request); err != nil {
-		s.logger.Error("Failed to create capture requested event: %v", err)
+		slog.ErrorContext(ctx, "Failed to create capture requested event", slog.Any("error", err))
 	}
 
 	eventKind := OrderEventCaptureCompleted
@@ -221,7 +220,7 @@ func (s *OrderService) CapturePayment(ctx context.Context, orderID string, reque
 		eventKind = OrderEventCaptureFailed
 	}
 	if err := s.createCaptureResultEvent(ctx, orderID, eventKind, *response); err != nil {
-		s.logger.Error("Failed to create capture result event: %v", err)
+		slog.ErrorContext(ctx, "Failed to create capture result event", slog.Any("error", err))
 	}
 
 	return response, nil

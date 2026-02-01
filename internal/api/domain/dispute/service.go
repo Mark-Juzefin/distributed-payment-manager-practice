@@ -1,13 +1,14 @@
 package dispute
 
 import (
-	"TestTaskJustPay/internal/api/domain/gateway"
-	"TestTaskJustPay/pkg/logger"
-	"TestTaskJustPay/pkg/pointers"
 	"context"
 	"encoding/json"
 	"fmt"
+	"log/slog"
 	"time"
+
+	"TestTaskJustPay/internal/api/domain/gateway"
+	"TestTaskJustPay/pkg/pointers"
 
 	"github.com/google/uuid"
 )
@@ -16,15 +17,13 @@ type DisputeService struct {
 	disputeRepo DisputeRepo
 	eventSink   EventSink
 	provider    gateway.Provider
-	logger      logger.Interface
 }
 
-func NewDisputeService(repo DisputeRepo, provider gateway.Provider, eventSink EventSink, l logger.Interface) *DisputeService {
+func NewDisputeService(repo DisputeRepo, provider gateway.Provider, eventSink EventSink) *DisputeService {
 	return &DisputeService{
 		disputeRepo: repo,
 		provider:    provider,
 		eventSink:   eventSink,
-		logger:      l,
 	}
 }
 
@@ -208,7 +207,8 @@ func (s *DisputeService) Submit(ctx context.Context, disputeID string) error {
 		}
 		result = &res
 
-		s.logger.Debug("Submit representment response: %+v", res)
+		slog.DebugContext(ctx, "Submit representment response",
+			"provider_submission_id", res.ProviderSubmissionID)
 
 		//TODO: refactor
 		d.SubmittedAt = pointers.Ptr(time.Now())

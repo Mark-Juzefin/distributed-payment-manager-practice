@@ -17,7 +17,6 @@ import (
 	ingestHandlers "TestTaskJustPay/internal/ingest/handlers"
 	"TestTaskJustPay/internal/ingest/webhook"
 	"TestTaskJustPay/internal/shared/testinfra"
-	"TestTaskJustPay/pkg/logger"
 	"TestTaskJustPay/pkg/postgres"
 	"bytes"
 	"context"
@@ -92,8 +91,6 @@ func retryGet(t *testing.T, doRequest func() (*http.Response, error), maxRetries
 }
 
 func setupTestServer(t *testing.T) (*httptest.Server, *postgres.Postgres) {
-	l := logger.New("debug")
-
 	// Use postgres pool from testcontainer suite
 	pool := suite.Postgres.Pool
 
@@ -117,12 +114,12 @@ func setupTestServer(t *testing.T) (*httptest.Server, *postgres.Postgres) {
 	)
 
 	// Services
-	orderService := order.NewOrderService(orderRepo, silvergateClient, orderEventSink, l)
-	disputeService := dispute.NewDisputeService(disputeRepo, silvergateClient, disputeEventSink, l)
+	orderService := order.NewOrderService(orderRepo, silvergateClient, orderEventSink)
+	disputeService := dispute.NewDisputeService(disputeRepo, silvergateClient, disputeEventSink)
 
 	// Kafka publishers (always kafka in tests)
-	orderPublisher := kafka.NewPublisher(l, suite.Kafka.Brokers, suite.Kafka.OrdersTopic)
-	disputePublisher := kafka.NewPublisher(l, suite.Kafka.Brokers, suite.Kafka.DisputesTopic)
+	orderPublisher := kafka.NewPublisher(suite.Kafka.Brokers, suite.Kafka.OrdersTopic)
+	disputePublisher := kafka.NewPublisher(suite.Kafka.Brokers, suite.Kafka.DisputesTopic)
 	t.Cleanup(func() {
 		orderPublisher.Close()
 		disputePublisher.Close()
@@ -145,7 +142,7 @@ func setupTestServer(t *testing.T) (*httptest.Server, *postgres.Postgres) {
 		KafkaOrdersConsumerGroup:   suite.Kafka.OrdersGroup,
 		KafkaDisputesConsumerGroup: suite.Kafka.DisputesGroup,
 	}
-	api.StartWorkers(consumerCtx, l, cfg, orderService, disputeService)
+	api.StartWorkers(consumerCtx, cfg, orderService, disputeService)
 
 	// Give consumers time to start and join consumer group
 	// Topics are pre-created, but consumers still need time to subscribe and rebalance
@@ -161,7 +158,7 @@ func setupTestServer(t *testing.T) (*httptest.Server, *postgres.Postgres) {
 	webhookChargebackHandler := ingestHandlers.NewChargebackHandler(processor)
 
 	// Setup router with both API and webhook endpoints
-	engine := api.NewGinEngine(l)
+	engine := api.NewGinEngine()
 	apiRouter := api.NewRouter(apiOrderHandler, apiChargebackHandler, apiDisputeHandler)
 	apiRouter.SetUp(engine)
 

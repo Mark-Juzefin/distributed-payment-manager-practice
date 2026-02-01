@@ -18,7 +18,7 @@ This is a **learning sandbox** for practicing highload/distributed systems conce
 
 ## Current Focus
 
-**Active feature:** [docs/features/004-observability/](docs/features/004-observability/)
+**Active feature:** [docs/features/003-inter-service-communication/](docs/features/003-inter-service-communication/)
 
 Full roadmap: [docs/roadmap.md](docs/roadmap.md)
 

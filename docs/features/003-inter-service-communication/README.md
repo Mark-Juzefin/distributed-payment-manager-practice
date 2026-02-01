@@ -33,7 +33,6 @@ gRPC sync mode (target):
 - [x] HTTPSyncProcessor що використовує apiclient
 - [x] WEBHOOK_MODE: `kafka` / `http`
 - [x] Unit tests for new components
-- [ ] k6 benchmark: Kafka vs HTTP (moved E2E tests to Subtask 5)
 
 **Subtask 2:** HTTP + Protobuf
 - [ ] Proto definitions для webhook payloads
@@ -55,6 +54,12 @@ gRPC sync mode (target):
 - [ ] E2E tests for HTTP mode
 - [ ] Видалити дублювання setupTestServer (~75 рядків)
 - [ ] Makefile targets: e2e-test, e2e-test-kafka, e2e-test-http
+
+**Subtask 6:** Go-based Load Testing — [plan-subtask-6.md](plan-subtask-6.md)
+- [ ] `loadtest/main.go` — single file (~200 lines)
+- [ ] Order lifecycle using `order.Status.CanBeUpdatedTo()`
+- [ ] Dispute scenario (30% of successful orders)
+- [ ] Makefile targets + compare HTTP vs Kafka
 
 ---
 

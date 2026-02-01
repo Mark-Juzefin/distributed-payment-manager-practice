@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"TestTaskJustPay/internal/shared/dto"
+	"TestTaskJustPay/pkg/correlation"
 )
 
 // Client defines the interface for API service client.
@@ -83,6 +84,11 @@ func (c *HTTPClient) sendRequest(ctx context.Context, path string, body any) err
 		return fmt.Errorf("create request: %w", err)
 	}
 	httpReq.Header.Set("Content-Type", "application/json")
+
+	// Propagate correlation ID
+	if corrID := correlation.FromContext(ctx); corrID != "" {
+		httpReq.Header.Set(correlation.HeaderName, corrID)
+	}
 
 	resp, err := c.httpClient.Do(httpReq)
 	if err != nil {

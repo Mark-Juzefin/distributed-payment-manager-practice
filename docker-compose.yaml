@@ -263,6 +263,44 @@ services:
     networks:
       - backend
 
+  # Monitoring stack
+  prometheus:
+    image: prom/prometheus:v2.51.0
+    container_name: prometheus
+    profiles:
+      - monitoring
+    networks:
+      - backend
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./monitoring/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus-data:/prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--web.enable-lifecycle'
+
+  grafana:
+    image: grafana/grafana:10.4.0
+    container_name: grafana
+    profiles:
+      - monitoring
+    networks:
+      - backend
+    ports:
+      - "3100:3000"
+    environment:
+      - GF_SECURITY_ADMIN_USER=admin
+      - GF_SECURITY_ADMIN_PASSWORD=admin
+      - GF_USERS_ALLOW_SIGN_UP=false
+    volumes:
+      - ./monitoring/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./monitoring/grafana/dashboards:/var/lib/grafana/dashboards:ro
+      - grafana-data:/var/lib/grafana
+    depends_on:
+      - prometheus
+
 
 volumes:
   db-data:
@@ -270,6 +308,8 @@ volumes:
   opensearch-data2:
   zookeeper-data:
   kafka-data:
+  prometheus-data:
+  grafana-data:
 
 networks:
   backend:

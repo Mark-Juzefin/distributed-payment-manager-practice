@@ -25,7 +25,7 @@ Go, PostgreSQL, pg_partman, Docker, MongoDB, OpenSearch, Kafka, testcontainers-g
 
 # Status
 
-Building **Observability** infrastructure — Prometheus metrics, Grafana dashboards, and distributed tracing. This is a prerequisite for meaningful benchmarks in the paused Inter-Service Communication feature. Added **Security Foundations** track to the roadmap to align with miltech job requirements (TLS, secrets management, least privilege, AuthN/AuthZ).
+Starting **Inter-Service Communication** benchmarks — comparing HTTP JSON vs Protobuf vs gRPC for sync mode between Ingest and API services. Observability (Prometheus + Grafana) is ready for measuring latency and throughput differences.
 
 # Roadmap
 
@@ -35,9 +35,10 @@ Detailed plan: **[docs/roadmap.md](./docs/roadmap.md)**
 - **Time-series Partitioning** — pg_partman for dispute_events, query I/O reduced from 200MB to 30MB
 - **Kafka Ingestion** — async webhook processing, DLQ, retry with backoff, topic partitioning
 - **Ingest Service** — extracted lightweight HTTP→Kafka gateway as separate microservice
+- **Observability** — Prometheus metrics, Grafana dashboards, correlation IDs, health checks
 
 **In Progress:**
-- **Observability** — Prometheus metrics, Grafana dashboards, correlation IDs, distributed tracing
+- **Inter-Service Communication** — HTTP vs Protobuf vs gRPC benchmarking
 
 **Planned:**
 - **Security Foundations** — TLS, secrets management, Postgres roles, AuthN/AuthZ
@@ -72,3 +73,52 @@ The system consists of two services:
   - Publishes to Kafka topics
   - No database, no business logic
 - **Port**: 3001
+
+# Domain Entities
+
+## Order
+Payment order from external provider.
+
+| Field | Description |
+|-------|-------------|
+| `order_id` | Provider's order identifier |
+| `user_id` | Customer UUID |
+| `status` | `created` → `updated` → `success` / `failed` |
+| `on_hold` | Manual hold flag |
+| `hold_reason` | `manual_review` or `risk` |
+
+**Events:** `webhook_received`, `hold_set`, `hold_cleared`, `capture_requested`, `capture_completed`, `capture_failed`
+
+## Dispute
+Chargeback/dispute linked to an order.
+
+| Field | Description |
+|-------|-------------|
+| `dispute_id` | Internal dispute identifier |
+| `order_id` | FK to related order |
+| `status` | `open` → `under_review` → `submitted` → `won` / `lost` / `closed` / `canceled` |
+| `reason` | Dispute reason from provider |
+| `amount`, `currency` | Disputed amount |
+| `evidence_due_at` | Deadline for evidence submission |
+
+**Events:** `webhook_opened`, `webhook_updated`, `provider_decision`, `evidence_submitted`, `evidence_added`
+
+## State Machines
+
+```
+Order:   created ──→ updated ──→ success
+                           └──→ failed
+
+Dispute: open ──→ under_review ──→ submitted ──→ won
+                                          └──→ lost
+                                          └──→ closed
+                       └──→ canceled
+```
+
+# Monitoring
+
+Services expose Prometheus metrics at `/metrics`; Grafana dashboards visualize HTTP latency, error rates, and Kafka throughput.
+
+```bash
+make start-monitoring  # Prometheus :9090, Grafana :3100 (admin/admin)
+```

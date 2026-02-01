@@ -21,29 +21,17 @@
   - Service-based monorepo architecture (`internal/api/`, `internal/ingest/`)
   - Details: [features/002-ingest-service-extraction/](features/002-ingest-service-extraction/)
 
+- [x] **Observability** (core complete)
+  - Prometheus metrics: HTTP latency histograms, request counters, Kafka processing
+  - Grafana dashboards: service health, Kafka throughput
+  - Correlation IDs across services
+  - Health checks (/health/live, /health/ready)
+  - Deferred: distributed tracing, profiling, audit logging
+  - Details: [features/004-observability/](features/004-observability/)
+
 ---
 
 ## In Progress
-
-### Observability
-- **Metrics**: Prometheus instrumentation, key SLIs (webhook latency p50/p95/p99, Kafka lag, error rates)
-- **Dashboards**: Grafana dashboards for services health, throughput, latency
-- **Tracing**: OpenTelemetry integration, distributed tracing (Jaeger)
-- **Profiling**: pprof endpoints for dev, continuous profiling basics
-- **Audit logging**: structured audit trail for business operations
-- **SLO thinking**: define target latencies, alerting on violations
-- Practice: metrics design, Prometheus/Grafana, distributed tracing, SLO-based reliability
-- Details: [features/004-observability/](features/004-observability/)
-
----
-
-## Tech Debt
-
-- [ ] **Graceful Shutdown for Kafka Components** - DLQ publisher closes before pending messages are sent, causing "io: read/write on closed pipe" errors. Need proper shutdown ordering: stop consumers → flush DLQ → close publishers.
-
----
-
-## Paused
 
 ### Inter-Service Communication
 - Sync mode communication between Ingest and API services
@@ -51,7 +39,12 @@
 - Benchmarking different approaches (Kafka vs HTTP vs gRPC)
 - Practice: Protocol Buffers, gRPC, service-to-service communication
 - Details: [features/003-inter-service-communication/](features/003-inter-service-communication/)
-- **Paused reason:** Need observability first for meaningful benchmarks
+
+---
+
+## Tech Debt
+
+- [ ] **Graceful Shutdown for Kafka Components** - DLQ publisher closes before pending messages are sent, causing "io: read/write on closed pipe" errors. Need proper shutdown ordering: stop consumers → flush DLQ → close publishers.
 
 ---
 

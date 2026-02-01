@@ -1,6 +1,6 @@
 # Feature 004: Observability
 
-**Status:** In Progress
+**Status:** Done (core complete, optional subtasks deferred)
 
 ## Overview
 
@@ -39,10 +39,10 @@
 - [x] Include in all log entries
 - [x] Pass through Kafka messages
 
-**Subtask 5:** Grafana Dashboards
-- [ ] Docker compose з Prometheus + Grafana
-- [ ] Service health dashboard (RPS, latency, errors)
-- [ ] Kafka dashboard (lag, throughput)
+**Subtask 5:** Grafana Dashboards — [plan-subtask-5.md](plan-subtask-5.md)
+- [x] Docker compose з Prometheus + Grafana
+- [x] Service health dashboard (RPS, latency, errors)
+- [x] Kafka dashboard (lag, throughput)
 
 **Subtask 6:** Distributed Tracing (optional)
 - [ ] OpenTelemetry SDK integration
@@ -89,6 +89,36 @@
 ---
 
 ## Notes
+
+### 2026-01-27: Grafana Dashboards
+
+Додано Prometheus + Grafana stack:
+
+```
+monitoring/
+├── prometheus.yml                    # Scrape config (api:3000, ingest:3001)
+└── grafana/
+    ├── provisioning/
+    │   ├── datasources/prometheus.yml
+    │   └── dashboards/default.yml
+    └── dashboards/
+        ├── service-health.json       # HTTP metrics (RPS, latency, errors)
+        └── kafka.json                # Kafka processing metrics
+```
+
+**Як запустити:**
+```bash
+make start-monitoring   # або: docker compose --profile monitoring up -d
+```
+
+**Доступ:**
+- Prometheus: http://localhost:9090
+- Grafana: http://localhost:3100 (admin/admin)
+
+**Примітки:**
+- Prometheus скрейпить сервіси через `host.docker.internal` (Docker Desktop Mac/Windows)
+- Дашборди автоматично provisioned при старті Grafana
+- Kafka consumer lag metric ще не реалізована (Subtask 2)
 
 ### 2026-01-27: Logger Migration to slog
 

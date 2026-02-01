@@ -13,6 +13,19 @@ import (
 
 const maxBody = 8 * 1024 // 8KB
 
+// skipBodyLogPaths contains paths where body logging should be skipped.
+// These are typically high-frequency endpoints (health checks, metrics)
+// or endpoints returning binary/compressed data.
+var skipBodyLogPaths = map[string]bool{
+	"/metrics":      true,
+	"/health/live":  true,
+	"/health/ready": true,
+}
+
+func shouldSkipBodyLog(path string) bool {
+	return skipBodyLogPaths[path]
+}
+
 func limit(b []byte) []byte {
 	if len(b) > maxBody {
 		return b[:maxBody]
@@ -53,33 +66,41 @@ func CorrelationMiddleware() gin.HandlerFunc {
 // GinBodyLogger returns a Gin middleware that logs HTTP request/response details.
 func GinBodyLogger() gin.HandlerFunc {
 	return func(c *gin.Context) {
+		path := c.Request.URL.Path
+		skipBody := shouldSkipBodyLog(path)
+
 		var requestBody []byte
-		if c.Request.Body != nil {
+		if !skipBody && c.Request.Body != nil {
 			requestBody, _ = io.ReadAll(c.Request.Body)
 			c.Request.Body = io.NopCloser(bytes.NewBuffer(requestBody))
 		}
 
-		responseBuffer := &bytes.Buffer{}
-		writer := &responseBodyWriter{
-			body:           responseBuffer,
-			ResponseWriter: c.Writer,
+		var responseBuffer *bytes.Buffer
+		if !skipBody {
+			responseBuffer = &bytes.Buffer{}
+			writer := &responseBodyWriter{
+				body:           responseBuffer,
+				ResponseWriter: c.Writer,
+			}
+			c.Writer = writer
 		}
-		c.Writer = writer
 
 		c.Next()
 
 		// Build log attributes
 		attrs := []any{
 			"method", c.Request.Method,
-			"path", c.Request.URL.Path,
+			"path", path,
 			"query", c.Request.URL.RawQuery,
 			"status", c.Writer.Status(),
 		}
 
-		// Add request body
-		attrs = append(attrs, bodyAttr("request_body", limit(requestBody))...)
-		// Add response body
-		attrs = append(attrs, bodyAttr("response_body", limit(responseBuffer.Bytes()))...)
+		if !skipBody {
+			// Add request body
+			attrs = append(attrs, bodyAttr("request_body", limit(requestBody))...)
+			// Add response body
+			attrs = append(attrs, bodyAttr("response_body", limit(responseBuffer.Bytes()))...)
+		}
 
 		slog.InfoContext(c.Request.Context(), "HTTP Request", attrs...)
 	}

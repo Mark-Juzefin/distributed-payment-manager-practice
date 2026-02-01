@@ -3,7 +3,7 @@ export
 
 MIGRATION_DIR=internal/api/migrations
 
-.PHONY: run run-dev run-kafka run-http run-api run-ingest start_containers stop_containers stop_containers_remove lint test integration-test generate migrate seed-db print-db-size clean-db benchmark build-pg-image test-webhook test-webhook-ingest
+.PHONY: run run-dev run-kafka run-http run-api run-ingest start_containers start-monitoring stop_containers stop_containers_remove lint test integration-test generate migrate seed-db print-db-size clean-db benchmark build-pg-image test-webhook
 
 run:
 	docker compose --profile prod up --build
@@ -36,6 +36,13 @@ stop_containers:
 
 stop_containers_remove:
 	docker compose --profile infra down -v
+
+start-monitoring:
+	docker compose --profile monitoring up -d
+
+stop-monitoring:
+	docker compose --profile monitoring down -v
+
 
 build-pg-image:
 	docker build -f PG.Dockerfile -t pg17-partman:local .
@@ -80,11 +87,6 @@ print-db-size:
 clean-db:
 	psql -d "$(PG_URL)" -c  'TRUNCATE TABLE dispute_events, disputes, order_events, orders, evidence CASCADE'
 
-# Test webhooks
-# test-webhook: direct to API internal endpoint (works with run-dev, run-http, run-kafka)
-# test-webhook-ingest: via Ingest service (requires run-http or run-kafka)
+# Test webhook: sends via Ingest service (full flow)
 test-webhook:
-	@./scripts/send-test-webhook.sh api created
-
-test-webhook-ingest:
-	@./scripts/send-test-webhook.sh ingest created
+	@./scripts/send-test-webhook.sh created

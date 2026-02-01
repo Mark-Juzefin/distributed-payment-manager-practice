@@ -29,13 +29,6 @@ HTTP sync mode:
 - [x] HTTPSyncProcessor що використовує apiclient
 - [x] WEBHOOK_MODE: `kafka` / `http`
 - [x] Unit tests for new components
-
-~~**Subtask 2-3:** HTTP + Protobuf / gRPC~~ — Deferred (повернемося при побудові мікросервісів)
-
-~~**Subtask 4:** Observability~~ → Moved to [Feature 004](../004-observability/)
-
-~~**Subtask 5-6:** E2E Tests / Load Testing~~ → Moved to Tech Debt: Testing Infrastructure
-
 ---
 
 ## Architecture Decision Records

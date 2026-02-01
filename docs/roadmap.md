@@ -7,40 +7,29 @@
 - [x] **Time-series Partitioning** - PostgreSQL pg_partman для dispute_events
   - Див: [Postgres Time Series Partitioning Notes](../Postgres%20Time%20Series%20Partitioning%20Notes.md)
 
-- [x] **Step 1: Webhooks ingestion with Kafka**
+- [x] **Step 1: Kafka Ingestion Pipeline**
   - Async webhook processing via Kafka topics
   - Sync/Kafka mode switch via WEBHOOK_MODE env variable
   - Consumer resilience: retry with exponential backoff, panic recovery, DLQ
   - Topic partitioning
-  - Details: [features/001-kafka-ingestion/](features/001-kafka-ingestion/) | Notes: [notes.md](features/001-kafka-ingestion/notes.md)
+  - Ingest Service extraction: separate microservice (`cmd/ingest/`), service-based monorepo
+  - HTTP sync mode: internal endpoints for service-to-service calls
+  - Deferred: Protobuf/gRPC (повернемося при побудові мікросервісів)
+  - Details: [001-kafka-ingestion/](features/001-kafka-ingestion/) | [002-ingest-service-extraction/](features/002-ingest-service-extraction/) | [003-inter-service-communication/](features/003-inter-service-communication/)
 
-- [x] **Ingest Service Extraction**
-  - Extracted Ingest service as a separate microservice
-  - Kafka mode: Ingest → Kafka → API consumer
-  - Separate binaries: `cmd/ingest/` + `cmd/api/`
-  - Service-based monorepo architecture (`internal/api/`, `internal/ingest/`)
-  - Details: [features/002-ingest-service-extraction/](features/002-ingest-service-extraction/)
-
-- [x] **Observability** (core complete)
+- [x] **Step 2: Observability** (core complete)
   - Prometheus metrics: HTTP latency histograms, request counters, Kafka processing
   - Grafana dashboards: service health, Kafka throughput
   - Correlation IDs across services
   - Health checks (/health/live, /health/ready)
   - Deferred: distributed tracing, profiling, audit logging
-  - Details: [features/004-observability/](features/004-observability/)
-
-- [x] **Inter-Service Communication** (HTTP sync mode)
-  - HTTP sync mode between Ingest and API services
-  - Internal endpoints for service-to-service calls
-  - WEBHOOK_MODE: `kafka` / `http`
-  - Deferred: Protobuf/gRPC (повернемося при побудові мікросервісів)
-  - Details: [features/003-inter-service-communication/](features/003-inter-service-communication/)
+  - Details: [004-observability/](features/004-observability/)
 
 ---
 
 ## In Progress
 
-### Outbox Pattern → CDC → Analytics
+### Step 3: Outbox Pattern → CDC → Analytics
 - Implement outbox tables for reliable event publishing
 - Use Debezium/CDC to stream events into OpenSearch or ClickHouse
 - Exactly-once semantics: demonstrate the tradeoffs and limitations
@@ -61,7 +50,7 @@
 
 ## Planned
 
-### PostgreSQL HA & DR
+### Step 4: PostgreSQL HA & DR
 - **Streaming replication**: primary-standby setup, synchronous vs asynchronous
 - **Read replica routing**: write → primary, read → replica (pgpool or application-level)
 - **Failover/switchover**: manual and automated (Patroni basics)
@@ -69,7 +58,7 @@
 - **Monitoring**: replication lag metrics, backup success/failure alerts, RTO/RPO tracking
 - Practice: HA patterns, read scaling, failover procedures, disaster recovery
 
-### Simple Deployment Profile + VPS Hosting
+### Step 5: Simple Deployment Profile + VPS Hosting
 - Single-node deployment without Kafka dependency (sync mode as default)
 - HTMX admin dashboard for viewing orders, disputes, events
 - Minimal infrastructure: single PostgreSQL instance
@@ -82,12 +71,12 @@
   - Reference: [Orchestrate your dev environment using Devbox](https://meijer.works/articles/orchestrate-your-dev-environment-using-devbox/)
 - Practice: feature flags, multi-profile configuration, HTMX/SSR, Linux server administration
 
-### Sharding Experiments
+### Step 6: Sharding Experiments
 - Split orders/disputes across multiple Postgres shards by hash(user_id)
 - **Prerequisites**: observability + replication knowledge
 - Practice: routing strategies, rebalancing, cross-shard queries, failure modes
 
-### Infrastructure (Kubernetes, API Gateway, Service Mesh)
+### Step 7: Infrastructure (Kubernetes, API Gateway, Service Mesh)
 - **Kubernetes**: deploy services, HPA, liveness/readiness, ConfigMaps/Secrets
 - **API Gateway**: ingress (NGINX/Traefik/Kong), routing, rate limiting, authn/z
 - **Service mesh**: circuit breakers, retries/timeouts (Envoy/Istio-lite)
@@ -96,7 +85,7 @@
 - **CI/CD**: build pipelines, image tagging, per-env configs
 - Practice: service boundaries, platform primitives, reliability patterns
 
-### Security Foundations
+### Step 8: Security Foundations
 - **TLS**: TLS termination on reverse proxy (nginx/traefik), HTTPS for external endpoints
 - **Secrets management**: separate config vs secrets, sops/age or docker secrets (not .env in git)
 - **Least privilege**: separate Postgres roles (migrations user, app RW, readonly for reports)
@@ -105,8 +94,7 @@
 - Practice: certificate management, secrets lifecycle, role-based access, webhook security
 - Relevance: miltech/security-focused roles require these fundamentals
 
-
-### Experiment — Second Language Module (Rust/C++)
+### Experiment: Second Language Module (Rust/C++)
 - Separate microservice: Go calls Rust/C++ over gRPC
 - Library: Rust crate → shared library + FFI into Go (cgo)
 - WASM plugin: rules/logic compiled to wasm, executed by Go
@@ -120,7 +108,7 @@ ADRs document significant architectural decisions with context and tradeoffs.
 
 | ADR | Topic | Status |
 |-----|-------|--------|
-| ADR-001 | Kafka Architecture & Abstractions | Planned (after 003) |
-| ADR-002 | Sync vs Async Webhook Processing | Planned (after 003) |
+| ADR-001 | Kafka Architecture & Abstractions | Planned |
+| ADR-002 | Sync vs Async Webhook Processing | Planned |
 
 Location: `docs/adr/`

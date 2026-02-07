@@ -11,6 +11,9 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/testcontainers/testcontainers-go"
+	tcnetwork "github.com/testcontainers/testcontainers-go/network"
+
 	"github.com/testcontainers/testcontainers-go/modules/kafka"
 )
 
@@ -23,10 +26,38 @@ type KafkaContainer struct {
 	DisputesGroup string
 }
 
-func NewKafka(ctx context.Context) (*KafkaContainer, error) {
+// TopicNames returns a struct with topic and consumer group names (useful for building env vars).
+type TopicNames struct {
+	OrdersTopic   string
+	DisputesTopic string
+	OrdersGroup   string
+	DisputesGroup string
+}
+
+func (c *KafkaContainer) TopicConfig() TopicNames {
+	return TopicNames{
+		OrdersTopic:   c.OrdersTopic,
+		DisputesTopic: c.DisputesTopic,
+		OrdersGroup:   c.OrdersGroup,
+		DisputesGroup: c.DisputesGroup,
+	}
+}
+
+func NewKafka(ctx context.Context, netCfg ...*NetworkConfig) (*KafkaContainer, error) {
+	opts := []testcontainers.ContainerCustomizer{
+		kafka.WithClusterID("test-cluster"),
+	}
+
+	// Add network configuration for Docker-internal access.
+	// Other containers in the same network can reach Kafka at kafka:9092 (the BROKER listener).
+	if len(netCfg) > 0 && netCfg[0] != nil {
+		nc := netCfg[0]
+		opts = append(opts, tcnetwork.WithNetwork([]string{"kafka"}, nc.Network))
+	}
+
 	container, err := kafka.Run(ctx,
 		"confluentinc/confluent-local:7.5.0",
-		kafka.WithClusterID("test-cluster"),
+		opts...,
 	)
 	if err != nil {
 		return nil, fmt.Errorf("failed to start kafka container: %w", err)

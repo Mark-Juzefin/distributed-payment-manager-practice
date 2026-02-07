@@ -17,7 +17,7 @@ type WiremockContainer struct {
 	BaseURL   string
 }
 
-func NewWiremock(ctx context.Context, mappingsPath string) (*WiremockContainer, error) {
+func NewWiremock(ctx context.Context, mappingsPath string, netCfg ...*NetworkConfig) (*WiremockContainer, error) {
 	absPath, err := filepath.Abs(mappingsPath)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get absolute path: %w", err)
@@ -31,6 +31,15 @@ func NewWiremock(ctx context.Context, mappingsPath string) (*WiremockContainer, 
 		Mounts: testcontainers.Mounts(
 			testcontainers.BindMount(absPath, "/home/wiremock/mappings"),
 		),
+	}
+
+	// Apply network config if provided
+	if len(netCfg) > 0 && netCfg[0] != nil {
+		nc := netCfg[0]
+		req.Networks = []string{nc.Name}
+		req.NetworkAliases = map[string][]string{
+			nc.Name: {"wiremock"},
+		}
 	}
 
 	container, err := testcontainers.GenericContainer(ctx,

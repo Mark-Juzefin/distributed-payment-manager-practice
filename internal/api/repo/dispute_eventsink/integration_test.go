@@ -4,8 +4,8 @@
 package dispute_eventsink_test
 
 import (
-	"TestTaskJustPay/internal/shared/testinfra"
 	"TestTaskJustPay/pkg/postgres"
+	"TestTaskJustPay/testinfra"
 	"context"
 	_ "embed"
 	"fmt"

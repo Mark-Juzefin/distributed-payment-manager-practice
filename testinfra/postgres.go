@@ -21,7 +21,7 @@ type PostgresContainer struct {
 	DSN       string
 }
 
-func NewPostgres(ctx context.Context) (*PostgresContainer, error) {
+func NewPostgres(ctx context.Context, netCfg ...*NetworkConfig) (*PostgresContainer, error) {
 	req := testcontainers.ContainerRequest{
 		Image: "pg17-partman:local",
 		Env: map[string]string{
@@ -35,6 +35,15 @@ func NewPostgres(ctx context.Context) (*PostgresContainer, error) {
 				return fmt.Sprintf("postgres://postgres:secret@%s:%s/payments_test?sslmode=disable", host, port.Port())
 			},
 		).WithStartupTimeout(60 * time.Second),
+	}
+
+	// Apply network config if provided
+	if len(netCfg) > 0 && netCfg[0] != nil {
+		nc := netCfg[0]
+		req.Networks = []string{nc.Name}
+		req.NetworkAliases = map[string][]string{
+			nc.Name: {"postgres"},
+		}
 	}
 
 	container, err := testcontainers.GenericContainer(ctx,

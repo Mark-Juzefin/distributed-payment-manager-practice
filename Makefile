@@ -3,7 +3,7 @@ export
 
 MIGRATION_DIR=internal/api/migrations
 
-.PHONY: run run-dev run-kafka run-http run-api run-ingest start_containers start-monitoring stop_containers stop_containers_remove lint test integration-test generate migrate seed-db print-db-size clean-db benchmark build-pg-image test-webhook
+.PHONY: run run-dev run-kafka run-http run-api run-ingest start_containers start-monitoring stop_containers stop_containers_remove lint test integration-test e2e-test generate migrate seed-db print-db-size clean-db benchmark build-pg-image test-webhook
 
 run:
 	docker compose --profile prod up --build
@@ -54,7 +54,6 @@ test:
 	go test -race ./...
 
 INTEGRATION_DIRS = \
-	./integration-test/... \
 	./internal/api/repo/dispute_eventsink \
 	./internal/api/repo/order_eventsink
 
@@ -67,6 +66,10 @@ ifndef name
 	$(error "Usage: make integration-test-name name=testname")
 endif
 	go clean -testcache && go test -run $(name)  -tags=integration -v  $(INTEGRATION_DIRS)
+
+# E2E tests: Docker-based, real service containers
+e2e-test:
+	go clean -testcache && go test -tags=integration -v -timeout 5m ./integration-test/...
 
 
 generate:

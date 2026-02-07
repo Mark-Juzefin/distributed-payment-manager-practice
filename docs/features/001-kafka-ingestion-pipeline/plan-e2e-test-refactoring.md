@@ -41,7 +41,7 @@
 | Health check polling | Wait for services to be ready |
 | Testcontainers for infra | Already works, keep for Postgres/Kafka/Wiremock |
 | Separate files per mode | Clear organization, parallel development |
-| Port ranges per mode | Avoid conflicts: Kafka 13xxx, HTTP 14xxx |
+| Port ranges per mode | Avoid conflicts: Kafka (default) 13xxx, HTTP 14xxx |
 
 ## Implementation Steps
 
@@ -74,9 +74,8 @@
   - Uses ports 14000-14999
 
 ### Step 5: Makefile
-- [ ] Add `e2e-test` target (all modes)
-- [ ] Add `e2e-test-kafka` target
-- [ ] Add `e2e-test-http` target
+- [ ] Add `e2e-test` target (Kafka mode — full suite)
+- [ ] Add `e2e-test-http` target (HTTP mode — smoke test, verify communication works)
 
 ## Files to Create
 

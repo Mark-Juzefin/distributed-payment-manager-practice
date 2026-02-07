@@ -8,18 +8,18 @@ MIGRATION_DIR=internal/api/migrations
 run:
 	docker compose --profile prod up --build
 
-# HTTP mode: default dev mode (API + Ingest via HTTP)
-run-http: start_containers
-	@echo "Running in HTTP mode (API + Ingest services)"
-	go run github.com/mattn/goreman@latest -f Procfile.http start
-
-# Alias for intuitive naming
-run-dev: run-http
-
-# Kafka mode: both services via Kafka
+# Kafka mode: default dev mode (API + Ingest via Kafka)
 run-kafka: start_containers
 	@echo "Running in KAFKA mode (API + Ingest services)"
 	go run github.com/mattn/goreman@latest start
+
+# Alias for intuitive naming
+run-dev: run-kafka
+
+# HTTP mode: both services via HTTP sync
+run-http: start_containers
+	@echo "Running in HTTP mode (API + Ingest services)"
+	go run github.com/mattn/goreman@latest -f Procfile.http start
 
 # Standalone targets
 run-api: start_containers

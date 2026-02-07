@@ -14,14 +14,14 @@
   - Topic partitioning
   - Ingest Service extraction: separate microservice (`cmd/ingest/`), service-based monorepo
   - HTTP sync mode: internal endpoints for service-to-service calls
-  - Details: [001-kafka-ingestion/](features/001-kafka-ingestion/) | [002-ingest-service-extraction/](features/002-ingest-service-extraction/) | [003-inter-service-communication/](features/003-inter-service-communication/)
+  - Details: [001-kafka-ingestion-pipeline/](features/001-kafka-ingestion-pipeline/)
 
 - [x] **Step 2: Observability**
   - Prometheus metrics: HTTP latency histograms, request counters, Kafka processing
   - Grafana dashboards: service health, Kafka throughput
   - Correlation IDs across services
   - Health checks (/health/live, /health/ready)
-  - Details: [004-observability/](features/004-observability/)
+  - Details: [002-observability/](features/002-observability/)
 
 ---
 
@@ -42,7 +42,7 @@
 - [ ] **Testing Infrastructure** (from Feature 003)
   - E2E Test Refactoring: process-based test infrastructure, tests for Kafka/HTTP modes
   - Go-based Load Testing: `loadtest/main.go`, order lifecycle, dispute scenarios
-  - Plans: [plan-subtask-5.md](features/003-inter-service-communication/plan-subtask-5.md), [plan-subtask-6.md](features/003-inter-service-communication/plan-subtask-6.md)
+  - Plans: [plan-e2e-test-refactoring.md](features/001-kafka-ingestion-pipeline/plan-e2e-test-refactoring.md), [plan-load-testing.md](features/001-kafka-ingestion-pipeline/plan-load-testing.md)
 
 - [ ] **Advanced Observability** (from Step 2)
   - Distributed tracing: Jaeger/OTLP integration

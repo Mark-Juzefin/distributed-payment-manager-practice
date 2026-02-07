@@ -6,7 +6,7 @@
 
 Async webhook processing via Kafka with microservice extraction and inter-service communication.
 
-**Architecture:** [kafka-architecture.md](kafka-architecture.md)
+**Architecture:** [kafka-architecture.md](../../architecture.md)
 
 ```
 Kafka mode (default):
@@ -98,12 +98,10 @@ HTTP sync mode for service-to-service communication between Ingest and API.
 
 ### Testing Infrastructure
 
-Plans created but not implemented:
-
-- **E2E Test Refactoring** — process-based test infrastructure, tests for Kafka/HTTP modes
+- **E2E Test Refactoring** — Done. Docker-based E2E with testcontainers for API + Ingest on shared Docker network.
   - Plan: [plan-e2e-test-refactoring.md](plan-e2e-test-refactoring.md)
 
-- **Go-based Load Testing** — order lifecycle + dispute scenarios, VU runner with stats
+- **Go-based Load Testing** — Not implemented yet. Order lifecycle + dispute scenarios, VU runner with stats.
   - Plan: [plan-load-testing.md](plan-load-testing.md)
 
 ### Future: Realistic user_id Lookup

@@ -32,6 +32,7 @@
 - Use Debezium/CDC to stream events into OpenSearch or ClickHouse
 - Exactly-once semantics: demonstrate the tradeoffs and limitations
 - Practice: event-driven consistency, CDC pipelines, projections, analytical indexing
+- Details: [003-outbox-cdc-analytics/](features/003-outbox-cdc-analytics/)
 
 ---
 
@@ -39,10 +40,9 @@
 
 - [ ] **Graceful Shutdown for Kafka Components** - DLQ publisher closes before pending messages are sent, causing "io: read/write on closed pipe" errors. Need proper shutdown ordering: stop consumers → flush DLQ → close publishers.
 
-- [ ] **Testing Infrastructure** (from Feature 003)
-  - E2E Test Refactoring: process-based test infrastructure, tests for Kafka/HTTP modes
-  - Go-based Load Testing: `loadtest/main.go`, order lifecycle, dispute scenarios
-  - Plans: [plan-e2e-test-refactoring.md](features/001-kafka-ingestion-pipeline/plan-e2e-test-refactoring.md), [plan-load-testing.md](features/001-kafka-ingestion-pipeline/plan-load-testing.md)
+- [ ] **Go-based Load Testing** (from Feature 003)
+  - `loadtest/main.go`, order lifecycle, dispute scenarios
+  - Plan: [plan-load-testing.md](features/001-kafka-ingestion-pipeline/plan-load-testing.md)
 
 - [ ] **Advanced Observability** (from Step 2)
   - Distributed tracing: Jaeger/OTLP integration

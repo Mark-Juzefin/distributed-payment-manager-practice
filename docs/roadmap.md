@@ -40,10 +40,6 @@
 
 - [ ] **Graceful Shutdown for Kafka Components** - DLQ publisher closes before pending messages are sent, causing "io: read/write on closed pipe" errors. Need proper shutdown ordering: stop consumers → flush DLQ → close publishers.
 
-- [x] **Go-based Load Testing** (from Feature 003)
-  - `loadtest/main.go`, order lifecycle, dispute scenarios
-  - Plan: [plan-load-testing.md](features/001-kafka-ingestion-pipeline/plan-load-testing.md)
-
 - [ ] **Advanced Observability** (from Step 2)
   - Distributed tracing: Jaeger/OTLP integration
   - Profiling: pprof endpoints for CPU/memory profiling
@@ -53,7 +49,16 @@
 
 ## Planned
 
-### Step 4: PostgreSQL HA & DR
+### Step 4: Inbox Pattern: Reliable Webhook Ingestion
+- Implement inbox table for durable webhook storage before processing
+- Store-and-forward: save raw payload → return 200 OK → process async
+- Backpressure and replay capabilities for incoming webhooks
+- Shared Kernel refactoring: decouple Ingest from API domain types
+- Reuse CDC infrastructure from Step 3 for inbox processing
+- Practice: inbox pattern, store-and-forward, idempotent consumers, service decoupling
+- Details: [004-inbox-pattern/](features/004-inbox-pattern/)
+
+### Step 5: PostgreSQL HA & DR
 - **Streaming replication**: primary-standby setup, synchronous vs asynchronous
 - **Read replica routing**: write → primary, read → replica (pgpool or application-level)
 - **Failover/switchover**: manual and automated (Patroni basics)
@@ -61,7 +66,7 @@
 - **Monitoring**: replication lag metrics, backup success/failure alerts, RTO/RPO tracking
 - Practice: HA patterns, read scaling, failover procedures, disaster recovery
 
-### Step 5: Simple Deployment Profile + VPS Hosting
+### Step 6: Simple Deployment Profile + VPS Hosting
 - Single-node deployment without Kafka dependency (sync mode as default)
 - HTMX admin dashboard for viewing orders, disputes, events
 - Minimal infrastructure: single PostgreSQL instance
@@ -74,12 +79,12 @@
   - Reference: [Orchestrate your dev environment using Devbox](https://meijer.works/articles/orchestrate-your-dev-environment-using-devbox/)
 - Practice: feature flags, multi-profile configuration, HTMX/SSR, Linux server administration
 
-### Step 6: Sharding Experiments
+### Step 7: Sharding Experiments
 - Split orders/disputes across multiple Postgres shards by hash(user_id)
 - **Prerequisites**: observability + replication knowledge
 - Practice: routing strategies, rebalancing, cross-shard queries, failure modes
 
-### Step 7: Infrastructure (Kubernetes, API Gateway, Service Mesh)
+### Step 8: Infrastructure (Kubernetes, API Gateway, Service Mesh)
 - **Kubernetes**: deploy services, HPA, liveness/readiness, ConfigMaps/Secrets
 - **API Gateway**: ingress (NGINX/Traefik/Kong), routing, rate limiting, authn/z
 - **Service mesh**: circuit breakers, retries/timeouts (Envoy/Istio-lite)
@@ -88,7 +93,7 @@
 - **CI/CD**: build pipelines, image tagging, per-env configs
 - Practice: service boundaries, platform primitives, reliability patterns
 
-### Step 8: Security Foundations
+### Step 9: Security Foundations
 - **TLS**: TLS termination on reverse proxy (nginx/traefik), HTTPS for external endpoints
 - **Secrets management**: separate config vs secrets, sops/age or docker secrets (not .env in git)
 - **Least privilege**: separate Postgres roles (migrations user, app RW, readonly for reports)
@@ -96,12 +101,6 @@
 - **mTLS** (optional): internal service-to-service TLS for gRPC
 - Practice: certificate management, secrets lifecycle, role-based access, webhook security
 - Relevance: miltech/security-focused roles require these fundamentals
-
-### Experiment: Second Language Module (Rust/C++)
-- Separate microservice: Go calls Rust/C++ over gRPC
-- Library: Rust crate → shared library + FFI into Go (cgo)
-- WASM plugin: rules/logic compiled to wasm, executed by Go
-- Implementation idea: Fee & Pricing Engine
 
 ---
 

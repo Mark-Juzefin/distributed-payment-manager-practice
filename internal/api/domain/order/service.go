@@ -8,21 +8,32 @@ import (
 	"time"
 
 	"TestTaskJustPay/internal/api/domain/gateway"
+	"TestTaskJustPay/pkg/postgres"
 
 	"github.com/google/uuid"
 )
 
 type OrderService struct {
-	orderRepo OrderRepo
-	provider  gateway.Provider
-	eventSink EventSink
+	transactor    postgres.Transactor
+	txRepoFactory func(tx postgres.Executor) OrderRepo
+	orderRepo     OrderRepo // for reads (GetOrders, GetOrderByID)
+	provider      gateway.Provider
+	eventSink     EventSink
 }
 
-func NewOrderService(orderRepo OrderRepo, provider gateway.Provider, eventSink EventSink) *OrderService {
+func NewOrderService(
+	transactor postgres.Transactor,
+	txRepoFactory func(tx postgres.Executor) OrderRepo,
+	orderRepo OrderRepo,
+	provider gateway.Provider,
+	eventSink EventSink,
+) *OrderService {
 	return &OrderService{
-		orderRepo: orderRepo,
-		provider:  provider,
-		eventSink: eventSink,
+		transactor:    transactor,
+		txRepoFactory: txRepoFactory,
+		orderRepo:     orderRepo,
+		provider:      provider,
+		eventSink:     eventSink,
 	}
 }
 
@@ -30,7 +41,7 @@ func (s *OrderService) GetOrderByID(ctx context.Context, id string) (Order, erro
 	return getOrderByID(ctx, s.orderRepo, id)
 }
 
-func getOrderByID(ctx context.Context, repo TxOrderRepo, id string) (Order, error) {
+func getOrderByID(ctx context.Context, repo OrderRepo, id string) (Order, error) {
 	query, _ := NewOrdersQueryBuilder().
 		WithIDs(id).
 		Build()
@@ -54,13 +65,15 @@ func (s *OrderService) GetOrders(ctx context.Context, query OrdersQuery) ([]Orde
 }
 
 func (s *OrderService) ProcessPaymentWebhook(ctx context.Context, event PaymentWebhook) error {
-	err := s.orderRepo.InTransaction(ctx, func(tx TxOrderRepo) error {
+	err := s.transactor.InTransaction(ctx, func(tx postgres.Executor) error {
+		txRepo := s.txRepoFactory(tx)
+
 		if event.Status == StatusCreated {
-			if err := tx.CreateOrder(ctx, event); err != nil {
+			if err := txRepo.CreateOrder(ctx, event); err != nil {
 				return fmt.Errorf("create order from event: %w", err)
 			}
 		} else {
-			order, err := getOrderByID(ctx, tx, event.OrderId)
+			order, err := getOrderByID(ctx, txRepo, event.OrderId)
 			if err != nil {
 				return fmt.Errorf("load order: %w", err)
 			}
@@ -69,13 +82,12 @@ func (s *OrderService) ProcessPaymentWebhook(ctx context.Context, event PaymentW
 				return ErrInvalidStatus
 			}
 
-			if err := tx.UpdateOrder(ctx, event); err != nil {
+			if err := txRepo.UpdateOrder(ctx, event); err != nil {
 				return fmt.Errorf("update order: %w", err)
 			}
 		}
 
 		return nil
-
 	})
 	if err != nil {
 		return err
@@ -106,8 +118,10 @@ func (s *OrderService) UpdateOrderHold(ctx context.Context, orderID string, requ
 	}
 
 	var response *HoldResponse
-	err := s.orderRepo.InTransaction(ctx, func(tx TxOrderRepo) error {
-		order, err := getOrderByID(ctx, tx, orderID)
+	err := s.transactor.InTransaction(ctx, func(tx postgres.Executor) error {
+		txRepo := s.txRepoFactory(tx)
+
+		order, err := getOrderByID(ctx, txRepo, orderID)
 		if err != nil {
 			return fmt.Errorf("load order: %w", err)
 		}
@@ -125,7 +139,7 @@ func (s *OrderService) UpdateOrderHold(ctx context.Context, orderID string, requ
 			reason = nil
 		}
 
-		err = tx.UpdateOrderHold(ctx, UpdateOrderHoldRequest{
+		err = txRepo.UpdateOrderHold(ctx, UpdateOrderHoldRequest{
 			OrderID: order.OrderId,
 			OnHold:  onHold,
 			Reason:  reason,
@@ -134,7 +148,7 @@ func (s *OrderService) UpdateOrderHold(ctx context.Context, orderID string, requ
 			return fmt.Errorf("update order hold status: %w", err)
 		}
 
-		updatedOrder, err := getOrderByID(ctx, tx, order.OrderId)
+		updatedOrder, err := getOrderByID(ctx, txRepo, order.OrderId)
 		if err != nil {
 			return fmt.Errorf("get updated order: %w", err)
 		}
@@ -166,8 +180,10 @@ func (s *OrderService) UpdateOrderHold(ctx context.Context, orderID string, requ
 
 func (s *OrderService) CapturePayment(ctx context.Context, orderID string, request CaptureRequest) (*CaptureResponse, error) {
 	var response *CaptureResponse
-	err := s.orderRepo.InTransaction(ctx, func(tx TxOrderRepo) error {
-		order, err := getOrderByID(ctx, tx, orderID)
+	err := s.transactor.InTransaction(ctx, func(tx postgres.Executor) error {
+		txRepo := s.txRepoFactory(tx)
+
+		order, err := getOrderByID(ctx, txRepo, orderID)
 		if err != nil {
 			return fmt.Errorf("load order: %w", err)
 		}

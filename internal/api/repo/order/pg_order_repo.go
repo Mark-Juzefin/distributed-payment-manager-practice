@@ -25,11 +25,11 @@ func NewPgOrderRepo(pg *postgres.Postgres) order.OrderRepo {
 	}
 }
 
-func (r *PgOrderRepo) InTransaction(ctx context.Context, fn func(repo order.TxOrderRepo) error) error {
-	return r.pg.InTransaction(ctx, func(tx postgres.Executor) error {
-		txRepo := &repo{db: tx, builder: r.pg.Builder}
-		return fn(txRepo)
-	})
+// TxRepoFactory returns a factory that creates transaction-scoped order repositories.
+func TxRepoFactory(builder squirrel.StatementBuilderType) func(postgres.Executor) order.OrderRepo {
+	return func(tx postgres.Executor) order.OrderRepo {
+		return &repo{db: tx, builder: builder}
+	}
 }
 
 type repo struct {

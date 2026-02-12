@@ -30,11 +30,11 @@ func NewPgDisputeRepo(pg *postgres.Postgres) dispute.DisputeRepo {
 	}
 }
 
-func (r *PgDisputeRepo) InTransaction(ctx context.Context, fn func(repo dispute.TxDisputeRepo) error) error {
-	return r.pg.InTransaction(ctx, func(tx postgres.Executor) error {
-		txRepo := &repo{db: tx, builder: r.pg.Builder}
-		return fn(txRepo)
-	})
+// TxRepoFactory returns a factory that creates transaction-scoped dispute repositories.
+func TxRepoFactory(builder squirrel.StatementBuilderType) func(postgres.Executor) dispute.DisputeRepo {
+	return func(tx postgres.Executor) dispute.DisputeRepo {
+		return &repo{db: tx, builder: builder}
+	}
 }
 
 type repo struct {

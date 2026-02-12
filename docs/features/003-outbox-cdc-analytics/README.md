@@ -4,13 +4,14 @@
 
 ## Overview
 
-Reliable event publishing via the Outbox pattern with Change Data Capture (CDC) pipeline streaming events into an analytical store.
+Reliable event publishing via the Outbox pattern with a custom Go CDC pipeline (PostgreSQL logical replication) streaming events into an analytical store.
 
-**Core idea:** Instead of dual-writing to both PostgreSQL and Kafka (which breaks atomicity), write events to an `outbox` table within the same transaction as the business data. A CDC connector (Debezium) tails the WAL and publishes outbox rows to Kafka, guaranteeing at-least-once delivery without distributed transactions.
+**Core idea:** Currently, domain events (order/dispute state changes) are only stored in PostgreSQL event tables. There is no mechanism to reliably publish these events to external consumers (analytics, notifications, other services). The Outbox pattern solves this: write an event row within the same transaction as the business data, then a Go CDC worker tails the WAL via logical replication and publishes events to Kafka, guaranteeing at-least-once delivery without distributed transactions.
 
 **Motivation:**
-- Current system does dual-write (DB + Kafka publish) — if Kafka publish fails after DB commit, the event is lost
-- Outbox pattern solves this with transactional guarantees
+- Current system only writes events to PostgreSQL (`order_events`, `dispute_events`) — no external publishing
+- If we add Kafka publishing alongside DB writes, we get dual-write problem (DB commits but Kafka fails → inconsistency)
+- Outbox pattern avoids dual-write by keeping everything in one transaction
 - CDC is a fundamental building block for event-driven architectures
 - Analytical projections (OpenSearch/ClickHouse) demonstrate read-model separation (CQRS-lite)
 
@@ -29,15 +30,15 @@ flowchart LR
   subgraph TX["PostgreSQL Transaction"]
     direction TB
     BIZ["orders / disputes<br/>(business tables)"]
-    OUT["outbox<br/>(event_type, payload, created_at)"]
+    EVT["events<br/>(unified, partitioned)"]
   end
   API -->|"BEGIN"| TX
 
   %% CDC reads WAL
-  OUT -->|"WAL (logical replication)"| CDC["Debezium CDC<br/>Connector"]
+  EVT -->|"WAL (logical replication)"| CDC["Go CDC Worker<br/>(pglogrepl / pgx)"]
 
   %% CDC publishes to Kafka
-  CDC -->|"produce"| TOPIC["Kafka topic:<br/>outbox.events"]
+  CDC -->|"produce"| TOPIC["Kafka topic:<br/>domain.events"]
   class TOPIC kafka;
 
   %% Consumer builds analytical projection
@@ -45,9 +46,6 @@ flowchart LR
 
   %% Analytical store
   PROJ -->|"index / insert"| ANALYTICS["Analytical Store<br/>(OpenSearch or ClickHouse)"]
-
-  %% Outbox cleanup
-  CDC -.->|"mark dispatched /<br/>delete processed"| OUT
 
   classDef kafka fill:#f2f9ff,stroke:#7aa7ff,color:#1c3d7a,stroke-width:1px;
 ```
@@ -57,30 +55,37 @@ flowchart LR
 | Step | What happens |
 |------|-------------|
 | 1 | Webhook arrives at Ingest, forwarded to API |
-| 2 | API writes business data + outbox row **in one transaction** |
-| 3 | Debezium tails PostgreSQL WAL, picks up new outbox rows |
-| 4 | Debezium publishes event to Kafka topic |
+| 2 | API writes business data + event row **in one transaction** |
+| 3 | Go CDC worker reads PostgreSQL WAL via logical replication slot (pgoutput) |
+| 4 | CDC worker publishes event to Kafka topic |
 | 5 | Projection consumer reads Kafka, writes to analytical store |
-| 6 | Processed outbox rows are cleaned up (delete or mark dispatched) |
+
+### Strangler Fig Migration
+
+Existing `order_events` / `dispute_events` tables remain untouched. A new unified `events` table is created alongside them. Writes go to both (old + new) in the same transaction. Once CDC pipeline and new read paths are ready, old tables are dropped.
 
 ## Key Concepts to Practice
 
-- **Outbox pattern** — transactional event publishing, polling vs CDC approaches
-- **Change Data Capture** — Debezium, PostgreSQL logical replication, WAL-based streaming
+- **Outbox pattern** — transactional event publishing, unified event table
+- **Change Data Capture** — PostgreSQL logical replication, replication slots, pgoutput protocol, LSN tracking
+- **Go CDC implementation** — `pglogrepl` / `pgx` replication API, WAL message parsing
 - **Exactly-once semantics** — idempotent consumers, deduplication strategies, tradeoffs
 - **Event projections** — building read-optimized views from event streams
 - **Analytical indexing** — OpenSearch or ClickHouse as analytical store
+- **Strangler Fig pattern** — gradual migration from old to new event tables
 
 ## Tasks
 
-> Subtasks will be defined during planning phase.
-
-- [ ] Subtask 1: TBD
-- [ ] Subtask 2: TBD
+- [ ] Subtask 1: Transactor refactoring — services own transactions — [plan](plan-subtask-1.md)
+- [ ] Subtask 2: Unified events table + atomic writes — [plan](plan-subtask-2.md)
 - [ ] Subtask 3: TBD
+- [ ] Subtask 4: TBD
 
 ## Notes
 
-- Need to decide: polling-based outbox (simpler, no Debezium dependency) vs CDC-based (production-grade, more infrastructure)
+- CDC approach: custom Go worker using PostgreSQL logical replication (not Debezium) — deeper understanding of how CDC works under the hood
+- Unified `events` table replaces separate `order_events` / `dispute_events` via Strangler Fig migration
+- `dispute_events` is already partitioned (pg_partman, daily by `created_at`) — new table will use same approach
+- `publish_via_partition_root = true` needed for logical replication from partitioned tables
 - Consider what analytical queries we want to answer — this drives the projection schema
 - Evaluate ClickHouse vs OpenSearch for the analytical store

@@ -61,8 +61,8 @@ func Run(cfg config.Config) {
 	)
 
 	// Services
-	orderService := order.NewOrderService(orderRepo, silvergateClient, orderEventSink)
-	disputeService := dispute.NewDisputeService(disputeRepo, silvergateClient, disputeEventSink)
+	orderService := order.NewOrderService(pool, order_repo.TxRepoFactory(pool.Builder), orderRepo, silvergateClient, orderEventSink)
+	disputeService := dispute.NewDisputeService(pool, dispute_repo.TxRepoFactory(pool.Builder), disputeRepo, silvergateClient, disputeEventSink)
 
 	// Handlers (clean - no processor dependency)
 	orderHandler := handlers.NewOrderHandler(orderService)

@@ -9,21 +9,32 @@ import (
 
 	"TestTaskJustPay/internal/api/domain/gateway"
 	"TestTaskJustPay/pkg/pointers"
+	"TestTaskJustPay/pkg/postgres"
 
 	"github.com/google/uuid"
 )
 
 type DisputeService struct {
-	disputeRepo DisputeRepo
-	eventSink   EventSink
-	provider    gateway.Provider
+	transactor    postgres.Transactor
+	txRepoFactory func(tx postgres.Executor) DisputeRepo
+	disputeRepo   DisputeRepo // for reads
+	eventSink     EventSink
+	provider      gateway.Provider
 }
 
-func NewDisputeService(repo DisputeRepo, provider gateway.Provider, eventSink EventSink) *DisputeService {
+func NewDisputeService(
+	transactor postgres.Transactor,
+	txRepoFactory func(tx postgres.Executor) DisputeRepo,
+	disputeRepo DisputeRepo,
+	provider gateway.Provider,
+	eventSink EventSink,
+) *DisputeService {
 	return &DisputeService{
-		disputeRepo: repo,
-		provider:    provider,
-		eventSink:   eventSink,
+		transactor:    transactor,
+		txRepoFactory: txRepoFactory,
+		disputeRepo:   disputeRepo,
+		provider:      provider,
+		eventSink:     eventSink,
 	}
 }
 
@@ -65,8 +76,10 @@ func (s *DisputeService) GetEvidence(ctx context.Context, disputeID string) (*Ev
 
 func (s *DisputeService) ProcessChargeback(ctx context.Context, webhook ChargebackWebhook) error {
 	var actualDisputeData Dispute
-	err := s.disputeRepo.InTransaction(ctx, func(tx TxDisputeRepo) error {
-		dispute, err := tx.GetDisputeByOrderID(ctx, webhook.OrderID)
+	err := s.transactor.InTransaction(ctx, func(tx postgres.Executor) error {
+		txRepo := s.txRepoFactory(tx)
+
+		dispute, err := txRepo.GetDisputeByOrderID(ctx, webhook.OrderID)
 		if err != nil {
 			return fmt.Errorf("get dispute by order_id: %w", err)
 		}
@@ -88,7 +101,7 @@ func (s *DisputeService) ProcessChargeback(ctx context.Context, webhook Chargeba
 					ClosedAt:      nil, //todo comment
 				},
 			}
-			created, err := tx.CreateDispute(ctx, newDispute)
+			created, err := txRepo.CreateDispute(ctx, newDispute)
 			if err != nil {
 				return fmt.Errorf("create dispute: %w", err)
 			}
@@ -102,7 +115,7 @@ func (s *DisputeService) ProcessChargeback(ctx context.Context, webhook Chargeba
 			return err
 		}
 
-		if err := tx.UpdateDispute(ctx, actualDisputeData); err != nil {
+		if err := txRepo.UpdateDispute(ctx, actualDisputeData); err != nil {
 			return fmt.Errorf("update dispute: %w", err)
 		}
 
@@ -122,9 +135,11 @@ func (s *DisputeService) ProcessChargeback(ctx context.Context, webhook Chargeba
 func (s *DisputeService) UpsertEvidence(ctx context.Context, disputeID string, upsert EvidenceUpsert) (*Evidence, error) {
 	var result *Evidence
 
-	err := s.disputeRepo.InTransaction(ctx, func(tx TxDisputeRepo) error {
+	err := s.transactor.InTransaction(ctx, func(tx postgres.Executor) error {
+		txRepo := s.txRepoFactory(tx)
+
 		// 1. Validate that dispute exists and is editable
-		dispute, err := tx.GetDisputeByID(ctx, disputeID)
+		dispute, err := txRepo.GetDisputeByID(ctx, disputeID)
 		if err != nil {
 			return fmt.Errorf("get dispute by id: %w", err)
 		}
@@ -142,7 +157,7 @@ func (s *DisputeService) UpsertEvidence(ctx context.Context, disputeID string, u
 		// save files
 
 		// 2. Upsert evidence
-		evidence, err := tx.UpsertEvidence(ctx, disputeID, upsert)
+		evidence, err := txRepo.UpsertEvidence(ctx, disputeID, upsert)
 		if err != nil {
 			return fmt.Errorf("upsert evidence: %w", err)
 		}
@@ -151,7 +166,7 @@ func (s *DisputeService) UpsertEvidence(ctx context.Context, disputeID string, u
 		// 3. Update dispute status from open to under_review if needed
 		if dispute.Status == DisputeOpen {
 			dispute.Status = DisputeUnderReview
-			if err := tx.UpdateDispute(ctx, *dispute); err != nil {
+			if err := txRepo.UpdateDispute(ctx, *dispute); err != nil {
 				return fmt.Errorf("update dispute status: %w", err)
 			}
 		}
@@ -172,8 +187,10 @@ func (s *DisputeService) UpsertEvidence(ctx context.Context, disputeID string, u
 
 func (s *DisputeService) Submit(ctx context.Context, disputeID string) error {
 	var result *gateway.RepresentmentResult
-	err := s.disputeRepo.InTransaction(ctx, func(tx TxDisputeRepo) error {
-		d, err := tx.GetDisputeByID(ctx, disputeID)
+	err := s.transactor.InTransaction(ctx, func(tx postgres.Executor) error {
+		txRepo := s.txRepoFactory(tx)
+
+		d, err := txRepo.GetDisputeByID(ctx, disputeID)
 		if err != nil {
 			return fmt.Errorf("get dispute: %w", err)
 		}
@@ -187,7 +204,7 @@ func (s *DisputeService) Submit(ctx context.Context, disputeID string) error {
 		}
 
 		//TODO: lock evidence before submit
-		evidence, err := tx.GetEvidence(ctx, disputeID)
+		evidence, err := txRepo.GetEvidence(ctx, disputeID)
 		if err != nil {
 			return fmt.Errorf("get evidence : %w", err)
 		}
@@ -215,7 +232,7 @@ func (s *DisputeService) Submit(ctx context.Context, disputeID string) error {
 		d.SubmittingId = pointers.Ptr(res.ProviderSubmissionID)
 		d.Status = DisputeSubmitted
 
-		err = tx.UpdateDispute(ctx, *d)
+		err = txRepo.UpdateDispute(ctx, *d)
 		if err != nil {
 			return fmt.Errorf("update dispute: %w", err)
 		}

@@ -2,9 +2,7 @@ package order_repo
 
 import (
 	"TestTaskJustPay/internal/api/domain/order"
-	"TestTaskJustPay/pkg/postgres"
 	"context"
-	"fmt"
 	"testing"
 	"time"
 
@@ -14,33 +12,6 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
-
-// testPgOrderRepo wraps the mock pool to implement the transaction testing
-type testPgOrderRepo struct {
-	repo
-	pool pgxmock.PgxPoolIface
-	pg   *postgres.Postgres
-}
-
-func (r *testPgOrderRepo) InTransaction(ctx context.Context, fn func(repo order.TxOrderRepo) error) error {
-	tx, err := r.pool.Begin(ctx)
-	if err != nil {
-		return fmt.Errorf("begin transaction: %w", err)
-	}
-
-	txRepo := &repo{db: tx, builder: r.pg.Builder}
-
-	if err := fn(txRepo); err != nil {
-		tx.Rollback(ctx)
-		return err
-	}
-
-	if err := tx.Commit(ctx); err != nil {
-		return fmt.Errorf("commit transaction: %w", err)
-	}
-
-	return nil
-}
 
 func TestGetOrders(t *testing.T) {
 	mock, err := pgxmock.NewPool()
@@ -171,88 +142,6 @@ func TestCreateOrderByEvent(t *testing.T) {
 
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "create order by event")
-	})
-}
-
-func TestInTransaction(t *testing.T) {
-	mock, err := pgxmock.NewPool()
-	require.NoError(t, err)
-	defer mock.Close()
-
-	pg := &postgres.Postgres{
-		Builder: squirrel.StatementBuilder.PlaceholderFormat(squirrel.Dollar),
-	}
-	// Create a test repository using the mock
-	pgRepo := &testPgOrderRepo{
-		repo: repo{db: mock, builder: squirrel.StatementBuilder.PlaceholderFormat(squirrel.Dollar)},
-		pool: mock,
-		pg:   pg,
-	}
-	ctx := context.Background()
-
-	t.Run("should execute function in transaction successfully", func(t *testing.T) {
-		mock.ExpectBegin()
-		mock.ExpectCommit()
-
-		executed := false
-		err := pgRepo.InTransaction(ctx, func(repo order.TxOrderRepo) error {
-			executed = true
-			assert.NotNil(t, repo)
-			return nil
-		})
-
-		require.NoError(t, err)
-		assert.True(t, executed)
-	})
-
-	t.Run("should rollback transaction on function error", func(t *testing.T) {
-		mock.ExpectBegin()
-		mock.ExpectRollback()
-
-		expectedErr := assert.AnError
-		err := pgRepo.InTransaction(ctx, func(repo order.TxOrderRepo) error {
-			return expectedErr
-		})
-
-		require.Error(t, err)
-		assert.Equal(t, expectedErr, err)
-	})
-
-	t.Run("should handle begin transaction error", func(t *testing.T) {
-		mock.ExpectBegin().WillReturnError(assert.AnError)
-
-		err := pgRepo.InTransaction(ctx, func(repo order.TxOrderRepo) error {
-			return nil
-		})
-
-		require.Error(t, err)
-		assert.Contains(t, err.Error(), "begin transaction")
-	})
-
-	t.Run("should handle commit error", func(t *testing.T) {
-		mock.ExpectBegin()
-		mock.ExpectCommit().WillReturnError(assert.AnError)
-
-		err := pgRepo.InTransaction(ctx, func(repo order.TxOrderRepo) error {
-			return nil
-		})
-
-		require.Error(t, err)
-		assert.Contains(t, err.Error(), "commit transaction")
-	})
-
-	t.Run("should handle rollback error after function error", func(t *testing.T) {
-		mock.ExpectBegin()
-		mock.ExpectRollback().WillReturnError(assert.AnError)
-
-		functionErr := assert.AnError
-		err := pgRepo.InTransaction(ctx, func(repo order.TxOrderRepo) error {
-			return functionErr
-		})
-
-		require.Error(t, err)
-		// Should return the original function error, not the rollback error
-		assert.Equal(t, functionErr, err)
 	})
 }
 

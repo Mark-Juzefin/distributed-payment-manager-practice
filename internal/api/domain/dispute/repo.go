@@ -1,17 +1,10 @@
 package dispute
 
-import (
-	"context"
-)
+import "context"
 
 //go:generate mockgen -source repo.go -destination mock_repo.go -package dispute
 
 type DisputeRepo interface {
-	TxDisputeRepo
-	InTransaction(ctx context.Context, fn func(repo TxDisputeRepo) error) error
-}
-
-type TxDisputeRepo interface {
 	GetDisputes(ctx context.Context) ([]Dispute, error)
 	GetDisputeByID(ctx context.Context, disputeID string) (*Dispute, error)
 	GetDisputeByOrderID(ctx context.Context, orderID string) (*Dispute, error)

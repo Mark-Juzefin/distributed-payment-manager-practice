@@ -303,11 +303,11 @@ loadtest-kafka: run-kafka
 
 ## Implementation Checklist
 
-- [ ] Create `loadtest/main.go` with VU runner and stats
-- [ ] Order lifecycle using `order.Status.CanBeUpdatedTo()`
-- [ ] Dispute scenario (30% of successful orders, full lifecycle)
-- [ ] Makefile targets
-- [ ] Test both HTTP and Kafka modes
+- [x] Create `loadtest/main.go` with VU runner and stats
+- [x] Order lifecycle (created → updated → success/failed)
+- [x] Dispute scenario (30% of successful orders, full lifecycle)
+- [x] Makefile targets (`loadtest`, `loadtest-steady`)
+- [x] Tested with Kafka mode
 
 ## Usage
 

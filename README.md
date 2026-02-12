@@ -115,6 +115,23 @@ Dispute: open ──→ under_review ──→ submitted ──→ won
                        └──→ canceled
 ```
 
+# Load Testing
+
+Generate realistic data by sending webhook sequences through the full Ingest → API flow.
+
+```bash
+# Start services first
+make run-dev
+
+# Run load test (default: 10 VUs, 30s)
+make loadtest
+
+# Custom parameters
+go run ./loadtest -vus 50 -duration 2m -dispute-ratio 0.5
+```
+
+Each virtual user creates orders (full lifecycle: created → updated → success/failed) and disputes (30% of successful orders). After running, the database will contain orders, disputes, and their event histories.
+
 # Monitoring
 
 Services expose Prometheus metrics at `/metrics`; Grafana dashboards visualize HTTP latency, error rates, and Kafka throughput.

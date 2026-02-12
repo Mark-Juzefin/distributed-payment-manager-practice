@@ -9,7 +9,7 @@ var (
 			Subsystem: "http",
 			Name:      "request_duration_seconds",
 			Help:      "HTTP request latency in seconds",
-			Buckets:   []float64{.005, .01, .025, .05, .1, .25, .5, 1, 2.5, 5, 10},
+			Buckets:   []float64{.005, .01, .025, .05, .1, .25, .5, 1.0, 1.25, 1.5, 2.0, 2.5, 5, 10},
 		},
 		[]string{"handler", "method", "status_code"},
 	)

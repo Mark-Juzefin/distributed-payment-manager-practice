@@ -95,7 +95,7 @@
       "targets": [
         {
           "datasource": { "type": "prometheus", "uid": "${datasource}" },
-          "expr": "sum(rate(dpm_http_requests_total{job=~\"$job\", status_code=~\"5..\"}[1m])) / sum(rate(dpm_http_requests_total{job=~\"$job\"}[1m])) * 100",
+          "expr": "sum(rate(dpm_http_requests_total{job=~\"$job\", handler!~\"/health.*|/metrics\", status_code=~\"5..\"}[1m])) / sum(rate(dpm_http_requests_total{job=~\"$job\", handler!~\"/health.*|/metrics\"}[1m])) * 100",
           "refId": "A"
         }
       ],
@@ -143,7 +143,7 @@
       "targets": [
         {
           "datasource": { "type": "prometheus", "uid": "${datasource}" },
-          "expr": "sum(rate(dpm_http_request_duration_seconds_sum{job=~\"$job\"}[1m])) / sum(rate(dpm_http_request_duration_seconds_count{job=~\"$job\"}[1m]))",
+          "expr": "sum(rate(dpm_http_request_duration_seconds_sum{job=~\"$job\", handler!~\"/health.*|/metrics\"}[1m])) / sum(rate(dpm_http_request_duration_seconds_count{job=~\"$job\", handler!~\"/health.*|/metrics\"}[1m]))",
           "refId": "A"
         }
       ],
@@ -258,19 +258,19 @@
       "targets": [
         {
           "datasource": { "type": "prometheus", "uid": "${datasource}" },
-          "expr": "histogram_quantile(0.50, sum by (le) (rate(dpm_http_request_duration_seconds_bucket{job=~\"$job\"}[1m])))",
+          "expr": "histogram_quantile(0.50, sum by (le) (rate(dpm_http_request_duration_seconds_bucket{job=~\"$job\", handler!~\"/health.*|/metrics\"}[1m])))",
           "legendFormat": "p50",
           "refId": "A"
         },
         {
           "datasource": { "type": "prometheus", "uid": "${datasource}" },
-          "expr": "histogram_quantile(0.95, sum by (le) (rate(dpm_http_request_duration_seconds_bucket{job=~\"$job\"}[1m])))",
+          "expr": "histogram_quantile(0.95, sum by (le) (rate(dpm_http_request_duration_seconds_bucket{job=~\"$job\", handler!~\"/health.*|/metrics\"}[1m])))",
           "legendFormat": "p95",
           "refId": "B"
         },
         {
           "datasource": { "type": "prometheus", "uid": "${datasource}" },
-          "expr": "histogram_quantile(0.99, sum by (le) (rate(dpm_http_request_duration_seconds_bucket{job=~\"$job\"}[1m])))",
+          "expr": "histogram_quantile(0.99, sum by (le) (rate(dpm_http_request_duration_seconds_bucket{job=~\"$job\", handler!~\"/health.*|/metrics\"}[1m])))",
           "legendFormat": "p99",
           "refId": "C"
         }
@@ -296,7 +296,7 @@
         },
         "overrides": []
       },
-      "gridPos": { "h": 8, "w": 8, "x": 0, "y": 12 },
+      "gridPos": { "h": 8, "w": 8, "x": 0, "y": 20 },
       "id": 6,
       "options": {
         "legend": { "displayMode": "list", "placement": "right", "showLegend": true },
@@ -319,6 +319,105 @@
       ],
       "title": "Requests by Status",
       "type": "piechart"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "yellow", "value": 0.5 },
+              { "color": "red", "value": 1 }
+            ]
+          },
+          "unit": "none"
+        },
+        "overrides": [
+          {
+            "matcher": { "id": "byName", "options": "handler" },
+            "properties": [{ "id": "custom.width", "value": 350 }]
+          },
+          {
+            "matcher": { "id": "byName", "options": "RPS" },
+            "properties": [{ "id": "unit", "value": "reqps" }, { "id": "decimals", "value": 1 }]
+          },
+          {
+            "matcher": { "id": "byName", "options": "p95" },
+            "properties": [{ "id": "unit", "value": "s" }]
+          },
+          {
+            "matcher": { "id": "byName", "options": "p99" },
+            "properties": [{ "id": "unit", "value": "s" }]
+          },
+          {
+            "matcher": { "id": "byName", "options": "5xx%" },
+            "properties": [{ "id": "unit", "value": "percent" }, { "id": "decimals", "value": 2 }]
+          }
+        ]
+      },
+      "gridPos": { "h": 8, "w": 16, "x": 8, "y": 12 },
+      "id": 10,
+      "options": {
+        "cellHeight": "sm",
+        "footer": { "enablePagination": false, "show": false },
+        "showHeader": true,
+        "sortBy": [{ "desc": true, "displayName": "p95" }]
+      },
+      "pluginVersion": "10.4.0",
+      "targets": [
+        {
+          "datasource": { "type": "prometheus", "uid": "${datasource}" },
+          "expr": "sum by (handler) (rate(dpm_http_requests_total{job=~\"$job\"}[1m]))",
+          "format": "table",
+          "instant": true,
+          "refId": "A"
+        },
+        {
+          "datasource": { "type": "prometheus", "uid": "${datasource}" },
+          "expr": "histogram_quantile(0.95, sum by (le, handler) (rate(dpm_http_request_duration_seconds_bucket{job=~\"$job\"}[1m])))",
+          "format": "table",
+          "instant": true,
+          "refId": "B"
+        },
+        {
+          "datasource": { "type": "prometheus", "uid": "${datasource}" },
+          "expr": "histogram_quantile(0.99, sum by (le, handler) (rate(dpm_http_request_duration_seconds_bucket{job=~\"$job\"}[1m])))",
+          "format": "table",
+          "instant": true,
+          "refId": "C"
+        },
+        {
+          "datasource": { "type": "prometheus", "uid": "${datasource}" },
+          "expr": "sum by (handler) (rate(dpm_http_requests_total{job=~\"$job\", status_code=~\"5..\"}[1m])) / sum by (handler) (rate(dpm_http_requests_total{job=~\"$job\"}[1m])) * 100",
+          "format": "table",
+          "instant": true,
+          "refId": "D"
+        }
+      ],
+      "title": "Handler Overview",
+      "transformations": [
+        {
+          "id": "merge"
+        },
+        {
+          "id": "organize",
+          "options": {
+            "excludeByName": { "Time": true },
+            "indexByName": { "handler": 0, "Value #A": 1, "Value #B": 2, "Value #C": 3, "Value #D": 4 },
+            "renameByName": { "Value #A": "RPS", "Value #B": "p95", "Value #C": "p99", "Value #D": "5xx%" }
+          }
+        }
+      ],
+      "type": "table"
     },
     {
       "datasource": {
@@ -365,7 +464,7 @@
           }
         ]
       },
-      "gridPos": { "h": 8, "w": 16, "x": 8, "y": 12 },
+      "gridPos": { "h": 8, "w": 16, "x": 8, "y": 20 },
       "id": 7,
       "options": {
         "legend": { "calcs": [], "displayMode": "list", "placement": "bottom", "showLegend": true },
@@ -375,13 +474,13 @@
       "targets": [
         {
           "datasource": { "type": "prometheus", "uid": "${datasource}" },
-          "expr": "sum(rate(dpm_http_requests_total{job=~\"$job\", status_code=~\"5..\"}[1m]))",
+          "expr": "sum(rate(dpm_http_requests_total{job=~\"$job\", handler!~\"/health.*|/metrics\", status_code=~\"5..\"}[1m]))",
           "legendFormat": "5xx",
           "refId": "A"
         },
         {
           "datasource": { "type": "prometheus", "uid": "${datasource}" },
-          "expr": "sum(rate(dpm_http_requests_total{job=~\"$job\", status_code=~\"4..\"}[1m]))",
+          "expr": "sum(rate(dpm_http_requests_total{job=~\"$job\", handler!~\"/health.*|/metrics\", status_code=~\"4..\"}[1m]))",
           "legendFormat": "4xx",
           "refId": "B"
         }
@@ -429,7 +528,7 @@
         },
         "overrides": []
       },
-      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 20 },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 28 },
       "id": 8,
       "options": {
         "legend": { "calcs": [], "displayMode": "list", "placement": "bottom", "showLegend": true },
@@ -487,7 +586,7 @@
         },
         "overrides": []
       },
-      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 20 },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 28 },
       "id": 9,
       "options": {
         "legend": { "calcs": [], "displayMode": "list", "placement": "bottom", "showLegend": true },

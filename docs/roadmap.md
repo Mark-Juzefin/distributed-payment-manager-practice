@@ -40,7 +40,7 @@
 
 - [ ] **Graceful Shutdown for Kafka Components** - DLQ publisher closes before pending messages are sent, causing "io: read/write on closed pipe" errors. Need proper shutdown ordering: stop consumers → flush DLQ → close publishers.
 
-- [ ] **Go-based Load Testing** (from Feature 003)
+- [x] **Go-based Load Testing** (from Feature 003)
   - `loadtest/main.go`, order lifecycle, dispute scenarios
   - Plan: [plan-load-testing.md](features/001-kafka-ingestion-pipeline/plan-load-testing.md)
 

@@ -3,7 +3,7 @@ export
 
 MIGRATION_DIR=internal/api/migrations
 
-.PHONY: run run-dev run-kafka run-http run-api run-ingest start_containers start-monitoring stop_containers stop_containers_remove lint test integration-test e2e-test generate migrate seed-db print-db-size clean-db benchmark build-pg-image test-webhook
+.PHONY: run run-dev run-kafka run-http run-api run-ingest start_containers start-monitoring stop_containers stop_containers_remove lint test integration-test e2e-test generate migrate seed-db print-db-size clean-db benchmark build-pg-image test-webhook loadtest loadtest-steady
 
 run:
 	docker compose --profile prod up --build
@@ -39,6 +39,8 @@ stop_containers_remove:
 
 start-monitoring:
 	docker compose --profile monitoring up -d
+	@echo "\nPrometheus: http://localhost:9090"
+	@echo "Grafana:    http://localhost:3100 (admin/admin)"
 
 stop-monitoring:
 	docker compose --profile monitoring down -v
@@ -89,6 +91,14 @@ print-db-size:
 
 clean-db:
 	psql -d "$(PG_URL)" -c  'TRUNCATE TABLE dispute_events, disputes, order_events, orders, evidence CASCADE'
+
+# Load test: generate realistic data via webhook flow
+loadtest:
+	go run ./loadtest -target http://localhost:3001 -vus 10 -duration 30s
+
+# Steady load: continuous traffic until Ctrl+C (for observing Grafana dashboards)
+loadtest-steady:
+	go run ./loadtest -target http://localhost:3001 -vus 5
 
 # Test webhook: sends via Ingest service (full flow)
 test-webhook:

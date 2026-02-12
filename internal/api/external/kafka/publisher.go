@@ -1,12 +1,12 @@
 package kafka
 
 import (
+	"TestTaskJustPay/internal/api/messaging"
+	"TestTaskJustPay/pkg/correlation"
 	"context"
 	"encoding/json"
 	"log/slog"
-
-	"TestTaskJustPay/internal/api/messaging"
-	"TestTaskJustPay/pkg/correlation"
+	"time"
 
 	"github.com/segmentio/kafka-go"
 )
@@ -23,6 +23,7 @@ func NewPublisher(brokers []string, topic string) *Publisher {
 		Topic:        topic,
 		Balancer:     &kafka.Hash{},
 		RequiredAcks: kafka.RequireOne,
+		BatchTimeout: 10 * time.Millisecond,
 	}
 
 	return &Publisher{

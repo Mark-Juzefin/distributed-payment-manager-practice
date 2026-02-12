@@ -38,7 +38,7 @@ func (h *UpdatesHandler) HandleOrderUpdate(c *gin.Context) {
 
 	webhook := mapOrderUpdateToWebhook(req)
 
-	err := h.orderService.ProcessPaymentWebhook(c.Request.Context(), webhook)
+	err := h.orderService.ProcessOrderUpdate(c.Request.Context(), webhook)
 	if err != nil {
 		h.handleOrderError(c, err)
 		return
@@ -116,8 +116,8 @@ func (h *UpdatesHandler) handleDisputeError(c *gin.Context, err error) {
 	}
 }
 
-func mapOrderUpdateToWebhook(req dto.OrderUpdateRequest) order.PaymentWebhook {
-	return order.PaymentWebhook{
+func mapOrderUpdateToWebhook(req dto.OrderUpdateRequest) order.OrderUpdate {
+	return order.OrderUpdate{
 		ProviderEventID: req.ProviderEventID,
 		OrderId:         req.OrderID,
 		UserId:          req.UserID,

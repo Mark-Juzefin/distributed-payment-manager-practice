@@ -25,7 +25,7 @@ func (h *ChargebackHandler) Webhook(c *gin.Context) {
 		return
 	}
 
-	err := h.processor.ProcessDisputeWebhook(c.Request.Context(), event)
+	err := h.processor.ProcessDisputeUpdate(c.Request.Context(), event)
 	if err != nil {
 		if errors.Is(err, order.ErrInvalidStatus) {
 			c.JSON(http.StatusUnprocessableEntity, gin.H{"message": err.Error()})

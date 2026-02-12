@@ -9,6 +9,6 @@ import (
 // Processor defines the interface for processing webhooks.
 // Implementations can handle webhooks synchronously or asynchronously.
 type Processor interface {
-	ProcessOrderWebhook(ctx context.Context, webhook order.PaymentWebhook) error
-	ProcessDisputeWebhook(ctx context.Context, webhook dispute.ChargebackWebhook) error
+	ProcessOrderUpdate(ctx context.Context, webhook order.OrderUpdate) error
+	ProcessDisputeUpdate(ctx context.Context, webhook dispute.ChargebackWebhook) error
 }

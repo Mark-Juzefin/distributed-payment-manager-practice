@@ -21,8 +21,8 @@ func NewHTTPSyncProcessor(client apiclient.Client) *HTTPSyncProcessor {
 	}
 }
 
-// ProcessOrderWebhook converts the webhook to a DTO and sends it to API service.
-func (p *HTTPSyncProcessor) ProcessOrderWebhook(ctx context.Context, webhook order.PaymentWebhook) error {
+// ProcessOrderUpdate converts the webhook to a DTO and sends it to API service.
+func (p *HTTPSyncProcessor) ProcessOrderUpdate(ctx context.Context, webhook order.OrderUpdate) error {
 	req := dto.OrderUpdateRequest{
 		ProviderEventID: webhook.ProviderEventID,
 		OrderID:         webhook.OrderId,
@@ -35,8 +35,8 @@ func (p *HTTPSyncProcessor) ProcessOrderWebhook(ctx context.Context, webhook ord
 	return p.client.SendOrderUpdate(ctx, req)
 }
 
-// ProcessDisputeWebhook converts the webhook to a DTO and sends it to API service.
-func (p *HTTPSyncProcessor) ProcessDisputeWebhook(ctx context.Context, webhook dispute.ChargebackWebhook) error {
+// ProcessDisputeUpdate converts the webhook to a DTO and sends it to API service.
+func (p *HTTPSyncProcessor) ProcessDisputeUpdate(ctx context.Context, webhook dispute.ChargebackWebhook) error {
 	req := dto.DisputeUpdateRequest{
 		ProviderEventID: webhook.ProviderEventID,
 		OrderID:         webhook.OrderID,

@@ -14,7 +14,7 @@ import (
 	"github.com/opensearch-project/opensearch-go"
 )
 
-var _ dispute.EventSink = (*EventSink)(nil)
+var _ dispute.DisputeEvents = (*EventSink)(nil)
 
 type EventSink struct {
 	client        *opensearch.Client

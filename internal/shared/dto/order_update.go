@@ -3,7 +3,7 @@ package dto
 import "time"
 
 // OrderUpdateRequest represents an order update request from Ingest to API service.
-// It mirrors order.PaymentWebhook but is decoupled from domain types.
+// It mirrors order.OrderUpdate but is decoupled from domain types.
 type OrderUpdateRequest struct {
 	ProviderEventID string            `json:"provider_event_id"`
 	OrderID         string            `json:"order_id"`

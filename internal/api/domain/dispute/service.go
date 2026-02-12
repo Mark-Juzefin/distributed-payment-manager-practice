@@ -16,25 +16,25 @@ import (
 
 type DisputeService struct {
 	transactor    postgres.Transactor
-	txRepoFactory func(tx postgres.Executor) DisputeRepo
+	txDisputeRepo func(tx postgres.Executor) DisputeRepo
 	disputeRepo   DisputeRepo // for reads
-	eventSink     EventSink
+	disputeEvents DisputeEvents
 	provider      gateway.Provider
 }
 
 func NewDisputeService(
 	transactor postgres.Transactor,
-	txRepoFactory func(tx postgres.Executor) DisputeRepo,
+	txDisputeRepo func(tx postgres.Executor) DisputeRepo,
 	disputeRepo DisputeRepo,
 	provider gateway.Provider,
-	eventSink EventSink,
+	disputeEvents DisputeEvents,
 ) *DisputeService {
 	return &DisputeService{
 		transactor:    transactor,
-		txRepoFactory: txRepoFactory,
+		txDisputeRepo: txDisputeRepo,
 		disputeRepo:   disputeRepo,
 		provider:      provider,
-		eventSink:     eventSink,
+		disputeEvents: disputeEvents,
 	}
 }
 
@@ -59,7 +59,7 @@ func (s *DisputeService) GetEvents(ctx context.Context, query DisputeEventQuery)
 		query.Limit = 10
 	}
 
-	eventPage, err := s.eventSink.GetDisputeEvents(ctx, query)
+	eventPage, err := s.disputeEvents.GetDisputeEvents(ctx, query)
 	if err != nil {
 		return DisputeEventPage{}, fmt.Errorf("get events: %w", err)
 	}
@@ -77,7 +77,7 @@ func (s *DisputeService) GetEvidence(ctx context.Context, disputeID string) (*Ev
 func (s *DisputeService) ProcessChargeback(ctx context.Context, webhook ChargebackWebhook) error {
 	var actualDisputeData Dispute
 	err := s.transactor.InTransaction(ctx, func(tx postgres.Executor) error {
-		txRepo := s.txRepoFactory(tx)
+		txRepo := s.txDisputeRepo(tx)
 
 		dispute, err := txRepo.GetDisputeByOrderID(ctx, webhook.OrderID)
 		if err != nil {
@@ -136,7 +136,7 @@ func (s *DisputeService) UpsertEvidence(ctx context.Context, disputeID string, u
 	var result *Evidence
 
 	err := s.transactor.InTransaction(ctx, func(tx postgres.Executor) error {
-		txRepo := s.txRepoFactory(tx)
+		txRepo := s.txDisputeRepo(tx)
 
 		// 1. Validate that dispute exists and is editable
 		dispute, err := txRepo.GetDisputeByID(ctx, disputeID)
@@ -188,7 +188,7 @@ func (s *DisputeService) UpsertEvidence(ctx context.Context, disputeID string, u
 func (s *DisputeService) Submit(ctx context.Context, disputeID string) error {
 	var result *gateway.RepresentmentResult
 	err := s.transactor.InTransaction(ctx, func(tx postgres.Executor) error {
-		txRepo := s.txRepoFactory(tx)
+		txRepo := s.txDisputeRepo(tx)
 
 		d, err := txRepo.GetDisputeByID(ctx, disputeID)
 		if err != nil {
@@ -263,7 +263,7 @@ func (s *DisputeService) createEvidenceSubmittedEvent(ctx context.Context, dispu
 		CreatedAt:       time.Now(),
 	}
 
-	if _, err := s.eventSink.CreateDisputeEvent(ctx, disputeEvent); err != nil {
+	if _, err := s.disputeEvents.CreateDisputeEvent(ctx, disputeEvent); err != nil {
 		return fmt.Errorf("create dispute event: %w", err)
 	}
 	return nil
@@ -280,7 +280,7 @@ func (s *DisputeService) createEvidenceAddedEvent(ctx context.Context, disputeID
 		CreatedAt:       time.Now(),
 	}
 
-	if _, err := s.eventSink.CreateDisputeEvent(ctx, disputeEvent); err != nil {
+	if _, err := s.disputeEvents.CreateDisputeEvent(ctx, disputeEvent); err != nil {
 		return fmt.Errorf("create dispute event: %w", err)
 	}
 	return nil
@@ -297,7 +297,7 @@ func (s *DisputeService) saveWebhookEvent(ctx context.Context, dispute Dispute, 
 		CreatedAt:       time.Now(),
 	}
 
-	if _, err := s.eventSink.CreateDisputeEvent(ctx, disputeEvent); err != nil {
+	if _, err := s.disputeEvents.CreateDisputeEvent(ctx, disputeEvent); err != nil {
 		return fmt.Errorf("create dispute event: %w", err)
 	}
 	return nil

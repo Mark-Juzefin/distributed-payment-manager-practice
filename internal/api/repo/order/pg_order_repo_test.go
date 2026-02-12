@@ -60,7 +60,7 @@ func TestUpdateOrder(t *testing.T) {
 		userId := uuid.NewString()
 		updatedAt := time.Now()
 
-		event := order.PaymentWebhook{
+		event := order.OrderUpdate{
 			OrderId:   "order-1",
 			UserId:    userId,
 			Status:    order.StatusUpdated,
@@ -79,7 +79,7 @@ func TestUpdateOrder(t *testing.T) {
 	t.Run("should handle database error", func(t *testing.T) {
 		userId := uuid.NewString()
 
-		event := order.PaymentWebhook{
+		event := order.OrderUpdate{
 
 			OrderId: "order-1",
 			UserId:  userId,
@@ -109,7 +109,7 @@ func TestCreateOrderByEvent(t *testing.T) {
 		createdAt := time.Now()
 		updatedAt := time.Now()
 
-		event := order.PaymentWebhook{
+		event := order.OrderUpdate{
 			OrderId:   "order-1",
 			UserId:    userId,
 			Status:    order.StatusCreated,
@@ -129,7 +129,7 @@ func TestCreateOrderByEvent(t *testing.T) {
 	t.Run("should handle database error", func(t *testing.T) {
 		userId := uuid.NewString()
 
-		event := order.PaymentWebhook{
+		event := order.OrderUpdate{
 			OrderId: "order-1",
 			UserId:  userId,
 			Status:  order.StatusCreated,

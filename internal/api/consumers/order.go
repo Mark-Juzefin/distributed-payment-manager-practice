@@ -38,7 +38,7 @@ func (c *OrderMessageController) HandleMessage(ctx context.Context, key, value [
 		"key", env.Key,
 		"type", env.Type)
 
-	var webhook order.PaymentWebhook
+	var webhook order.OrderUpdate
 	if err := json.Unmarshal(env.Payload, &webhook); err != nil {
 		slog.ErrorContext(ctx, "Failed to unmarshal webhook payload",
 			"event_id", env.EventID,
@@ -46,7 +46,7 @@ func (c *OrderMessageController) HandleMessage(ctx context.Context, key, value [
 		return fmt.Errorf("unmarshal webhook: %w", err)
 	}
 
-	if err := c.service.ProcessPaymentWebhook(ctx, webhook); err != nil {
+	if err := c.service.ProcessOrderUpdate(ctx, webhook); err != nil {
 		// Idempotency: duplicate events/orders are not errors
 		if errors.Is(err, order.ErrEventAlreadyStored) {
 			slog.InfoContext(ctx, "Duplicate order event ignored",

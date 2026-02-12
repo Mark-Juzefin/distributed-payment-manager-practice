@@ -14,26 +14,26 @@ import (
 )
 
 type OrderService struct {
-	transactor    postgres.Transactor
-	txRepoFactory func(tx postgres.Executor) OrderRepo
-	orderRepo     OrderRepo // for reads (GetOrders, GetOrderByID)
-	provider      gateway.Provider
-	eventSink     EventSink
+	transactor  postgres.Transactor
+	txOrderRepo func(tx postgres.Executor) OrderRepo
+	orderRepo   OrderRepo // for reads (GetOrders, GetOrderByID)
+	provider    gateway.Provider
+	orderEvents OrderEvents
 }
 
 func NewOrderService(
 	transactor postgres.Transactor,
-	txRepoFactory func(tx postgres.Executor) OrderRepo,
+	txOrderRepo func(tx postgres.Executor) OrderRepo,
 	orderRepo OrderRepo,
 	provider gateway.Provider,
-	eventSink EventSink,
+	orderEvents OrderEvents,
 ) *OrderService {
 	return &OrderService{
-		transactor:    transactor,
-		txRepoFactory: txRepoFactory,
-		orderRepo:     orderRepo,
-		provider:      provider,
-		eventSink:     eventSink,
+		transactor:  transactor,
+		txOrderRepo: txOrderRepo,
+		orderRepo:   orderRepo,
+		provider:    provider,
+		orderEvents: orderEvents,
 	}
 }
 
@@ -64,25 +64,25 @@ func (s *OrderService) GetOrders(ctx context.Context, query OrdersQuery) ([]Orde
 	return orders, nil
 }
 
-func (s *OrderService) ProcessPaymentWebhook(ctx context.Context, event PaymentWebhook) error {
+func (s *OrderService) ProcessOrderUpdate(ctx context.Context, update OrderUpdate) error {
 	err := s.transactor.InTransaction(ctx, func(tx postgres.Executor) error {
-		txRepo := s.txRepoFactory(tx)
+		txRepo := s.txOrderRepo(tx)
 
-		if event.Status == StatusCreated {
-			if err := txRepo.CreateOrder(ctx, event); err != nil {
+		if update.Status == StatusCreated {
+			if err := txRepo.CreateOrder(ctx, update); err != nil {
 				return fmt.Errorf("create order from event: %w", err)
 			}
 		} else {
-			order, err := getOrderByID(ctx, txRepo, event.OrderId)
+			order, err := getOrderByID(ctx, txRepo, update.OrderId)
 			if err != nil {
 				return fmt.Errorf("load order: %w", err)
 			}
 
-			if !order.Status.CanBeUpdatedTo(event.Status) {
+			if !order.Status.CanBeUpdatedTo(update.Status) {
 				return ErrInvalidStatus
 			}
 
-			if err := txRepo.UpdateOrder(ctx, event); err != nil {
+			if err := txRepo.UpdateOrder(ctx, update); err != nil {
 				return fmt.Errorf("update order: %w", err)
 			}
 		}
@@ -93,7 +93,7 @@ func (s *OrderService) ProcessPaymentWebhook(ctx context.Context, event PaymentW
 		return err
 	}
 
-	if err := s.createWebhookReceivedEvent(ctx, event); err != nil {
+	if err := s.createWebhookReceivedEvent(ctx, update); err != nil {
 		return fmt.Errorf("failed to create webhook event: %w", err)
 	}
 
@@ -105,7 +105,7 @@ func (s *OrderService) GetEvents(ctx context.Context, query OrderEventQuery) (Or
 		query.Limit = 10
 	}
 
-	eventPage, err := s.eventSink.GetOrderEvents(ctx, query)
+	eventPage, err := s.orderEvents.GetOrderEvents(ctx, query)
 	if err != nil {
 		return OrderEventPage{}, fmt.Errorf("get order events: %w", err)
 	}
@@ -119,7 +119,7 @@ func (s *OrderService) UpdateOrderHold(ctx context.Context, orderID string, requ
 
 	var response *HoldResponse
 	err := s.transactor.InTransaction(ctx, func(tx postgres.Executor) error {
-		txRepo := s.txRepoFactory(tx)
+		txRepo := s.txOrderRepo(tx)
 
 		order, err := getOrderByID(ctx, txRepo, orderID)
 		if err != nil {
@@ -181,7 +181,7 @@ func (s *OrderService) UpdateOrderHold(ctx context.Context, orderID string, requ
 func (s *OrderService) CapturePayment(ctx context.Context, orderID string, request CaptureRequest) (*CaptureResponse, error) {
 	var response *CaptureResponse
 	err := s.transactor.InTransaction(ctx, func(tx postgres.Executor) error {
-		txRepo := s.txRepoFactory(tx)
+		txRepo := s.txOrderRepo(tx)
 
 		order, err := getOrderByID(ctx, txRepo, orderID)
 		if err != nil {
@@ -243,7 +243,7 @@ func (s *OrderService) CapturePayment(ctx context.Context, orderID string, reque
 }
 
 // Event creation helper methods
-func (s *OrderService) createWebhookReceivedEvent(ctx context.Context, webhook PaymentWebhook) error {
+func (s *OrderService) createWebhookReceivedEvent(ctx context.Context, webhook OrderUpdate) error {
 	payload, _ := json.Marshal(webhook)
 
 	orderEvent := NewOrderEvent{
@@ -254,7 +254,7 @@ func (s *OrderService) createWebhookReceivedEvent(ctx context.Context, webhook P
 		CreatedAt:       time.Now(),
 	}
 
-	_, err := s.eventSink.CreateOrderEvent(ctx, orderEvent)
+	_, err := s.orderEvents.CreateOrderEvent(ctx, orderEvent)
 	return err
 }
 
@@ -269,7 +269,7 @@ func (s *OrderService) createHoldEvent(ctx context.Context, orderID string, kind
 		CreatedAt:       time.Now(),
 	}
 
-	_, err := s.eventSink.CreateOrderEvent(ctx, orderEvent)
+	_, err := s.orderEvents.CreateOrderEvent(ctx, orderEvent)
 	return err
 }
 
@@ -284,7 +284,7 @@ func (s *OrderService) createCaptureRequestedEvent(ctx context.Context, orderID 
 		CreatedAt:       time.Now(),
 	}
 
-	_, err := s.eventSink.CreateOrderEvent(ctx, orderEvent)
+	_, err := s.orderEvents.CreateOrderEvent(ctx, orderEvent)
 	return err
 }
 
@@ -299,6 +299,6 @@ func (s *OrderService) createCaptureResultEvent(ctx context.Context, orderID str
 		CreatedAt:       time.Now(),
 	}
 
-	_, err := s.eventSink.CreateOrderEvent(ctx, orderEvent)
+	_, err := s.orderEvents.CreateOrderEvent(ctx, orderEvent)
 	return err
 }

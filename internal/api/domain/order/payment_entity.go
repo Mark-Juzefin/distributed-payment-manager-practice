@@ -2,7 +2,7 @@ package order
 
 import "time"
 
-type PaymentWebhook struct {
+type OrderUpdate struct {
 	ProviderEventID string            `json:"provider_event_id"`
 	OrderId         string            `json:"order_id"`
 	UserId          string            `json:"user_id"`

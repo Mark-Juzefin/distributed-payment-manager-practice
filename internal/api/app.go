@@ -50,8 +50,8 @@ func Run(cfg config.Config) {
 
 	orderRepo := order_repo.NewPgOrderRepo(pool)
 	disputeRepo := dispute_repo.NewPgDisputeRepo(pool)
-	disputeEventSink := dispute_eventsink.NewPgEventRepo(pool.Pool, pool.Builder)
-	orderEventSink := order_eventsink.NewPgOrderEventRepo(pool.Pool, pool.Builder)
+	disputeEvents := dispute_eventsink.NewPgEventRepo(pool.Pool, pool.Builder)
+	orderEvents := order_eventsink.NewPgOrderEventRepo(pool.Pool, pool.Builder)
 
 	silvergateClient := silvergate.New(
 		cfg.SilvergateBaseURL,
@@ -61,8 +61,8 @@ func Run(cfg config.Config) {
 	)
 
 	// Services
-	orderService := order.NewOrderService(pool, order_repo.TxRepoFactory(pool.Builder), orderRepo, silvergateClient, orderEventSink)
-	disputeService := dispute.NewDisputeService(pool, dispute_repo.TxRepoFactory(pool.Builder), disputeRepo, silvergateClient, disputeEventSink)
+	orderService := order.NewOrderService(pool, order_repo.TxRepoFactory(pool.Builder), orderRepo, silvergateClient, orderEvents)
+	disputeService := dispute.NewDisputeService(pool, dispute_repo.TxRepoFactory(pool.Builder), disputeRepo, silvergateClient, disputeEvents)
 
 	// Handlers (clean - no processor dependency)
 	orderHandler := handlers.NewOrderHandler(orderService)

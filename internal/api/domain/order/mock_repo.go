@@ -41,17 +41,17 @@ func (m *MockOrderRepo) EXPECT() *MockOrderRepoMockRecorder {
 }
 
 // CreateOrder mocks base method.
-func (m *MockOrderRepo) CreateOrder(ctx context.Context, payload PaymentWebhook) error {
+func (m *MockOrderRepo) CreateOrder(ctx context.Context, update OrderUpdate) error {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "CreateOrder", ctx, payload)
+	ret := m.ctrl.Call(m, "CreateOrder", ctx, update)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
 // CreateOrder indicates an expected call of CreateOrder.
-func (mr *MockOrderRepoMockRecorder) CreateOrder(ctx, payload any) *gomock.Call {
+func (mr *MockOrderRepoMockRecorder) CreateOrder(ctx, update any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CreateOrder", reflect.TypeOf((*MockOrderRepo)(nil).CreateOrder), ctx, payload)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CreateOrder", reflect.TypeOf((*MockOrderRepo)(nil).CreateOrder), ctx, update)
 }
 
 // GetOrders mocks base method.
@@ -70,17 +70,17 @@ func (mr *MockOrderRepoMockRecorder) GetOrders(ctx, filter any) *gomock.Call {
 }
 
 // UpdateOrder mocks base method.
-func (m *MockOrderRepo) UpdateOrder(ctx context.Context, event PaymentWebhook) error {
+func (m *MockOrderRepo) UpdateOrder(ctx context.Context, update OrderUpdate) error {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "UpdateOrder", ctx, event)
+	ret := m.ctrl.Call(m, "UpdateOrder", ctx, update)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
 // UpdateOrder indicates an expected call of UpdateOrder.
-func (mr *MockOrderRepoMockRecorder) UpdateOrder(ctx, event any) *gomock.Call {
+func (mr *MockOrderRepoMockRecorder) UpdateOrder(ctx, update any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateOrder", reflect.TypeOf((*MockOrderRepo)(nil).UpdateOrder), ctx, event)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateOrder", reflect.TypeOf((*MockOrderRepo)(nil).UpdateOrder), ctx, update)
 }
 
 // UpdateOrderHold mocks base method.

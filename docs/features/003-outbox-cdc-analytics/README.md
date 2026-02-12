@@ -78,8 +78,15 @@ Existing `order_events` / `dispute_events` tables remain untouched. A new unifie
 
 - [x] Subtask 1: Transactor refactoring — services own transactions — [plan](plan-subtask-1.md)
 - [x] Subtask 2: Unified events table + atomic writes — [plan](plan-subtask-2.md)
-- [ ] Subtask 3: Partitioning for unified events table (pg_partman)
-- [ ] Subtask 4: TBD
+- [ ] Subtask 3: Go CDC worker — WAL tailing via logical replication
+  - PostgreSQL logical replication setup (publication, replication slot, `wal_level=logical`)
+  - Replication connection via `pglogrepl` — start streaming, receive WAL messages
+  - pgoutput protocol decoding — Relation messages, Insert/Update/Delete → domain events
+  - Kafka publishing — serialize decoded events, produce to `domain.events` topic
+  - LSN tracking + standby status heartbeats — acknowledge processed WAL position
+  - Graceful shutdown — close replication slot cleanly, flush pending messages
+  - Integration test with real PG logical replication + Kafka
+- [ ] Subtask 4: Partitioning for unified events table (pg_partman)
 - [ ] Subtask 5: TBD
 
 ## Notes

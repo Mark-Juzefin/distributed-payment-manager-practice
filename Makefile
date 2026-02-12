@@ -57,7 +57,8 @@ test:
 
 INTEGRATION_DIRS = \
 	./internal/api/repo/dispute_eventsink \
-	./internal/api/repo/order_eventsink
+	./internal/api/repo/order_eventsink \
+	./internal/api/repo/events
 
 integration-test:
 	go clean -testcache && go test -tags=integration -v  $(INTEGRATION_DIRS)
@@ -90,7 +91,7 @@ print-db-size:
 	psql -d "$(PG_URL)" -c 'SELECT pg_size_pretty(pg_database_size(current_database()));'
 
 clean-db:
-	psql -d "$(PG_URL)" -c  'TRUNCATE TABLE dispute_events, disputes, order_events, orders, evidence CASCADE'
+	psql -d "$(PG_URL)" -c  'TRUNCATE TABLE events, dispute_events, disputes, order_events, orders, evidence CASCADE'
 
 # Load test: generate realistic data via webhook flow
 loadtest:

@@ -8,14 +8,14 @@ After Subtask 1 (Transactor refactoring), services own their transactions and ca
 
 ```go
 err := s.transactor.InTransaction(ctx, func(tx postgres.Executor) error {
-    txRepo := s.txRepoFactory(tx)
-    txEventStore := s.eventStoreFactory(tx)  // NEW — same transaction
+    txRepo := s.txOrderRepo(tx)
+    txEventStore := s.txEventStore(tx)        // NEW — same transaction
 
-    txRepo.CreateOrder(ctx, event)
+    txRepo.CreateOrder(ctx, update)
     txEventStore.CreateEvent(ctx, newEvent)   // atomic with business data
     return nil
 })
-s.eventSink.CreateOrderEvent(ctx, event)      // old path, unchanged
+s.orderEvents.CreateOrderEvent(ctx, update)   // old path, unchanged
 ```
 
 ## Implementation Steps
@@ -33,12 +33,12 @@ CREATE TABLE public.events (
     idempotency_key    VARCHAR(255) NOT NULL,   -- provider_event_id or generated UUID
     payload            JSONB        NOT NULL,
     created_at         TIMESTAMPTZ  NOT NULL DEFAULT NOW(),
-    CONSTRAINT events_pk PRIMARY KEY (id, created_at)
-) PARTITION BY RANGE (created_at);
+    CONSTRAINT events_pk PRIMARY KEY (id)
+);
 ```
 
-- pg_partman: daily partitions, 7-day premake (same pattern as `dispute_events`)
-- Idempotency: `UNIQUE (aggregate_type, aggregate_id, idempotency_key, created_at)` — includes partition key
+- **No partitioning** — plain table for now; partitioning will be added in a separate subtask
+- Idempotency: `UNIQUE (aggregate_type, aggregate_id, idempotency_key)`
 - Indexes: `(aggregate_type, aggregate_id, created_at)`, `(event_type, created_at)`
 - No FK (generic entity_id, decoupled from business tables)
 - `TIMESTAMPTZ` (best practice for time-series)
@@ -68,23 +68,23 @@ var ErrEventAlreadyStored = errors.New("event already stored")
 **New file:** `pg_event_store.go`
 - `PgEventStore` struct with `postgres.Executor` + `squirrel.StatementBuilderType`
 - `NewPgEventStore(db postgres.Executor, builder squirrel.StatementBuilderType)` constructor
+- `TxStoreFactory(builder squirrel.StatementBuilderType)` — partial application factory (same pattern as `order_repo.TxRepoFactory`)
 - `CreateEvent` — INSERT into `events`, handle unique violation → `ErrEventAlreadyStored`
 - ID generation: `uuid.New().String()` (consistent with existing repos)
 
 ### Step 4: Wire event store into services
 
 **Modify:** `internal/api/domain/order/service.go`
-- Add `eventStoreFactory func(tx postgres.Executor) events.Store` field
+- Add `txEventStore func(tx postgres.Executor) events.Store` field
 - Inside each `transactor.InTransaction` callback: create `txEventStore` and write unified event
 
 **Modify:** `internal/api/domain/dispute/service.go` — same pattern.
 
 **Modify:** `internal/api/app.go`
 ```go
-eventStoreFactory := func(tx postgres.Executor) events.Store {
-    return events_repo.NewPgEventStore(tx, pool.Builder)
-}
-// pass eventStoreFactory to service constructors
+// Services
+orderService := order.NewOrderService(pool, order_repo.TxRepoFactory(pool.Builder), events_repo.TxStoreFactory(pool.Builder), orderRepo, silvergateClient, orderEvents)
+disputeService := dispute.NewDisputeService(pool, dispute_repo.TxRepoFactory(pool.Builder), events_repo.TxStoreFactory(pool.Builder), disputeRepo, silvergateClient, disputeEvents)
 ```
 
 ### Step 5: Update test infrastructure
@@ -98,7 +98,7 @@ eventStoreFactory := func(tx postgres.Executor) events.Store {
 
 Tests:
 - Event creation succeeds
-- Idempotency constraint rejects duplicates (same aggregate_type, aggregate_id, idempotency_key, created_at)
+- Idempotency constraint rejects duplicates (same aggregate_type, aggregate_id, idempotency_key)
 - Different aggregates with same idempotency key succeed
 - Returns `ErrEventAlreadyStored` on duplicate
 
@@ -106,7 +106,7 @@ Tests:
 
 | File | Action | What changes |
 |------|--------|-------------|
-| `internal/api/migrations/YYYYMMDDHHMMSS_create_unified_events_table.sql` | NEW | Unified events table + pg_partman |
+| `internal/api/migrations/YYYYMMDDHHMMSS_create_unified_events_table.sql` | NEW | Unified events table (no partitioning) |
 | `internal/api/domain/events/event.go` | NEW | Domain types, Store interface |
 | `internal/api/domain/events/errors.go` | NEW | ErrEventAlreadyStored |
 | `internal/api/repo/events/pg_event_store.go` | NEW | PG implementation |
@@ -121,7 +121,7 @@ Tests:
 
 ## What stays unchanged
 
-- Old `order_events` / `dispute_events` tables and their `eventSink` writes
+- Old `order_events` / `dispute_events` tables and their `orderEvents`/`disputeEvents` writes
 - Read paths (`GET /orders/events`, `GET /disputes/events`) — still use old tables
 - API handlers, Kafka consumers
 

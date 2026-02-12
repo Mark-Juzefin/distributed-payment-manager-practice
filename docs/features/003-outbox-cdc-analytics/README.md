@@ -1,6 +1,6 @@
 # Step 3: Outbox Pattern → CDC → Analytics
 
-**Status:** Planning
+**Status:** In Progress
 
 ## Overview
 
@@ -76,10 +76,11 @@ Existing `order_events` / `dispute_events` tables remain untouched. A new unifie
 
 ## Tasks
 
-- [ ] Subtask 1: Transactor refactoring — services own transactions — [plan](plan-subtask-1.md)
-- [ ] Subtask 2: Unified events table + atomic writes — [plan](plan-subtask-2.md)
-- [ ] Subtask 3: TBD
+- [x] Subtask 1: Transactor refactoring — services own transactions — [plan](plan-subtask-1.md)
+- [x] Subtask 2: Unified events table + atomic writes — [plan](plan-subtask-2.md)
+- [ ] Subtask 3: Partitioning for unified events table (pg_partman)
 - [ ] Subtask 4: TBD
+- [ ] Subtask 5: TBD
 
 ## Notes
 
@@ -89,3 +90,67 @@ Existing `order_events` / `dispute_events` tables remain untouched. A new unifie
 - `publish_via_partition_root = true` needed for logical replication from partitioned tables
 - Consider what analytical queries we want to answer — this drives the projection schema
 - Evaluate ClickHouse vs OpenSearch for the analytical store
+
+## Changelog
+
+### Subtask 1: Transactor refactoring + naming cleanup
+
+**Transactor pattern:**
+- Added `postgres.Transactor` interface (`pkg/postgres/postgres.go`)
+- Services own transactions: `s.transactor.InTransaction(ctx, func(tx postgres.Executor) error)`
+- Tx-scoped repo factories: `order_repo.TxRepoFactory(builder)`, `dispute_repo.TxRepoFactory(builder)`
+
+**Interface cleanup:**
+- Removed `InTransaction` from `OrderRepo`/`DisputeRepo` interfaces
+- Collapsed `OrderRepo`+`TxOrderRepo` → single `OrderRepo` (same for dispute)
+- Removed repo-level `TestInTransaction` tests (were testing test wrappers, not production code)
+
+**Naming cleanup:**
+- `PaymentWebhook` → `OrderUpdate`, `ProcessPaymentWebhook` → `ProcessOrderUpdate`
+- `EventSink` → `OrderEvents` / `DisputeEvents`
+- `txRepoFactory` → `txOrderRepo` / `txDisputeRepo`
+- Ingest Processor: `ProcessOrderWebhook`/`ProcessDisputeWebhook` → `ProcessOrderUpdate`/`ProcessDisputeUpdate`
+
+**Current service structure (OrderService):**
+```go
+type OrderService struct {
+    transactor    postgres.Transactor
+    txOrderRepo   func(tx postgres.Executor) OrderRepo
+    orderRepo     OrderRepo
+    provider      gateway.Provider
+    orderEvents   OrderEvents
+}
+```
+
+### Subtask 2: Unified events table + atomic writes
+
+**Migration:**
+- New `events` table: `(id UUID PK, aggregate_type, aggregate_id, event_type, idempotency_key, payload JSONB, created_at)`
+- Unique index: `(aggregate_type, aggregate_id, idempotency_key)` for idempotent writes
+- Lookup indices: `(aggregate_type, aggregate_id, created_at)`, `(event_type, created_at)`
+- No partitioning yet (separate subtask), no foreign keys (generic aggregate_id)
+
+**Domain types:**
+- `internal/api/domain/events/` — `AggregateType`, `NewEvent`, `Event`, `Store` interface, `ErrEventAlreadyStored`
+
+**Event store:**
+- `internal/api/repo/events/PgEventStore` — INSERT with unique violation → `ErrEventAlreadyStored`
+- `TxStoreFactory(builder)` — partial application factory for tx-scoped stores
+
+**Atomic writes (outbox pattern):**
+- Services write to unified `events` table **inside** the same transaction as business data
+- `txEventStore := s.txEventStore(tx)` in every `InTransaction` callback
+- Duplicate events silently ignored (idempotent `writeEvent` helper)
+- Old `order_events`/`dispute_events` writes remain unchanged (Strangler Fig)
+
+**Updated service structure:**
+```go
+type OrderService struct {
+    transactor   postgres.Transactor
+    txOrderRepo  func(tx postgres.Executor) OrderRepo
+    txEventStore func(tx postgres.Executor) events.Store  // NEW
+    orderRepo    OrderRepo
+    provider     gateway.Provider
+    orderEvents  OrderEvents
+}
+```

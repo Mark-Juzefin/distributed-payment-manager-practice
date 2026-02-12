@@ -3,10 +3,12 @@ package order
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log/slog"
 	"time"
 
+	"TestTaskJustPay/internal/api/domain/events"
 	"TestTaskJustPay/internal/api/domain/gateway"
 	"TestTaskJustPay/pkg/postgres"
 
@@ -14,26 +16,29 @@ import (
 )
 
 type OrderService struct {
-	transactor  postgres.Transactor
-	txOrderRepo func(tx postgres.Executor) OrderRepo
-	orderRepo   OrderRepo // for reads (GetOrders, GetOrderByID)
-	provider    gateway.Provider
-	orderEvents OrderEvents
+	transactor   postgres.Transactor
+	txOrderRepo  func(tx postgres.Executor) OrderRepo
+	txEventStore func(tx postgres.Executor) events.Store
+	orderRepo    OrderRepo // for reads (GetOrders, GetOrderByID)
+	provider     gateway.Provider
+	orderEvents  OrderEvents
 }
 
 func NewOrderService(
 	transactor postgres.Transactor,
 	txOrderRepo func(tx postgres.Executor) OrderRepo,
+	txEventStore func(tx postgres.Executor) events.Store,
 	orderRepo OrderRepo,
 	provider gateway.Provider,
 	orderEvents OrderEvents,
 ) *OrderService {
 	return &OrderService{
-		transactor:  transactor,
-		txOrderRepo: txOrderRepo,
-		orderRepo:   orderRepo,
-		provider:    provider,
-		orderEvents: orderEvents,
+		transactor:   transactor,
+		txOrderRepo:  txOrderRepo,
+		txEventStore: txEventStore,
+		orderRepo:    orderRepo,
+		provider:     provider,
+		orderEvents:  orderEvents,
 	}
 }
 
@@ -67,6 +72,7 @@ func (s *OrderService) GetOrders(ctx context.Context, query OrdersQuery) ([]Orde
 func (s *OrderService) ProcessOrderUpdate(ctx context.Context, update OrderUpdate) error {
 	err := s.transactor.InTransaction(ctx, func(tx postgres.Executor) error {
 		txRepo := s.txOrderRepo(tx)
+		txEvents := s.txEventStore(tx)
 
 		if update.Status == StatusCreated {
 			if err := txRepo.CreateOrder(ctx, update); err != nil {
@@ -85,6 +91,13 @@ func (s *OrderService) ProcessOrderUpdate(ctx context.Context, update OrderUpdat
 			if err := txRepo.UpdateOrder(ctx, update); err != nil {
 				return fmt.Errorf("update order: %w", err)
 			}
+		}
+
+		// Write unified event (inside transaction)
+		payload, _ := json.Marshal(update)
+		if err := s.writeEvent(ctx, txEvents, events.AggregateOrder, update.OrderId,
+			string(OrderEventWebhookReceived), update.ProviderEventID, payload); err != nil {
+			return err
 		}
 
 		return nil
@@ -120,6 +133,7 @@ func (s *OrderService) UpdateOrderHold(ctx context.Context, orderID string, requ
 	var response *HoldResponse
 	err := s.transactor.InTransaction(ctx, func(tx postgres.Executor) error {
 		txRepo := s.txOrderRepo(tx)
+		txEvents := s.txEventStore(tx)
 
 		order, err := getOrderByID(ctx, txRepo, orderID)
 		if err != nil {
@@ -159,6 +173,18 @@ func (s *OrderService) UpdateOrderHold(ctx context.Context, orderID string, requ
 			Reason:    updatedOrder.HoldReason,
 			UpdatedAt: updatedOrder.UpdatedAt,
 		}
+
+		// Write unified event (inside transaction)
+		eventKind := OrderEventHoldSet
+		if request.Action == HoldActionClear {
+			eventKind = OrderEventHoldCleared
+		}
+		payload, _ := json.Marshal(request)
+		if err := s.writeEvent(ctx, txEvents, events.AggregateOrder, orderID,
+			string(eventKind), uuid.New().String(), payload); err != nil {
+			return err
+		}
+
 		return nil
 	})
 
@@ -182,6 +208,7 @@ func (s *OrderService) CapturePayment(ctx context.Context, orderID string, reque
 	var response *CaptureResponse
 	err := s.transactor.InTransaction(ctx, func(tx postgres.Executor) error {
 		txRepo := s.txOrderRepo(tx)
+		txEvents := s.txEventStore(tx)
 
 		order, err := getOrderByID(ctx, txRepo, orderID)
 		if err != nil {
@@ -219,6 +246,24 @@ func (s *OrderService) CapturePayment(ctx context.Context, orderID string, reque
 			ProviderTxID: result.ProviderTxID,
 			CapturedAt:   time.Now(),
 		}
+
+		// Write unified events (inside transaction)
+		reqPayload, _ := json.Marshal(request)
+		if err := s.writeEvent(ctx, txEvents, events.AggregateOrder, orderID,
+			string(OrderEventCaptureRequested), request.IdempotencyKey, reqPayload); err != nil {
+			return err
+		}
+
+		resultKind := OrderEventCaptureCompleted
+		if response.Status == "failed" {
+			resultKind = OrderEventCaptureFailed
+		}
+		resPayload, _ := json.Marshal(response)
+		if err := s.writeEvent(ctx, txEvents, events.AggregateOrder, orderID,
+			string(resultKind), response.ProviderTxID, resPayload); err != nil {
+			return err
+		}
+
 		return nil
 	})
 
@@ -301,4 +346,23 @@ func (s *OrderService) createCaptureResultEvent(ctx context.Context, orderID str
 
 	_, err := s.orderEvents.CreateOrderEvent(ctx, orderEvent)
 	return err
+}
+
+// writeEvent writes to the unified events table. Duplicate events are silently ignored (idempotent).
+func (s *OrderService) writeEvent(ctx context.Context, store events.Store, aggregateType events.AggregateType, aggregateID, eventType, idempotencyKey string, payload json.RawMessage) error {
+	_, err := store.CreateEvent(ctx, events.NewEvent{
+		AggregateType:  aggregateType,
+		AggregateID:    aggregateID,
+		EventType:      eventType,
+		IdempotencyKey: idempotencyKey,
+		Payload:        payload,
+		CreatedAt:      time.Now(),
+	})
+	if errors.Is(err, events.ErrEventAlreadyStored) {
+		return nil // idempotent — duplicate is a no-op
+	}
+	if err != nil {
+		return fmt.Errorf("write unified event: %w", err)
+	}
+	return nil
 }

@@ -3,10 +3,12 @@ package dispute
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log/slog"
 	"time"
 
+	"TestTaskJustPay/internal/api/domain/events"
 	"TestTaskJustPay/internal/api/domain/gateway"
 	"TestTaskJustPay/pkg/pointers"
 	"TestTaskJustPay/pkg/postgres"
@@ -17,6 +19,7 @@ import (
 type DisputeService struct {
 	transactor    postgres.Transactor
 	txDisputeRepo func(tx postgres.Executor) DisputeRepo
+	txEventStore  func(tx postgres.Executor) events.Store
 	disputeRepo   DisputeRepo // for reads
 	disputeEvents DisputeEvents
 	provider      gateway.Provider
@@ -25,6 +28,7 @@ type DisputeService struct {
 func NewDisputeService(
 	transactor postgres.Transactor,
 	txDisputeRepo func(tx postgres.Executor) DisputeRepo,
+	txEventStore func(tx postgres.Executor) events.Store,
 	disputeRepo DisputeRepo,
 	provider gateway.Provider,
 	disputeEvents DisputeEvents,
@@ -32,6 +36,7 @@ func NewDisputeService(
 	return &DisputeService{
 		transactor:    transactor,
 		txDisputeRepo: txDisputeRepo,
+		txEventStore:  txEventStore,
 		disputeRepo:   disputeRepo,
 		provider:      provider,
 		disputeEvents: disputeEvents,
@@ -78,6 +83,7 @@ func (s *DisputeService) ProcessChargeback(ctx context.Context, webhook Chargeba
 	var actualDisputeData Dispute
 	err := s.transactor.InTransaction(ctx, func(tx postgres.Executor) error {
 		txRepo := s.txDisputeRepo(tx)
+		txEvents := s.txEventStore(tx)
 
 		dispute, err := txRepo.GetDisputeByOrderID(ctx, webhook.OrderID)
 		if err != nil {
@@ -107,6 +113,13 @@ func (s *DisputeService) ProcessChargeback(ctx context.Context, webhook Chargeba
 			}
 			actualDisputeData = *created
 
+			// Write unified event (inside transaction)
+			payload, _ := json.Marshal(webhook)
+			if err := s.writeEvent(ctx, txEvents, events.AggregateDispute, actualDisputeData.ID,
+				string(deriveKindFromChargebackStatus(webhook.Status)), webhook.ProviderEventID, payload); err != nil {
+				return err
+			}
+
 			return nil
 		}
 
@@ -117,6 +130,13 @@ func (s *DisputeService) ProcessChargeback(ctx context.Context, webhook Chargeba
 
 		if err := txRepo.UpdateDispute(ctx, actualDisputeData); err != nil {
 			return fmt.Errorf("update dispute: %w", err)
+		}
+
+		// Write unified event (inside transaction)
+		payload, _ := json.Marshal(webhook)
+		if err := s.writeEvent(ctx, txEvents, events.AggregateDispute, actualDisputeData.ID,
+			string(deriveKindFromChargebackStatus(webhook.Status)), webhook.ProviderEventID, payload); err != nil {
+			return err
 		}
 
 		return nil
@@ -137,6 +157,7 @@ func (s *DisputeService) UpsertEvidence(ctx context.Context, disputeID string, u
 
 	err := s.transactor.InTransaction(ctx, func(tx postgres.Executor) error {
 		txRepo := s.txDisputeRepo(tx)
+		txEvents := s.txEventStore(tx)
 
 		// 1. Validate that dispute exists and is editable
 		dispute, err := txRepo.GetDisputeByID(ctx, disputeID)
@@ -171,6 +192,13 @@ func (s *DisputeService) UpsertEvidence(ctx context.Context, disputeID string, u
 			}
 		}
 
+		// Write unified event (inside transaction)
+		payload, _ := json.Marshal(evidence)
+		if err := s.writeEvent(ctx, txEvents, events.AggregateDispute, disputeID,
+			string(DisputeEventEvidenceAdded), uuid.New().String(), payload); err != nil {
+			return err
+		}
+
 		return nil
 	})
 	if err != nil {
@@ -189,6 +217,7 @@ func (s *DisputeService) Submit(ctx context.Context, disputeID string) error {
 	var result *gateway.RepresentmentResult
 	err := s.transactor.InTransaction(ctx, func(tx postgres.Executor) error {
 		txRepo := s.txDisputeRepo(tx)
+		txEvents := s.txEventStore(tx)
 
 		d, err := txRepo.GetDisputeByID(ctx, disputeID)
 		if err != nil {
@@ -235,6 +264,13 @@ func (s *DisputeService) Submit(ctx context.Context, disputeID string) error {
 		err = txRepo.UpdateDispute(ctx, *d)
 		if err != nil {
 			return fmt.Errorf("update dispute: %w", err)
+		}
+
+		// Write unified event (inside transaction)
+		payload, _ := json.Marshal(res)
+		if err := s.writeEvent(ctx, txEvents, events.AggregateDispute, disputeID,
+			string(DisputeEventEvidenceSubmitted), res.ProviderSubmissionID, payload); err != nil {
+			return err
 		}
 
 		return nil
@@ -299,6 +335,25 @@ func (s *DisputeService) saveWebhookEvent(ctx context.Context, dispute Dispute, 
 
 	if _, err := s.disputeEvents.CreateDisputeEvent(ctx, disputeEvent); err != nil {
 		return fmt.Errorf("create dispute event: %w", err)
+	}
+	return nil
+}
+
+// writeEvent writes to the unified events table. Duplicate events are silently ignored (idempotent).
+func (s *DisputeService) writeEvent(ctx context.Context, store events.Store, aggregateType events.AggregateType, aggregateID, eventType, idempotencyKey string, payload json.RawMessage) error {
+	_, err := store.CreateEvent(ctx, events.NewEvent{
+		AggregateType:  aggregateType,
+		AggregateID:    aggregateID,
+		EventType:      eventType,
+		IdempotencyKey: idempotencyKey,
+		Payload:        payload,
+		CreatedAt:      time.Now(),
+	})
+	if errors.Is(err, events.ErrEventAlreadyStored) {
+		return nil // idempotent — duplicate is a no-op
+	}
+	if err != nil {
+		return fmt.Errorf("write unified event: %w", err)
 	}
 	return nil
 }

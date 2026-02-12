@@ -92,6 +92,6 @@ func (c *PostgresContainer) Cleanup(ctx context.Context) {
 // Truncate clears all tables (for isolation between tests)
 func (c *PostgresContainer) Truncate(ctx context.Context) error {
 	_, err := c.Pool.Pool.Exec(ctx,
-		"TRUNCATE TABLE dispute_events, disputes, order_events, orders, evidence CASCADE")
+		"TRUNCATE TABLE events, dispute_events, disputes, order_events, orders, evidence CASCADE")
 	return err
 }

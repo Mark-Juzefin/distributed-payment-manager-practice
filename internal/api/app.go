@@ -19,6 +19,7 @@ import (
 	"TestTaskJustPay/internal/api/handlers/updates"
 	dispute_repo "TestTaskJustPay/internal/api/repo/dispute"
 	"TestTaskJustPay/internal/api/repo/dispute_eventsink"
+	events_repo "TestTaskJustPay/internal/api/repo/events"
 	order_repo "TestTaskJustPay/internal/api/repo/order"
 	"TestTaskJustPay/internal/api/repo/order_eventsink"
 	"TestTaskJustPay/pkg/health"
@@ -61,8 +62,9 @@ func Run(cfg config.Config) {
 	)
 
 	// Services
-	orderService := order.NewOrderService(pool, order_repo.TxRepoFactory(pool.Builder), orderRepo, silvergateClient, orderEvents)
-	disputeService := dispute.NewDisputeService(pool, dispute_repo.TxRepoFactory(pool.Builder), disputeRepo, silvergateClient, disputeEvents)
+	eventStoreFactory := events_repo.TxStoreFactory(pool.Builder)
+	orderService := order.NewOrderService(pool, order_repo.TxRepoFactory(pool.Builder), eventStoreFactory, orderRepo, silvergateClient, orderEvents)
+	disputeService := dispute.NewDisputeService(pool, dispute_repo.TxRepoFactory(pool.Builder), eventStoreFactory, disputeRepo, silvergateClient, disputeEvents)
 
 	// Handlers (clean - no processor dependency)
 	orderHandler := handlers.NewOrderHandler(orderService)

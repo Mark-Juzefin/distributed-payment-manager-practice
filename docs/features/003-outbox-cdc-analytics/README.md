@@ -78,14 +78,15 @@ Existing `order_events` / `dispute_events` tables remain untouched. A new unifie
 
 - [x] Subtask 1: Transactor refactoring — services own transactions — [plan](plan-subtask-1.md)
 - [x] Subtask 2: Unified events table + atomic writes — [plan](plan-subtask-2.md)
-- [ ] Subtask 3: Go CDC worker — WAL tailing via logical replication
+- [x] Subtask 3: Go CDC worker — WAL tailing via logical replication + Analytics consumer
   - PostgreSQL logical replication setup (publication, replication slot, `wal_level=logical`)
   - Replication connection via `pglogrepl` — start streaming, receive WAL messages
   - pgoutput protocol decoding — Relation messages, Insert/Update/Delete → domain events
   - Kafka publishing — serialize decoded events, produce to `domain.events` topic
   - LSN tracking + standby status heartbeats — acknowledge processed WAL position
   - Graceful shutdown — close replication slot cleanly, flush pending messages
-  - Integration test with real PG logical replication + Kafka
+  - Analytics consumer — Kafka `domain.events` → OpenSearch `domain-events` index
+  - Old OpenSearch stub removed, APIConfig cleaned up
 - [ ] Subtask 4: Partitioning for unified events table (pg_partman)
 - [ ] Subtask 5: TBD
 
@@ -161,3 +162,32 @@ type OrderService struct {
     orderEvents  OrderEvents
 }
 ```
+
+### Subtask 3: CDC worker + Analytics consumer
+
+**CDC worker (`cmd/cdc`, `internal/cdc/`):**
+- Connects to PG via logical replication (`pglogrepl`), tails WAL from `events` table
+- Decodes pgoutput INSERT messages → `walEvent` struct
+- Publishes JSON to Kafka `domain.events` topic (key = `aggregate_id`)
+- Retry loop with exponential backoff on replication failures
+- Standby heartbeats every 10s to keep replication slot alive
+
+**Analytics consumer (`cmd/analytics`, `internal/analytics/`):**
+- New standalone service — Kafka consumer group `analytics-projection`
+- Reads from `domain.events`, indexes into OpenSearch `domain-events` index
+- Idempotent: uses event `id` as OpenSearch `_id` (re-index = overwrite)
+- `ensureIndex()` creates index with mapping on startup if missing
+- PG timestamp normalization (`2026-02-14 11:51:37+00` → RFC 3339)
+- Manual commit: FetchMessage → unmarshal → indexEvent → CommitMessages
+
+**Cleanup:**
+- Deleted old unused `internal/api/external/opensearch/` stub
+- Removed `OpensearchUrls`, `OpensearchIndexDisputes`, `OpensearchIndexOrders` from `APIConfig`
+
+**New files:**
+- `cmd/analytics/main.go` — entry point
+- `internal/analytics/event.go` — event struct + `normalizeTimestamp()`
+- `internal/analytics/indexer.go` — OpenSearch client
+- `internal/analytics/app.go` — `Run()` with consumer loop
+- `config/config.go` — `AnalyticsConfig`
+- `env/analytics.env`, `Procfile` updated

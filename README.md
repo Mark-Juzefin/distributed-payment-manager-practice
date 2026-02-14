@@ -25,54 +25,46 @@ Go, PostgreSQL, pg_partman, Docker, MongoDB, OpenSearch, Kafka, testcontainers-g
 
 # Status
 
-Starting **Inter-Service Communication** benchmarks — comparing HTTP JSON vs Protobuf vs gRPC for sync mode between Ingest and API services. Observability (Prometheus + Grafana) is ready for measuring latency and throughput differences.
+Building **Outbox → CDC → Analytics** pipeline — reliable event publishing via outbox pattern, custom Go CDC worker (PostgreSQL logical replication), and OpenSearch projection consumer. Core pipeline is working end-to-end; next up is partitioning for the events table and exactly-once semantics exploration.
 
 # Roadmap
 
-Detailed plan: **[docs/roadmap.md](./docs/roadmap.md)**
-
-**Done:**
-- **Time-series Partitioning** — pg_partman for dispute_events, query I/O reduced from 200MB to 30MB
-- **Kafka Ingestion** — async webhook processing, DLQ, retry with backoff, topic partitioning
-- **Ingest Service** — extracted lightweight HTTP→Kafka gateway as separate microservice
-- **Observability** — Prometheus metrics, Grafana dashboards, correlation IDs, health checks
-
-**In Progress:**
-- **Inter-Service Communication** — HTTP vs Protobuf vs gRPC benchmarking
-
-**Planned:**
-- **Security Foundations** — TLS, secrets management, Postgres roles, AuthN/AuthZ
-- **VPS Deployment** — single-node prod profile, HTMX admin, nginx, systemd
-- **Outbox + CDC** — reliable event publishing, Debezium, exactly-once semantics
-- **PostgreSQL HA & DR** — streaming replication, failover, backup/restore
-- **Sharding** — horizontal partitioning by user_id
-- **K8s + Service Mesh** — HPA, ingress, circuit breakers, Temporal workflows
+Detailed plan with checkpoints: **[docs/roadmap.md](./docs/roadmap.md)**
 
 # Notes
 - [Postgres Time Series Partitioning Notes](./Postgres%20Time%20Series%20Partitioning%20Notes.md) - Query optimization with pg_partman
 - [Claude Code Workflow Notes](./Claude%20Code%20Workflow%20Notes.md) - How I use Claude Code to accelerate learning
 
-# Services Architecture
+# Architecture
 
-The system consists of two services:
+```mermaid
+flowchart LR
+  EXT["Payment Provider"]
+    -->|webhooks| ING["Ingest<br/>:3001"]
 
-## API Service (cmd/api)
-- **Purpose**: Core business logic, database owner, manual operations
-- **Responsibilities**:
-  - Manual operations: capture, hold
-  - Read endpoints: GET /orders, /disputes, /events
-  - Webhook processing (sync mode only)
-  - Kafka consumers (kafka mode)
-  - Database migrations
-- **Port**: 3000
+  ING -->|Kafka| API["API<br/>:3000"]
 
-## Ingest Service (cmd/ingest)
-- **Purpose**: Lightweight HTTP → Kafka gateway
-- **Responsibilities**:
-  - Accepts webhooks from payment providers
-  - Publishes to Kafka topics
-  - No database, no business logic
-- **Port**: 3001
+  subgraph TX["PostgreSQL (single TX)"]
+    direction TB
+    BIZ["orders / disputes"]
+    EVT["events (outbox)"]
+  end
+  API --> TX
+
+  EVT -->|WAL logical replication| CDC["CDC Worker"]
+  CDC -->|produce| TOPIC["Kafka<br/>domain.events"]
+  TOPIC -->|consume| AN["Analytics<br/>Consumer"]
+  AN -->|index| OS["OpenSearch"]
+
+  API -.->|capture, representment| SG["Silvergate<br/>(provider API)"]
+```
+
+| Service | Path | Description |
+|---------|------|-------------|
+| **API** :3000 | `cmd/api` | Core business logic, DB owner, Kafka consumers, manual ops |
+| **Ingest** :3001 | `cmd/ingest` | HTTP → Kafka gateway for webhooks, no DB |
+| **CDC Worker** | `cmd/cdc` | PG WAL → Kafka `domain.events` via logical replication |
+| **Analytics** | `cmd/analytics` | Kafka → OpenSearch `domain-events` projection |
 
 # Domain Entities
 

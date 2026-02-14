@@ -1,7 +1,7 @@
 package kafka
 
 import (
-	"TestTaskJustPay/internal/api/messaging"
+	"TestTaskJustPay/internal/shared/messaging"
 	"TestTaskJustPay/pkg/correlation"
 	"context"
 	"encoding/json"

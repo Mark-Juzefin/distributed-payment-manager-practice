@@ -1,9 +1,8 @@
 package webhook
 
 import (
-	"TestTaskJustPay/internal/api/domain/dispute"
-	"TestTaskJustPay/internal/api/domain/order"
-	"TestTaskJustPay/internal/api/messaging"
+	"TestTaskJustPay/internal/shared/dto"
+	"TestTaskJustPay/internal/shared/messaging"
 	"context"
 	"fmt"
 )
@@ -21,16 +20,16 @@ func NewAsyncProcessor(orderPublisher, disputePublisher messaging.Publisher) *As
 	}
 }
 
-func (p *AsyncProcessor) ProcessOrderUpdate(ctx context.Context, webhook order.OrderUpdate) error {
-	envelope, err := messaging.NewEnvelope(webhook.UserId, "order.webhook", webhook)
+func (p *AsyncProcessor) ProcessOrderUpdate(ctx context.Context, req dto.OrderUpdateRequest) error {
+	envelope, err := messaging.NewEnvelope(req.UserID, "order.webhook", req)
 	if err != nil {
 		return fmt.Errorf("create envelope: %w", err)
 	}
 	return p.orderPublisher.Publish(ctx, envelope)
 }
 
-func (p *AsyncProcessor) ProcessDisputeUpdate(ctx context.Context, webhook dispute.ChargebackWebhook) error {
-	envelope, err := messaging.NewEnvelope(webhook.UserID, "dispute.webhook", webhook)
+func (p *AsyncProcessor) ProcessDisputeUpdate(ctx context.Context, req dto.DisputeUpdateRequest) error {
+	envelope, err := messaging.NewEnvelope(req.UserID, "dispute.webhook", req)
 	if err != nil {
 		return fmt.Errorf("create envelope: %w", err)
 	}

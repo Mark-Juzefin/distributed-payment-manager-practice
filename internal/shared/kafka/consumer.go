@@ -6,7 +6,7 @@ import (
 	"log/slog"
 	"time"
 
-	"TestTaskJustPay/internal/api/messaging"
+	"TestTaskJustPay/internal/shared/messaging"
 	"TestTaskJustPay/pkg/correlation"
 
 	"github.com/segmentio/kafka-go"

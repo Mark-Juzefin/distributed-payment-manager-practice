@@ -1,9 +1,8 @@
 package webhook
 
 import (
-	"TestTaskJustPay/internal/api/domain/dispute"
-	"TestTaskJustPay/internal/api/domain/order"
-	"TestTaskJustPay/internal/api/messaging"
+	"TestTaskJustPay/internal/shared/dto"
+	"TestTaskJustPay/internal/shared/messaging"
 	"context"
 	"testing"
 	"time"
@@ -28,28 +27,28 @@ func (m *mockPublisher) Close() error {
 }
 
 func TestAsyncProcessor_PartitionKey(t *testing.T) {
-	t.Run("ProcessOrderUpdate uses UserId as partition key", func(t *testing.T) {
+	t.Run("ProcessOrderUpdate uses UserID as partition key", func(t *testing.T) {
 		// Arrange
 		mockPub := &mockPublisher{}
 		processor := NewAsyncProcessor(mockPub, nil)
 
-		webhook := order.OrderUpdate{
+		req := dto.OrderUpdateRequest{
 			ProviderEventID: "evt-123",
-			OrderId:         "order-AAA",
-			UserId:          "user-BBB", // Different from OrderId!
-			Status:          order.StatusCreated,
+			OrderID:         "order-AAA",
+			UserID:          "user-BBB", // Different from OrderID!
+			Status:          "created",
 			CreatedAt:       time.Now(),
 			UpdatedAt:       time.Now(),
 		}
 
 		// Act
-		err := processor.ProcessOrderUpdate(context.Background(), webhook)
+		err := processor.ProcessOrderUpdate(context.Background(), req)
 
 		// Assert
 		require.NoError(t, err)
-		// Key MUST be UserId for sharding-ready architecture
+		// Key MUST be UserID for sharding-ready architecture
 		assert.Equal(t, "user-BBB", mockPub.lastEnvelope.Key,
-			"Partition key should be UserId, not OrderId")
+			"Partition key should be UserID, not OrderID")
 	})
 
 	t.Run("ProcessDisputeUpdate uses UserID as partition key", func(t *testing.T) {
@@ -57,17 +56,17 @@ func TestAsyncProcessor_PartitionKey(t *testing.T) {
 		mockPub := &mockPublisher{}
 		processor := NewAsyncProcessor(nil, mockPub)
 
-		webhook := dispute.ChargebackWebhook{
+		req := dto.DisputeUpdateRequest{
 			ProviderEventID: "evt-456",
 			OrderID:         "order-XXX",
 			UserID:          "user-YYY", // Different from OrderID!
-			Status:          dispute.ChargebackOpened,
+			Status:          "opened",
 			Reason:          "fraud",
 			OccurredAt:      time.Now(),
 		}
 
 		// Act
-		err := processor.ProcessDisputeUpdate(context.Background(), webhook)
+		err := processor.ProcessDisputeUpdate(context.Background(), req)
 
 		// Assert
 		require.NoError(t, err)

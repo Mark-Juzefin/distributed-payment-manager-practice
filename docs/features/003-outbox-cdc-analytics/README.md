@@ -1,6 +1,6 @@
 # Step 3: Outbox Pattern → CDC → Analytics
 
-**Status:** In Progress
+**Status:** Paused
 
 ## Overview
 

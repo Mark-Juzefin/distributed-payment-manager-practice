@@ -19,6 +19,10 @@ type IngestConfig struct {
 	KafkaOrdersTopic   string   `env:"KAFKA_ORDERS_TOPIC" envDefault:"webhooks.orders"`
 	KafkaDisputesTopic string   `env:"KAFKA_DISPUTES_TOPIC" envDefault:"webhooks.disputes"`
 
+	// Inbox mode configuration (required for inbox mode)
+	PgURL     string `env:"INGEST_PG_URL"`
+	PgPoolMax int    `env:"INGEST_PG_POOL_MAX" envDefault:"5"`
+
 	// HTTP mode configuration (required for http mode)
 	APIBaseURL        string        `env:"API_BASE_URL" envDefault:"http://localhost:3000"`
 	APITimeout        time.Duration `env:"API_TIMEOUT" envDefault:"10s"`

@@ -15,11 +15,14 @@ import (
 	"TestTaskJustPay/config"
 	"TestTaskJustPay/internal/ingest/apiclient"
 	"TestTaskJustPay/internal/ingest/handlers"
+	inboxrepo "TestTaskJustPay/internal/ingest/repo/inbox"
 	"TestTaskJustPay/internal/ingest/webhook"
 	"TestTaskJustPay/internal/shared/kafka"
 	"TestTaskJustPay/pkg/health"
 	"TestTaskJustPay/pkg/logger"
 	"TestTaskJustPay/pkg/metrics"
+	"TestTaskJustPay/pkg/migrations"
+	"TestTaskJustPay/pkg/postgres"
 
 	"github.com/gin-gonic/gin"
 )
@@ -47,6 +50,7 @@ func Run(cfg config.IngestConfig) {
 	// Create processor based on webhook mode
 	var processor webhook.Processor
 	var closers []io.Closer
+	var healthCheckers []health.Checker
 
 	switch cfg.WebhookMode {
 	case "kafka":
@@ -61,6 +65,7 @@ func Run(cfg config.IngestConfig) {
 		closers = append(closers, orderPublisher, disputePublisher)
 
 		processor = webhook.NewAsyncProcessor(orderPublisher, disputePublisher)
+		healthCheckers = append(healthCheckers, health.NewKafkaChecker(cfg.KafkaBrokers))
 
 	case "http":
 		slog.Info("Webhook mode: http - initializing HTTP client")
@@ -80,10 +85,35 @@ func Run(cfg config.IngestConfig) {
 
 		processor = webhook.NewHTTPSyncProcessor(client)
 
+	case "inbox":
+		slog.Info("Webhook mode: inbox - initializing PostgreSQL inbox")
+
+		if cfg.PgURL == "" {
+			slog.Error("INGEST_PG_URL is required for inbox mode")
+			os.Exit(1)
+		}
+
+		pool, err := postgres.New(cfg.PgURL, postgres.MaxPoolSize(cfg.PgPoolMax))
+		if err != nil {
+			slog.Error("Failed to connect to postgres", slog.Any("error", err))
+			os.Exit(1)
+		}
+		closers = append(closers, closerFunc(func() error { pool.Close(); return nil }))
+
+		if err := migrations.ApplyMigrations(cfg.PgURL, MigrationFS); err != nil {
+			slog.Error("Failed to apply ingest migrations", slog.Any("error", err))
+			os.Exit(1)
+		}
+
+		repo := inboxrepo.NewPgInboxRepo(pool.Pool, pool.Builder)
+		processor = webhook.NewInboxProcessor(repo)
+
+		healthCheckers = append(healthCheckers, health.NewPostgresChecker(pool.Pool))
+
 	default:
 		slog.Error("Unsupported webhook mode",
 			"mode", cfg.WebhookMode,
-			"supported", []string{"kafka", "http"})
+			"supported", []string{"kafka", "http", "inbox"})
 		os.Exit(1)
 	}
 
@@ -98,11 +128,6 @@ func Run(cfg config.IngestConfig) {
 	chargebackHandler := handlers.NewChargebackHandler(processor)
 
 	// Health checks registry
-	var healthCheckers []health.Checker
-	if cfg.WebhookMode == "kafka" {
-		healthCheckers = append(healthCheckers, health.NewKafkaChecker(cfg.KafkaBrokers))
-	}
-	// HTTP mode: no external dependencies to check
 	healthRegistry := health.NewRegistry(healthCheckers...)
 
 	// Webhook-only routes
@@ -134,3 +159,8 @@ func Run(cfg config.IngestConfig) {
 
 	slog.Info("Ingest service stopped")
 }
+
+// closerFunc adapts a func() error to io.Closer.
+type closerFunc func() error
+
+func (f closerFunc) Close() error { return f() }

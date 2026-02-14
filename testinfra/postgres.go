@@ -5,8 +5,10 @@ package testinfra
 
 import (
 	"TestTaskJustPay/internal/api"
+	"TestTaskJustPay/pkg/migrations"
 	"TestTaskJustPay/pkg/postgres"
 	"context"
+	"embed"
 	"fmt"
 	"time"
 
@@ -21,18 +23,25 @@ type PostgresContainer struct {
 	DSN       string
 }
 
-func NewPostgres(ctx context.Context, netCfg ...*NetworkConfig) (*PostgresContainer, error) {
+// PostgresConfig allows customizing the test database name and migration FS.
+type PostgresConfig struct {
+	DBName      string
+	MigrationFS embed.FS
+}
+
+// NewPostgresWithConfig starts a PostgreSQL container with the given configuration.
+func NewPostgresWithConfig(ctx context.Context, cfg PostgresConfig, netCfg ...*NetworkConfig) (*PostgresContainer, error) {
 	req := testcontainers.ContainerRequest{
 		Image: "pg17-partman:local",
 		Env: map[string]string{
 			"POSTGRES_USER":     "postgres",
 			"POSTGRES_PASSWORD": "secret",
-			"POSTGRES_DB":       "payments_test",
+			"POSTGRES_DB":       cfg.DBName,
 		},
 		ExposedPorts: []string{"5432/tcp"},
 		WaitingFor: wait.ForSQL("5432/tcp", "postgres",
 			func(host string, port nat.Port) string {
-				return fmt.Sprintf("postgres://postgres:secret@%s:%s/payments_test?sslmode=disable", host, port.Port())
+				return fmt.Sprintf("postgres://postgres:secret@%s:%s/%s?sslmode=disable", host, port.Port(), cfg.DBName)
 			},
 		).WithStartupTimeout(60 * time.Second),
 	}
@@ -58,7 +67,7 @@ func NewPostgres(ctx context.Context, netCfg ...*NetworkConfig) (*PostgresContai
 
 	host, _ := container.Host(ctx)
 	port, _ := container.MappedPort(ctx, "5432/tcp")
-	dsn := fmt.Sprintf("postgres://postgres:secret@%s:%s/payments_test?sslmode=disable", host, port.Port())
+	dsn := fmt.Sprintf("postgres://postgres:secret@%s:%s/%s?sslmode=disable", host, port.Port(), cfg.DBName)
 
 	pool, err := postgres.New(dsn, postgres.MaxPoolSize(10))
 	if err != nil {
@@ -67,7 +76,7 @@ func NewPostgres(ctx context.Context, netCfg ...*NetworkConfig) (*PostgresContai
 	}
 
 	// Apply migrations
-	if err := api.ApplyMigrations(dsn, api.MIGRATION_FS); err != nil {
+	if err := migrations.ApplyMigrations(dsn, cfg.MigrationFS); err != nil {
 		pool.Close()
 		container.Terminate(ctx)
 		return nil, fmt.Errorf("failed to apply migrations: %w", err)
@@ -78,6 +87,14 @@ func NewPostgres(ctx context.Context, netCfg ...*NetworkConfig) (*PostgresContai
 		Pool:      pool,
 		DSN:       dsn,
 	}, nil
+}
+
+// NewPostgres starts a PostgreSQL container with the default API database and migrations.
+func NewPostgres(ctx context.Context, netCfg ...*NetworkConfig) (*PostgresContainer, error) {
+	return NewPostgresWithConfig(ctx, PostgresConfig{
+		DBName:      "payments_test",
+		MigrationFS: api.MIGRATION_FS,
+	}, netCfg...)
 }
 
 func (c *PostgresContainer) Cleanup(ctx context.Context) {

@@ -3,7 +3,7 @@ export
 
 MIGRATION_DIR=internal/api/migrations
 
-.PHONY: run run-dev run-kafka run-http run-api run-ingest start_containers start-monitoring stop_containers stop_containers_remove lint test integration-test e2e-test generate migrate seed-db print-db-size clean-db benchmark build-pg-image test-webhook loadtest loadtest-steady
+.PHONY: run run-dev run-kafka run-http run-inbox run-api run-ingest start_containers start-monitoring stop_containers stop_containers_remove lint test integration-test e2e-test generate migrate seed-db print-db-size clean-db benchmark build-pg-image test-webhook loadtest loadtest-steady
 
 run:
 	docker compose --profile prod up --build
@@ -20,6 +20,11 @@ run-dev: run-kafka
 run-http: start_containers
 	@echo "Running in HTTP mode (API + Ingest services)"
 	go run github.com/mattn/goreman@latest -f Procfile.http start
+
+# Inbox mode: Ingest writes to PostgreSQL inbox table
+run-inbox: start_containers
+	@echo "Running in INBOX mode (API + Ingest with PostgreSQL inbox)"
+	go run github.com/mattn/goreman@latest -f Procfile.inbox start
 
 # Standalone targets
 run-api: start_containers
@@ -58,7 +63,8 @@ test:
 INTEGRATION_DIRS = \
 	./internal/api/repo/dispute_eventsink \
 	./internal/api/repo/order_eventsink \
-	./internal/api/repo/events
+	./internal/api/repo/events \
+	./internal/ingest/repo/inbox
 
 integration-test:
 	go clean -testcache && go test -tags=integration -v  $(INTEGRATION_DIRS)

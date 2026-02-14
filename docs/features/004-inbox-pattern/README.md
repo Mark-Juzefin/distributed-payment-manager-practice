@@ -61,8 +61,9 @@ Load test both approaches, measure latency/throughput, document trade-offs.
 ## Tasks
 
 - [x] Subtask 1: Shared kernel refactoring — decouple Ingest from API domain types — [plan](plan-subtask-1.md)
-- [ ] Subtask 2: Inbox table + Ingest writes (separate Postgres for Ingest, raw JSONB payloads, return 200 OK)
-- [ ] Subtask 3: DB-queue worker (SKIP LOCKED) — API poll worker reads inbox, processes, updates status, retry logic
+- [x] Subtask 2: Inbox table + Ingest writes (separate Postgres for Ingest, raw JSONB payloads, return 200 OK) — [plan](plan-subtask-2.md)
+- [x] Subtask 3: DB-queue worker (SKIP LOCKED) — Ingest poll worker reads inbox, forwards to API via HTTP, retry logic — [plan](plan-subtask-3.md)
+- [ ] Subtask 3.1: Inbox e2e & integration tests — full flow webhook→inbox→worker→API→DB, worker with real DB, edge cases
 - [ ] Subtask 4: CDC + Kafka variant — inbox + outbox in one TX, CDC publishes to Kafka, API consumes
 - [ ] Subtask 5: Benchmarks & comparison — loadtest both approaches, latency/throughput metrics, trade-off analysis
 

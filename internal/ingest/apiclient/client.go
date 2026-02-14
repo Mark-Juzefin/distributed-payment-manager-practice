@@ -1,5 +1,7 @@
 package apiclient
 
+//go:generate mockgen -source client.go -destination mock_client.go -package apiclient
+
 import (
 	"bytes"
 	"context"

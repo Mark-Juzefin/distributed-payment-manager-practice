@@ -22,6 +22,18 @@ func (m *mockInboxRepo) Store(_ context.Context, msg inbox.NewInboxMessage) erro
 	return m.storeErr
 }
 
+func (m *mockInboxRepo) FetchPending(_ context.Context, _ int) ([]inbox.InboxMessage, error) {
+	return nil, nil
+}
+
+func (m *mockInboxRepo) MarkProcessed(_ context.Context, _ string) error {
+	return nil
+}
+
+func (m *mockInboxRepo) MarkFailed(_ context.Context, _ string, _ string, _ int) error {
+	return nil
+}
+
 func TestInboxProcessor_ProcessOrderUpdate(t *testing.T) {
 	t.Run("stores with correct idempotency key and webhook type", func(t *testing.T) {
 		mock := &mockInboxRepo{}

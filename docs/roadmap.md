@@ -32,16 +32,18 @@
   - [x] Unified `events` table (outbox) — atomic writes in same TX as business data
   - [x] Custom Go CDC worker — PG logical replication (WAL → Kafka `domain.events`)
   - [x] Analytics consumer — Kafka → OpenSearch projection (`domain-events` index)
+  - [ ] E2E & integration test revision for outbox/CDC/analytics pipeline
   - [ ] Partitioning for unified events table (pg_partman)
   - [ ] Exactly-once semantics: demonstrate the tradeoffs and limitations
   - [ ] Old event tables cleanup (Strangler Fig completion)
 
-- **Step 4: Inbox Pattern: Reliable Webhook Ingestion** ← *active* — [details](features/004-inbox-pattern/)
-  - [ ] Inbox table for durable webhook storage before processing
-  - [ ] Store-and-forward: save raw payload → return 200 OK → process async
-  - [ ] Backpressure and replay capabilities for incoming webhooks
-  - [ ] Shared Kernel refactoring: decouple Ingest from API domain types
-  - [ ] Reuse CDC infrastructure from Step 3 for inbox processing
+- **Step 4: Inbox Pattern: Reliable Webhook Ingestion** ← *paused* — [details](features/004-inbox-pattern/)
+  - [x] Shared Kernel refactoring: decouple Ingest from API domain types
+  - [x] Inbox table + Ingest writes: durable webhook storage, return 202 OK
+  - [x] DB-queue worker (SKIP LOCKED): poll inbox, forward to API via HTTP, retry logic
+  - [ ] Inbox e2e & integration tests: full flow webhook→inbox→worker→API→DB
+  - [ ] CDC + Kafka variant: inbox + outbox in one TX, CDC publishes to Kafka
+  - [ ] Benchmarks & comparison: loadtest both approaches, latency/throughput metrics
 
 - **Step 5: PostgreSQL HA & DR**
   - [ ] Streaming replication: primary-standby setup, synchronous vs asynchronous

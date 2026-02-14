@@ -3,23 +3,23 @@ export
 
 MIGRATION_DIR=internal/api/migrations
 
-.PHONY: run run-dev run-kafka run-http run-api run-ingest start_containers start-monitoring stop_containers stop_containers_remove lint test integration-test generate migrate seed-db print-db-size clean-db benchmark build-pg-image test-webhook
+.PHONY: run run-dev run-kafka run-http run-api run-ingest start_containers start-monitoring stop_containers stop_containers_remove lint test integration-test e2e-test generate migrate seed-db print-db-size clean-db benchmark build-pg-image test-webhook loadtest loadtest-steady
 
 run:
 	docker compose --profile prod up --build
 
-# HTTP mode: default dev mode (API + Ingest via HTTP)
-run-http: start_containers
-	@echo "Running in HTTP mode (API + Ingest services)"
-	go run github.com/mattn/goreman@latest -f Procfile.http start
-
-# Alias for intuitive naming
-run-dev: run-http
-
-# Kafka mode: both services via Kafka
+# Kafka mode: default dev mode (API + Ingest via Kafka)
 run-kafka: start_containers
 	@echo "Running in KAFKA mode (API + Ingest services)"
 	go run github.com/mattn/goreman@latest start
+
+# Alias for intuitive naming
+run-dev: run-kafka
+
+# HTTP mode: both services via HTTP sync
+run-http: start_containers
+	@echo "Running in HTTP mode (API + Ingest services)"
+	go run github.com/mattn/goreman@latest -f Procfile.http start
 
 # Standalone targets
 run-api: start_containers
@@ -39,6 +39,8 @@ stop_containers_remove:
 
 start-monitoring:
 	docker compose --profile monitoring up -d
+	@echo "\nPrometheus: http://localhost:9090"
+	@echo "Grafana:    http://localhost:3100 (admin/admin)"
 
 stop-monitoring:
 	docker compose --profile monitoring down -v
@@ -54,9 +56,9 @@ test:
 	go test -race ./...
 
 INTEGRATION_DIRS = \
-	./integration-test/... \
 	./internal/api/repo/dispute_eventsink \
-	./internal/api/repo/order_eventsink
+	./internal/api/repo/order_eventsink \
+	./internal/api/repo/events
 
 integration-test:
 	go clean -testcache && go test -tags=integration -v  $(INTEGRATION_DIRS)
@@ -67,6 +69,10 @@ ifndef name
 	$(error "Usage: make integration-test-name name=testname")
 endif
 	go clean -testcache && go test -run $(name)  -tags=integration -v  $(INTEGRATION_DIRS)
+
+# E2E tests: Docker-based, real service containers
+e2e-test:
+	go clean -testcache && go test -tags=integration -v -timeout 5m ./integration-test/...
 
 
 generate:
@@ -85,7 +91,15 @@ print-db-size:
 	psql -d "$(PG_URL)" -c 'SELECT pg_size_pretty(pg_database_size(current_database()));'
 
 clean-db:
-	psql -d "$(PG_URL)" -c  'TRUNCATE TABLE dispute_events, disputes, order_events, orders, evidence CASCADE'
+	psql -d "$(PG_URL)" -c  'TRUNCATE TABLE events, dispute_events, disputes, order_events, orders, evidence CASCADE'
+
+# Load test: generate realistic data via webhook flow
+loadtest:
+	go run ./loadtest -target http://localhost:3001 -vus 10 -duration 30s
+
+# Steady load: continuous traffic until Ctrl+C (for observing Grafana dashboards)
+loadtest-steady:
+	go run ./loadtest -target http://localhost:3001 -vus 5
 
 # Test webhook: sends via Ingest service (full flow)
 test-webhook:

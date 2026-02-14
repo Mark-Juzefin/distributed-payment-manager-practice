@@ -25,11 +25,11 @@ func NewPgOrderRepo(pg *postgres.Postgres) order.OrderRepo {
 	}
 }
 
-func (r *PgOrderRepo) InTransaction(ctx context.Context, fn func(repo order.TxOrderRepo) error) error {
-	return r.pg.InTransaction(ctx, func(tx postgres.Executor) error {
-		txRepo := &repo{db: tx, builder: r.pg.Builder}
-		return fn(txRepo)
-	})
+// TxRepoFactory returns a factory that creates transaction-scoped order repositories.
+func TxRepoFactory(builder squirrel.StatementBuilderType) func(postgres.Executor) order.OrderRepo {
+	return func(tx postgres.Executor) order.OrderRepo {
+		return &repo{db: tx, builder: builder}
+	}
 }
 
 type repo struct {
@@ -48,11 +48,11 @@ func (r *repo) GetOrders(ctx context.Context, query *order.OrdersQuery) ([]order
 	return parseOrderRows(rows)
 }
 
-func (r *repo) UpdateOrder(ctx context.Context, event order.PaymentWebhook) error {
+func (r *repo) UpdateOrder(ctx context.Context, update order.OrderUpdate) error {
 	query, args, err := r.builder.Update("orders").
-		Set("status", event.Status).
-		Set("updated_at", event.UpdatedAt).
-		Where(squirrel.Eq{"id": event.OrderId}).
+		Set("status", update.Status).
+		Set("updated_at", update.UpdatedAt).
+		Where(squirrel.Eq{"id": update.OrderId}).
 		ToSql()
 	if err != nil {
 		return fmt.Errorf("build update query: %w", err)
@@ -83,10 +83,10 @@ func (r *repo) UpdateOrderHold(ctx context.Context, request order.UpdateOrderHol
 	return nil
 }
 
-func (r *repo) CreateOrder(ctx context.Context, event order.PaymentWebhook) error {
+func (r *repo) CreateOrder(ctx context.Context, update order.OrderUpdate) error {
 	query, args, err := r.builder.Insert("orders").
 		Columns("id", "user_id", "status", "created_at", "updated_at").
-		Values(event.OrderId, event.UserId, event.Status, event.CreatedAt, event.UpdatedAt).
+		Values(update.OrderId, update.UserId, update.Status, update.CreatedAt, update.UpdatedAt).
 		ToSql()
 	if err != nil {
 		return fmt.Errorf("build insert query: %w", err)
@@ -183,10 +183,10 @@ func parseOrderRows(rows pgx.Rows) ([]order.Order, error) {
 	return orders, nil
 }
 
-func parseEventRows(rows pgx.Rows) ([]order.PaymentWebhook, error) {
-	var events []order.PaymentWebhook
+func parseEventRows(rows pgx.Rows) ([]order.OrderUpdate, error) {
+	var events []order.OrderUpdate
 	for rows.Next() {
-		var e order.PaymentWebhook
+		var e order.OrderUpdate
 		var rawStatus string
 		err := rows.Scan(&e.ProviderEventID, &e.OrderId, &e.UserId, &rawStatus, &e.CreatedAt, &e.UpdatedAt)
 		if err != nil {

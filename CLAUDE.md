@@ -18,7 +18,7 @@ This is a **learning sandbox** for practicing highload/distributed systems conce
 
 ## Current Focus
 
-**Active feature:** Outbox Pattern → CDC → Analytics (feature folder TBD)
+**Active feature:** [Outbox Pattern → CDC → Analytics](docs/features/003-outbox-cdc-analytics/)
 
 Full roadmap: [docs/roadmap.md](docs/roadmap.md)
 
@@ -63,15 +63,15 @@ This is a **Distributed Payment Manager** written in Go - a financial transactio
 - **Ingest Service** (`cmd/ingest`) - Lightweight HTTP → Kafka gateway for webhook ingestion
 
 **Deployment modes:**
-- **Sync mode** (dev): API service only, webhooks processed directly
-- **Kafka mode** (prod): Both services, webhooks routed through Kafka
+- **Kafka mode** (default): Both services, webhooks routed through Kafka
+- **HTTP mode**: Both services, webhooks forwarded via HTTP sync
 
 ## Commands
 
 ### Development
 ```bash
-make run-dev              # Sync mode: Start infrastructure + run API service locally (default)
-make run-kafka            # Kafka mode: Start infrastructure + run both API + Ingest services (requires goreman)
+make run-dev              # Kafka mode: Start infrastructure + run both API + Ingest services (default)
+make run-http             # HTTP mode: Start infrastructure + run both services via HTTP sync
 make run-api              # Run API service only (standalone)
 make run-ingest           # Run Ingest service only (standalone)
 make start_containers     # Start only PostgreSQL, OpenSearch, Kafka, and Wiremock

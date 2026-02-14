@@ -40,47 +40,18 @@ func (m *MockOrderRepo) EXPECT() *MockOrderRepoMockRecorder {
 	return m.recorder
 }
 
-// CreateEvent mocks base method.
-func (m *MockOrderRepo) CreateEvent(ctx context.Context, event PaymentWebhook) error {
+// CreateOrder mocks base method.
+func (m *MockOrderRepo) CreateOrder(ctx context.Context, update OrderUpdate) error {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "CreateEvent", ctx, event)
+	ret := m.ctrl.Call(m, "CreateOrder", ctx, update)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
-// CreateEvent indicates an expected call of CreateEvent.
-func (mr *MockOrderRepoMockRecorder) CreateEvent(ctx, event any) *gomock.Call {
+// CreateOrder indicates an expected call of CreateOrder.
+func (mr *MockOrderRepoMockRecorder) CreateOrder(ctx, update any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CreateEvent", reflect.TypeOf((*MockOrderRepo)(nil).CreateEvent), ctx, event)
-}
-
-// CreateOrderByEvent mocks base method.
-func (m *MockOrderRepo) CreateOrder(ctx context.Context, event PaymentWebhook) error {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "CreateOrder", ctx, event)
-	ret0, _ := ret[0].(error)
-	return ret0
-}
-
-// CreateOrderByEvent indicates an expected call of CreateOrderByEvent.
-func (mr *MockOrderRepoMockRecorder) CreateOrderByEvent(ctx, event any) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CreateOrder", reflect.TypeOf((*MockOrderRepo)(nil).CreateOrder), ctx, event)
-}
-
-// GetEvents mocks base method.
-func (m *MockOrderRepo) GetEvents(ctx context.Context, query *EventQuery) ([]PaymentWebhook, error) {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetEvents", ctx, query)
-	ret0, _ := ret[0].([]PaymentWebhook)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
-}
-
-// GetEvents indicates an expected call of GetEvents.
-func (mr *MockOrderRepoMockRecorder) GetEvents(ctx, query any) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetEvents", reflect.TypeOf((*MockOrderRepo)(nil).GetEvents), ctx, query)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CreateOrder", reflect.TypeOf((*MockOrderRepo)(nil).CreateOrder), ctx, update)
 }
 
 // GetOrders mocks base method.
@@ -98,32 +69,18 @@ func (mr *MockOrderRepoMockRecorder) GetOrders(ctx, filter any) *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetOrders", reflect.TypeOf((*MockOrderRepo)(nil).GetOrders), ctx, filter)
 }
 
-// InTransaction mocks base method.
-func (m *MockOrderRepo) InTransaction(ctx context.Context, fn func(TxOrderRepo) error) error {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "InTransaction", ctx, fn)
-	ret0, _ := ret[0].(error)
-	return ret0
-}
-
-// InTransaction indicates an expected call of InTransaction.
-func (mr *MockOrderRepoMockRecorder) InTransaction(ctx, fn any) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "InTransaction", reflect.TypeOf((*MockOrderRepo)(nil).InTransaction), ctx, fn)
-}
-
 // UpdateOrder mocks base method.
-func (m *MockOrderRepo) UpdateOrder(ctx context.Context, event PaymentWebhook) error {
+func (m *MockOrderRepo) UpdateOrder(ctx context.Context, update OrderUpdate) error {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "UpdateOrder", ctx, event)
+	ret := m.ctrl.Call(m, "UpdateOrder", ctx, update)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
 // UpdateOrder indicates an expected call of UpdateOrder.
-func (mr *MockOrderRepoMockRecorder) UpdateOrder(ctx, event any) *gomock.Call {
+func (mr *MockOrderRepoMockRecorder) UpdateOrder(ctx, update any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateOrder", reflect.TypeOf((*MockOrderRepo)(nil).UpdateOrder), ctx, event)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateOrder", reflect.TypeOf((*MockOrderRepo)(nil).UpdateOrder), ctx, update)
 }
 
 // UpdateOrderHold mocks base method.
@@ -138,114 +95,4 @@ func (m *MockOrderRepo) UpdateOrderHold(ctx context.Context, request UpdateOrder
 func (mr *MockOrderRepoMockRecorder) UpdateOrderHold(ctx, request any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateOrderHold", reflect.TypeOf((*MockOrderRepo)(nil).UpdateOrderHold), ctx, request)
-}
-
-// MockTxOrderRepo is a mock of TxOrderRepo interface.
-type MockTxOrderRepo struct {
-	ctrl     *gomock.Controller
-	recorder *MockTxOrderRepoMockRecorder
-	isgomock struct{}
-}
-
-// MockTxOrderRepoMockRecorder is the mock recorder for MockTxOrderRepo.
-type MockTxOrderRepoMockRecorder struct {
-	mock *MockTxOrderRepo
-}
-
-// NewMockTxOrderRepo creates a new mock instance.
-func NewMockTxOrderRepo(ctrl *gomock.Controller) *MockTxOrderRepo {
-	mock := &MockTxOrderRepo{ctrl: ctrl}
-	mock.recorder = &MockTxOrderRepoMockRecorder{mock}
-	return mock
-}
-
-// EXPECT returns an object that allows the caller to indicate expected use.
-func (m *MockTxOrderRepo) EXPECT() *MockTxOrderRepoMockRecorder {
-	return m.recorder
-}
-
-// CreateEvent mocks base method.
-func (m *MockTxOrderRepo) CreateEvent(ctx context.Context, event PaymentWebhook) error {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "CreateEvent", ctx, event)
-	ret0, _ := ret[0].(error)
-	return ret0
-}
-
-// CreateEvent indicates an expected call of CreateEvent.
-func (mr *MockTxOrderRepoMockRecorder) CreateEvent(ctx, event any) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CreateEvent", reflect.TypeOf((*MockTxOrderRepo)(nil).CreateEvent), ctx, event)
-}
-
-// CreateOrderByEvent mocks base method.
-func (m *MockTxOrderRepo) CreateOrder(ctx context.Context, event PaymentWebhook) error {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "CreateOrder", ctx, event)
-	ret0, _ := ret[0].(error)
-	return ret0
-}
-
-// CreateOrderByEvent indicates an expected call of CreateOrderByEvent.
-func (mr *MockTxOrderRepoMockRecorder) CreateOrderByEvent(ctx, event any) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CreateOrder", reflect.TypeOf((*MockTxOrderRepo)(nil).CreateOrder), ctx, event)
-}
-
-// GetEvents mocks base method.
-func (m *MockTxOrderRepo) GetEvents(ctx context.Context, query *EventQuery) ([]PaymentWebhook, error) {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetEvents", ctx, query)
-	ret0, _ := ret[0].([]PaymentWebhook)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
-}
-
-// GetEvents indicates an expected call of GetEvents.
-func (mr *MockTxOrderRepoMockRecorder) GetEvents(ctx, query any) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetEvents", reflect.TypeOf((*MockTxOrderRepo)(nil).GetEvents), ctx, query)
-}
-
-// GetOrders mocks base method.
-func (m *MockTxOrderRepo) GetOrders(ctx context.Context, filter *OrdersQuery) ([]Order, error) {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetOrders", ctx, filter)
-	ret0, _ := ret[0].([]Order)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
-}
-
-// GetOrders indicates an expected call of GetOrders.
-func (mr *MockTxOrderRepoMockRecorder) GetOrders(ctx, filter any) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetOrders", reflect.TypeOf((*MockTxOrderRepo)(nil).GetOrders), ctx, filter)
-}
-
-// UpdateOrder mocks base method.
-func (m *MockTxOrderRepo) UpdateOrder(ctx context.Context, event PaymentWebhook) error {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "UpdateOrder", ctx, event)
-	ret0, _ := ret[0].(error)
-	return ret0
-}
-
-// UpdateOrder indicates an expected call of UpdateOrder.
-func (mr *MockTxOrderRepoMockRecorder) UpdateOrder(ctx, event any) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateOrder", reflect.TypeOf((*MockTxOrderRepo)(nil).UpdateOrder), ctx, event)
-}
-
-// UpdateOrderHold mocks base method.
-func (m *MockTxOrderRepo) UpdateOrderHold(ctx context.Context, request UpdateOrderHoldRequest) error {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "UpdateOrderHold", ctx, request)
-	ret0, _ := ret[0].(error)
-	return ret0
-}
-
-// UpdateOrderHold indicates an expected call of UpdateOrderHold.
-func (mr *MockTxOrderRepoMockRecorder) UpdateOrderHold(ctx, request any) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateOrderHold", reflect.TypeOf((*MockTxOrderRepo)(nil).UpdateOrderHold), ctx, request)
 }

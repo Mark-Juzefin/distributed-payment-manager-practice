@@ -2,5 +2,6 @@
 .env
 .env.api
 .env.ingest
+bin/
 
 **/.DS_Store

@@ -18,13 +18,13 @@ func NewOrderHandler(p webhook.Processor) *OrderHandler {
 }
 
 func (h *OrderHandler) Webhook(c *gin.Context) {
-	var event order.PaymentWebhook
+	var event order.OrderUpdate
 	if err := c.ShouldBindJSON(&event); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"message": "Missing order_id"})
 		return
 	}
 
-	err := h.processor.ProcessOrderWebhook(c.Request.Context(), event)
+	err := h.processor.ProcessOrderUpdate(c.Request.Context(), event)
 	if err != nil {
 		if errors.Is(err, order.ErrInvalidStatus) {
 			c.JSON(http.StatusUnprocessableEntity, gin.H{"message": err.Error()})

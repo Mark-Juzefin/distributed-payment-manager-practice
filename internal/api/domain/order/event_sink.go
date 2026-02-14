@@ -6,7 +6,7 @@ import (
 	"time"
 )
 
-type EventSink interface {
+type OrderEvents interface {
 	// CreateOrderEvent creates a new order event.
 	// Returns ErrEventAlreadyStored if event with same (order_id, provider_event_id) already exists.
 	CreateOrderEvent(ctx context.Context, event NewOrderEvent) (*OrderEvent, error)

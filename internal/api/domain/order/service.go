@@ -3,26 +3,42 @@ package order
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log/slog"
 	"time"
 
+	"TestTaskJustPay/internal/api/domain/events"
 	"TestTaskJustPay/internal/api/domain/gateway"
+	"TestTaskJustPay/pkg/postgres"
 
 	"github.com/google/uuid"
 )
 
 type OrderService struct {
-	orderRepo OrderRepo
-	provider  gateway.Provider
-	eventSink EventSink
+	transactor   postgres.Transactor
+	txOrderRepo  func(tx postgres.Executor) OrderRepo
+	txEventStore func(tx postgres.Executor) events.Store
+	orderRepo    OrderRepo // for reads (GetOrders, GetOrderByID)
+	provider     gateway.Provider
+	orderEvents  OrderEvents
 }
 
-func NewOrderService(orderRepo OrderRepo, provider gateway.Provider, eventSink EventSink) *OrderService {
+func NewOrderService(
+	transactor postgres.Transactor,
+	txOrderRepo func(tx postgres.Executor) OrderRepo,
+	txEventStore func(tx postgres.Executor) events.Store,
+	orderRepo OrderRepo,
+	provider gateway.Provider,
+	orderEvents OrderEvents,
+) *OrderService {
 	return &OrderService{
-		orderRepo: orderRepo,
-		provider:  provider,
-		eventSink: eventSink,
+		transactor:   transactor,
+		txOrderRepo:  txOrderRepo,
+		txEventStore: txEventStore,
+		orderRepo:    orderRepo,
+		provider:     provider,
+		orderEvents:  orderEvents,
 	}
 }
 
@@ -30,7 +46,7 @@ func (s *OrderService) GetOrderByID(ctx context.Context, id string) (Order, erro
 	return getOrderByID(ctx, s.orderRepo, id)
 }
 
-func getOrderByID(ctx context.Context, repo TxOrderRepo, id string) (Order, error) {
+func getOrderByID(ctx context.Context, repo OrderRepo, id string) (Order, error) {
 	query, _ := NewOrdersQueryBuilder().
 		WithIDs(id).
 		Build()
@@ -53,35 +69,44 @@ func (s *OrderService) GetOrders(ctx context.Context, query OrdersQuery) ([]Orde
 	return orders, nil
 }
 
-func (s *OrderService) ProcessPaymentWebhook(ctx context.Context, event PaymentWebhook) error {
-	err := s.orderRepo.InTransaction(ctx, func(tx TxOrderRepo) error {
-		if event.Status == StatusCreated {
-			if err := tx.CreateOrder(ctx, event); err != nil {
+func (s *OrderService) ProcessOrderUpdate(ctx context.Context, update OrderUpdate) error {
+	err := s.transactor.InTransaction(ctx, func(tx postgres.Executor) error {
+		txRepo := s.txOrderRepo(tx)
+		txEvents := s.txEventStore(tx)
+
+		if update.Status == StatusCreated {
+			if err := txRepo.CreateOrder(ctx, update); err != nil {
 				return fmt.Errorf("create order from event: %w", err)
 			}
 		} else {
-			order, err := getOrderByID(ctx, tx, event.OrderId)
+			order, err := getOrderByID(ctx, txRepo, update.OrderId)
 			if err != nil {
 				return fmt.Errorf("load order: %w", err)
 			}
 
-			if !order.Status.CanBeUpdatedTo(event.Status) {
+			if !order.Status.CanBeUpdatedTo(update.Status) {
 				return ErrInvalidStatus
 			}
 
-			if err := tx.UpdateOrder(ctx, event); err != nil {
+			if err := txRepo.UpdateOrder(ctx, update); err != nil {
 				return fmt.Errorf("update order: %w", err)
 			}
 		}
 
-		return nil
+		// Write unified event (inside transaction)
+		payload, _ := json.Marshal(update)
+		if err := s.writeEvent(ctx, txEvents, events.AggregateOrder, update.OrderId,
+			string(OrderEventWebhookReceived), update.ProviderEventID, payload); err != nil {
+			return err
+		}
 
+		return nil
 	})
 	if err != nil {
 		return err
 	}
 
-	if err := s.createWebhookReceivedEvent(ctx, event); err != nil {
+	if err := s.createWebhookReceivedEvent(ctx, update); err != nil {
 		return fmt.Errorf("failed to create webhook event: %w", err)
 	}
 
@@ -93,7 +118,7 @@ func (s *OrderService) GetEvents(ctx context.Context, query OrderEventQuery) (Or
 		query.Limit = 10
 	}
 
-	eventPage, err := s.eventSink.GetOrderEvents(ctx, query)
+	eventPage, err := s.orderEvents.GetOrderEvents(ctx, query)
 	if err != nil {
 		return OrderEventPage{}, fmt.Errorf("get order events: %w", err)
 	}
@@ -106,8 +131,11 @@ func (s *OrderService) UpdateOrderHold(ctx context.Context, orderID string, requ
 	}
 
 	var response *HoldResponse
-	err := s.orderRepo.InTransaction(ctx, func(tx TxOrderRepo) error {
-		order, err := getOrderByID(ctx, tx, orderID)
+	err := s.transactor.InTransaction(ctx, func(tx postgres.Executor) error {
+		txRepo := s.txOrderRepo(tx)
+		txEvents := s.txEventStore(tx)
+
+		order, err := getOrderByID(ctx, txRepo, orderID)
 		if err != nil {
 			return fmt.Errorf("load order: %w", err)
 		}
@@ -125,7 +153,7 @@ func (s *OrderService) UpdateOrderHold(ctx context.Context, orderID string, requ
 			reason = nil
 		}
 
-		err = tx.UpdateOrderHold(ctx, UpdateOrderHoldRequest{
+		err = txRepo.UpdateOrderHold(ctx, UpdateOrderHoldRequest{
 			OrderID: order.OrderId,
 			OnHold:  onHold,
 			Reason:  reason,
@@ -134,7 +162,7 @@ func (s *OrderService) UpdateOrderHold(ctx context.Context, orderID string, requ
 			return fmt.Errorf("update order hold status: %w", err)
 		}
 
-		updatedOrder, err := getOrderByID(ctx, tx, order.OrderId)
+		updatedOrder, err := getOrderByID(ctx, txRepo, order.OrderId)
 		if err != nil {
 			return fmt.Errorf("get updated order: %w", err)
 		}
@@ -145,6 +173,18 @@ func (s *OrderService) UpdateOrderHold(ctx context.Context, orderID string, requ
 			Reason:    updatedOrder.HoldReason,
 			UpdatedAt: updatedOrder.UpdatedAt,
 		}
+
+		// Write unified event (inside transaction)
+		eventKind := OrderEventHoldSet
+		if request.Action == HoldActionClear {
+			eventKind = OrderEventHoldCleared
+		}
+		payload, _ := json.Marshal(request)
+		if err := s.writeEvent(ctx, txEvents, events.AggregateOrder, orderID,
+			string(eventKind), uuid.New().String(), payload); err != nil {
+			return err
+		}
+
 		return nil
 	})
 
@@ -166,8 +206,11 @@ func (s *OrderService) UpdateOrderHold(ctx context.Context, orderID string, requ
 
 func (s *OrderService) CapturePayment(ctx context.Context, orderID string, request CaptureRequest) (*CaptureResponse, error) {
 	var response *CaptureResponse
-	err := s.orderRepo.InTransaction(ctx, func(tx TxOrderRepo) error {
-		order, err := getOrderByID(ctx, tx, orderID)
+	err := s.transactor.InTransaction(ctx, func(tx postgres.Executor) error {
+		txRepo := s.txOrderRepo(tx)
+		txEvents := s.txEventStore(tx)
+
+		order, err := getOrderByID(ctx, txRepo, orderID)
 		if err != nil {
 			return fmt.Errorf("load order: %w", err)
 		}
@@ -203,6 +246,24 @@ func (s *OrderService) CapturePayment(ctx context.Context, orderID string, reque
 			ProviderTxID: result.ProviderTxID,
 			CapturedAt:   time.Now(),
 		}
+
+		// Write unified events (inside transaction)
+		reqPayload, _ := json.Marshal(request)
+		if err := s.writeEvent(ctx, txEvents, events.AggregateOrder, orderID,
+			string(OrderEventCaptureRequested), request.IdempotencyKey, reqPayload); err != nil {
+			return err
+		}
+
+		resultKind := OrderEventCaptureCompleted
+		if response.Status == "failed" {
+			resultKind = OrderEventCaptureFailed
+		}
+		resPayload, _ := json.Marshal(response)
+		if err := s.writeEvent(ctx, txEvents, events.AggregateOrder, orderID,
+			string(resultKind), response.ProviderTxID, resPayload); err != nil {
+			return err
+		}
+
 		return nil
 	})
 
@@ -227,7 +288,7 @@ func (s *OrderService) CapturePayment(ctx context.Context, orderID string, reque
 }
 
 // Event creation helper methods
-func (s *OrderService) createWebhookReceivedEvent(ctx context.Context, webhook PaymentWebhook) error {
+func (s *OrderService) createWebhookReceivedEvent(ctx context.Context, webhook OrderUpdate) error {
 	payload, _ := json.Marshal(webhook)
 
 	orderEvent := NewOrderEvent{
@@ -238,7 +299,7 @@ func (s *OrderService) createWebhookReceivedEvent(ctx context.Context, webhook P
 		CreatedAt:       time.Now(),
 	}
 
-	_, err := s.eventSink.CreateOrderEvent(ctx, orderEvent)
+	_, err := s.orderEvents.CreateOrderEvent(ctx, orderEvent)
 	return err
 }
 
@@ -253,7 +314,7 @@ func (s *OrderService) createHoldEvent(ctx context.Context, orderID string, kind
 		CreatedAt:       time.Now(),
 	}
 
-	_, err := s.eventSink.CreateOrderEvent(ctx, orderEvent)
+	_, err := s.orderEvents.CreateOrderEvent(ctx, orderEvent)
 	return err
 }
 
@@ -268,7 +329,7 @@ func (s *OrderService) createCaptureRequestedEvent(ctx context.Context, orderID 
 		CreatedAt:       time.Now(),
 	}
 
-	_, err := s.eventSink.CreateOrderEvent(ctx, orderEvent)
+	_, err := s.orderEvents.CreateOrderEvent(ctx, orderEvent)
 	return err
 }
 
@@ -283,6 +344,25 @@ func (s *OrderService) createCaptureResultEvent(ctx context.Context, orderID str
 		CreatedAt:       time.Now(),
 	}
 
-	_, err := s.eventSink.CreateOrderEvent(ctx, orderEvent)
+	_, err := s.orderEvents.CreateOrderEvent(ctx, orderEvent)
 	return err
+}
+
+// writeEvent writes to the unified events table. Duplicate events are silently ignored (idempotent).
+func (s *OrderService) writeEvent(ctx context.Context, store events.Store, aggregateType events.AggregateType, aggregateID, eventType, idempotencyKey string, payload json.RawMessage) error {
+	_, err := store.CreateEvent(ctx, events.NewEvent{
+		AggregateType:  aggregateType,
+		AggregateID:    aggregateID,
+		EventType:      eventType,
+		IdempotencyKey: idempotencyKey,
+		Payload:        payload,
+		CreatedAt:      time.Now(),
+	})
+	if errors.Is(err, events.ErrEventAlreadyStored) {
+		return nil // idempotent — duplicate is a no-op
+	}
+	if err != nil {
+		return fmt.Errorf("write unified event: %w", err)
+	}
+	return nil
 }

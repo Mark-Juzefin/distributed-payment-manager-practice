@@ -2,106 +2,78 @@
 
 Детальний план фіч для практики highload/distributed systems.
 
-## Completed
+## Steps
 
-- [x] **Time-series Partitioning** - PostgreSQL pg_partman для dispute_events
+- [x] **Time-series Partitioning** — PostgreSQL pg_partman для dispute_events
   - Див: [Postgres Time Series Partitioning Notes](../Postgres%20Time%20Series%20Partitioning%20Notes.md)
 
-- [x] **Step 1: Kafka Ingestion Pipeline**
-  - Async webhook processing via Kafka topics
-  - Sync/Kafka mode switch via WEBHOOK_MODE env variable
-  - Consumer resilience: retry with exponential backoff, panic recovery, DLQ
-  - Topic partitioning
-  - Ingest Service extraction: separate microservice (`cmd/ingest/`), service-based monorepo
-  - HTTP sync mode: internal endpoints for service-to-service calls
-  - Details: [001-kafka-ingestion/](features/001-kafka-ingestion/) | [002-ingest-service-extraction/](features/002-ingest-service-extraction/) | [003-inter-service-communication/](features/003-inter-service-communication/)
+- **Step 1: Kafka Ingestion Pipeline** — [details](features/001-kafka-ingestion-pipeline/)
+  - [x] Async webhook processing via Kafka topics
+  - [x] Sync/Kafka mode switch via WEBHOOK_MODE env variable
+  - [x] Consumer resilience: retry with exponential backoff, panic recovery, DLQ
+  - [x] Topic partitioning
+  - [x] Ingest Service extraction: separate microservice (`cmd/ingest/`), service-based monorepo
+  - [x] HTTP sync mode: internal endpoints for service-to-service calls
+  - [ ] Graceful shutdown for Kafka components (DLQ flush ordering)
+  - [ ] Realistic user_id lookup (cache layer, lookup service)
 
-- [x] **Step 2: Observability**
-  - Prometheus metrics: HTTP latency histograms, request counters, Kafka processing
-  - Grafana dashboards: service health, Kafka throughput
-  - Correlation IDs across services
-  - Health checks (/health/live, /health/ready)
-  - Details: [004-observability/](features/004-observability/)
+- **Step 2: Observability** — [details](features/002-observability/)
+  - [x] Prometheus metrics: HTTP latency histograms, request counters, Kafka processing
+  - [x] Grafana dashboards: service health, Kafka throughput
+  - [x] Correlation IDs across services
+  - [x] Health checks (/health/live, /health/ready)
+  - [ ] Kafka consumer lag metric
+  - [ ] Distributed tracing: Jaeger/OTLP integration
+  - [ ] Profiling: pprof endpoints for CPU/memory profiling
+  - [ ] Audit logging: structured audit trail for compliance
+  - [ ] Log sampling for high-frequency events
 
----
+- **Step 3: Outbox Pattern → CDC → Analytics** ← *active* — [details](features/003-outbox-cdc-analytics/)
+  - [x] Unified `events` table (outbox) — atomic writes in same TX as business data
+  - [x] Custom Go CDC worker — PG logical replication (WAL → Kafka `domain.events`)
+  - [x] Analytics consumer — Kafka → OpenSearch projection (`domain-events` index)
+  - [ ] Partitioning for unified events table (pg_partman)
+  - [ ] Exactly-once semantics: demonstrate the tradeoffs and limitations
+  - [ ] Old event tables cleanup (Strangler Fig completion)
 
-## In Progress
+- **Step 4: Inbox Pattern: Reliable Webhook Ingestion** — [details](features/004-inbox-pattern/)
+  - [ ] Inbox table for durable webhook storage before processing
+  - [ ] Store-and-forward: save raw payload → return 200 OK → process async
+  - [ ] Backpressure and replay capabilities for incoming webhooks
+  - [ ] Shared Kernel refactoring: decouple Ingest from API domain types
+  - [ ] Reuse CDC infrastructure from Step 3 for inbox processing
 
-### Step 3: Outbox Pattern → CDC → Analytics
-- Implement outbox tables for reliable event publishing
-- Use Debezium/CDC to stream events into OpenSearch or ClickHouse
-- Exactly-once semantics: demonstrate the tradeoffs and limitations
-- Practice: event-driven consistency, CDC pipelines, projections, analytical indexing
+- **Step 5: PostgreSQL HA & DR**
+  - [ ] Streaming replication: primary-standby setup, synchronous vs asynchronous
+  - [ ] Read replica routing: write → primary, read → replica (pgpool or application-level)
+  - [ ] Failover/switchover: manual and automated (Patroni basics)
+  - [ ] Backup/restore: pg_dump logical backups, pg_basebackup for PITR, restore verification
+  - [ ] Monitoring: replication lag metrics, backup success/failure alerts, RTO/RPO tracking
 
----
+- **Step 6: Simple Deployment Profile + VPS Hosting**
+  - [ ] Single-node deployment without Kafka dependency (sync mode as default)
+  - [ ] HTMX admin dashboard for viewing orders, disputes, events
+  - [ ] VPS deployment: systemd services, nginx reverse proxy, basic security hardening
+  - [ ] Local dev tooling: research alternatives to goreman (Overmind, process-compose, etc.)
 
-## Tech Debt
+- **Step 7: Sharding Experiments**
+  - [ ] Split orders/disputes across multiple Postgres shards by hash(user_id)
+  - [ ] Routing strategies, rebalancing, cross-shard queries, failure modes
 
-- [ ] **Graceful Shutdown for Kafka Components** - DLQ publisher closes before pending messages are sent, causing "io: read/write on closed pipe" errors. Need proper shutdown ordering: stop consumers → flush DLQ → close publishers.
+- **Step 8: Infrastructure (Kubernetes, API Gateway, Service Mesh)**
+  - [ ] Kubernetes: deploy services, HPA, liveness/readiness, ConfigMaps/Secrets
+  - [ ] API Gateway: ingress (NGINX/Traefik/Kong), routing, rate limiting, authn/z
+  - [ ] Service mesh: circuit breakers, retries/timeouts (Envoy/Istio-lite)
+  - [ ] Workflow orchestration: Temporal for long-running transactions (saga pattern)
+  - [ ] Postgres access: PgBouncer per service, connection limits
+  - [ ] CI/CD: build pipelines, image tagging, per-env configs
 
-- [ ] **Testing Infrastructure** (from Feature 003)
-  - E2E Test Refactoring: process-based test infrastructure, tests for Kafka/HTTP modes
-  - Go-based Load Testing: `loadtest/main.go`, order lifecycle, dispute scenarios
-  - Plans: [plan-subtask-5.md](features/003-inter-service-communication/plan-subtask-5.md), [plan-subtask-6.md](features/003-inter-service-communication/plan-subtask-6.md)
-
-- [ ] **Advanced Observability** (from Step 2)
-  - Distributed tracing: Jaeger/OTLP integration
-  - Profiling: pprof endpoints for CPU/memory profiling
-  - Audit logging: structured audit trail for compliance
-
----
-
-## Planned
-
-### Step 4: PostgreSQL HA & DR
-- **Streaming replication**: primary-standby setup, synchronous vs asynchronous
-- **Read replica routing**: write → primary, read → replica (pgpool or application-level)
-- **Failover/switchover**: manual and automated (Patroni basics)
-- **Backup/restore**: pg_dump logical backups, pg_basebackup for PITR, restore verification
-- **Monitoring**: replication lag metrics, backup success/failure alerts, RTO/RPO tracking
-- Practice: HA patterns, read scaling, failover procedures, disaster recovery
-
-### Step 5: Simple Deployment Profile + VPS Hosting
-- Single-node deployment without Kafka dependency (sync mode as default)
-- HTMX admin dashboard for viewing orders, disputes, events
-- Minimal infrastructure: single PostgreSQL instance
-- **VPS deployment**: deploy to a cheap VPS, systemd services, nginx reverse proxy, basic security hardening
-- **TODO: Local dev tooling** — research alternatives to goreman for better Procfile experience:
-  - [Overmind](https://github.com/DarthSim/overmind) — tmux-based, allows attaching to individual processes
-  - [Forego](https://github.com/ddollar/forego) — foreman port in Go
-  - [process-compose](https://github.com/F1bonacc1/process-compose) — TUI process manager
-  - [Devbox](https://www.jetify.com/devbox) — Nix-based dev environments
-  - Reference: [Orchestrate your dev environment using Devbox](https://meijer.works/articles/orchestrate-your-dev-environment-using-devbox/)
-- Practice: feature flags, multi-profile configuration, HTMX/SSR, Linux server administration
-
-### Step 6: Sharding Experiments
-- Split orders/disputes across multiple Postgres shards by hash(user_id)
-- **Prerequisites**: observability + replication knowledge
-- Practice: routing strategies, rebalancing, cross-shard queries, failure modes
-
-### Step 7: Infrastructure (Kubernetes, API Gateway, Service Mesh)
-- **Kubernetes**: deploy services, HPA, liveness/readiness, ConfigMaps/Secrets
-- **API Gateway**: ingress (NGINX/Traefik/Kong), routing, rate limiting, authn/z
-- **Service mesh**: circuit breakers, retries/timeouts (Envoy/Istio-lite)
-- **Workflow orchestration**: Temporal for long-running transactions (saga pattern)
-- **Postgres access**: PgBouncer per service, connection limits
-- **CI/CD**: build pipelines, image tagging, per-env configs
-- Practice: service boundaries, platform primitives, reliability patterns
-
-### Step 8: Security Foundations
-- **TLS**: TLS termination on reverse proxy (nginx/traefik), HTTPS for external endpoints
-- **Secrets management**: separate config vs secrets, sops/age or docker secrets (not .env in git)
-- **Least privilege**: separate Postgres roles (migrations user, app RW, readonly for reports)
-- **AuthN/AuthZ basics**: API key or JWT for admin endpoints, HMAC signature for webhooks
-- **mTLS** (optional): internal service-to-service TLS for gRPC
-- Practice: certificate management, secrets lifecycle, role-based access, webhook security
-- Relevance: miltech/security-focused roles require these fundamentals
-
-### Experiment: Second Language Module (Rust/C++)
-- Separate microservice: Go calls Rust/C++ over gRPC
-- Library: Rust crate → shared library + FFI into Go (cgo)
-- WASM plugin: rules/logic compiled to wasm, executed by Go
-- Implementation idea: Fee & Pricing Engine
+- **Step 9: Security Foundations**
+  - [ ] TLS: TLS termination on reverse proxy (nginx/traefik), HTTPS for external endpoints
+  - [ ] Secrets management: separate config vs secrets, sops/age or docker secrets
+  - [ ] Least privilege: separate Postgres roles (migrations user, app RW, readonly)
+  - [ ] AuthN/AuthZ basics: API key or JWT for admin endpoints, HMAC for webhooks
+  - [ ] mTLS (optional): internal service-to-service TLS for gRPC
 
 ---
 

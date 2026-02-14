@@ -3,9 +3,7 @@ package dispute_repo
 import (
 	"TestTaskJustPay/internal/api/domain/dispute"
 	"TestTaskJustPay/internal/api/domain/gateway"
-	"TestTaskJustPay/pkg/postgres"
 	"context"
-	"fmt"
 	"testing"
 	"time"
 
@@ -14,33 +12,6 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
-
-// testPgDisputeRepo wraps the mock pool to implement the transaction testing
-type testPgDisputeRepo struct {
-	repo
-	pool pgxmock.PgxPoolIface
-	pg   *postgres.Postgres
-}
-
-func (r *testPgDisputeRepo) InTransaction(ctx context.Context, fn func(repo dispute.TxDisputeRepo) error) error {
-	tx, err := r.pool.Begin(ctx)
-	if err != nil {
-		return fmt.Errorf("begin transaction: %w", err)
-	}
-
-	txRepo := &repo{db: tx, builder: r.pg.Builder}
-
-	if err := fn(txRepo); err != nil {
-		tx.Rollback(ctx)
-		return err
-	}
-
-	if err := tx.Commit(ctx); err != nil {
-		return fmt.Errorf("commit transaction: %w", err)
-	}
-
-	return nil
-}
 
 func TestGetDisputeByID(t *testing.T) {
 	mock, err := pgxmock.NewPool()
@@ -259,87 +230,6 @@ func TestUpdateDispute(t *testing.T) {
 
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "update dispute")
-	})
-}
-
-func TestInTransaction(t *testing.T) {
-	mock, err := pgxmock.NewPool()
-	require.NoError(t, err)
-	defer mock.Close()
-
-	pg := &postgres.Postgres{
-		Builder: squirrel.StatementBuilder.PlaceholderFormat(squirrel.Dollar),
-	}
-	pgRepo := &testPgDisputeRepo{
-		repo: repo{db: mock, builder: squirrel.StatementBuilder.PlaceholderFormat(squirrel.Dollar)},
-		pool: mock,
-		pg:   pg,
-	}
-	ctx := context.Background()
-
-	t.Run("should execute function in transaction successfully", func(t *testing.T) {
-		mock.ExpectBegin()
-		mock.ExpectCommit()
-
-		executed := false
-		err := pgRepo.InTransaction(ctx, func(repo dispute.TxDisputeRepo) error {
-			executed = true
-			assert.NotNil(t, repo)
-			return nil
-		})
-
-		require.NoError(t, err)
-		assert.True(t, executed)
-	})
-
-	t.Run("should rollback transaction on function error", func(t *testing.T) {
-		mock.ExpectBegin()
-		mock.ExpectRollback()
-
-		expectedErr := assert.AnError
-		err := pgRepo.InTransaction(ctx, func(repo dispute.TxDisputeRepo) error {
-			return expectedErr
-		})
-
-		require.Error(t, err)
-		assert.Equal(t, expectedErr, err)
-	})
-
-	t.Run("should handle begin transaction error", func(t *testing.T) {
-		mock.ExpectBegin().WillReturnError(assert.AnError)
-
-		err := pgRepo.InTransaction(ctx, func(repo dispute.TxDisputeRepo) error {
-			return nil
-		})
-
-		require.Error(t, err)
-		assert.Contains(t, err.Error(), "begin transaction")
-	})
-
-	t.Run("should handle commit error", func(t *testing.T) {
-		mock.ExpectBegin()
-		mock.ExpectCommit().WillReturnError(assert.AnError)
-
-		err := pgRepo.InTransaction(ctx, func(repo dispute.TxDisputeRepo) error {
-			return nil
-		})
-
-		require.Error(t, err)
-		assert.Contains(t, err.Error(), "commit transaction")
-	})
-
-	t.Run("should handle rollback error after function error", func(t *testing.T) {
-		mock.ExpectBegin()
-		mock.ExpectRollback().WillReturnError(assert.AnError)
-
-		functionErr := assert.AnError
-		err := pgRepo.InTransaction(ctx, func(repo dispute.TxDisputeRepo) error {
-			return functionErr
-		})
-
-		require.Error(t, err)
-		// Should return the original function error, not the rollback error
-		assert.Equal(t, functionErr, err)
 	})
 }
 

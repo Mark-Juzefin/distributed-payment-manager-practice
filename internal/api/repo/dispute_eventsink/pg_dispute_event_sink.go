@@ -19,7 +19,7 @@ type PgDisputeEventRepo struct {
 	builder squirrel.StatementBuilderType
 }
 
-var _ dispute.EventSink = (*PgDisputeEventRepo)(nil)
+var _ dispute.DisputeEvents = (*PgDisputeEventRepo)(nil)
 
 func NewPgEventRepo(db postgres.Executor, builder squirrel.StatementBuilderType) *PgDisputeEventRepo {
 	return &PgDisputeEventRepo{

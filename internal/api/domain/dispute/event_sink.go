@@ -6,7 +6,7 @@ import (
 	"time"
 )
 
-type EventSink interface {
+type DisputeEvents interface {
 	// CreateDisputeEvent creates a new dispute event.
 	// Returns ErrEventAlreadyStored if event with same (dispute_id, provider_event_id) already exists.
 	CreateDisputeEvent(ctx context.Context, event NewDisputeEvent) (*DisputeEvent, error)

@@ -38,13 +38,13 @@ func (m *mockClient) Close() error {
 	return nil
 }
 
-func TestHTTPSyncProcessor_ProcessOrderWebhook(t *testing.T) {
+func TestHTTPSyncProcessor_ProcessOrderUpdate(t *testing.T) {
 	t.Run("converts webhook to DTO and sends", func(t *testing.T) {
 		mock := &mockClient{}
 		processor := NewHTTPSyncProcessor(mock)
 
 		now := time.Now()
-		webhook := order.PaymentWebhook{
+		webhook := order.OrderUpdate{
 			ProviderEventID: "evt-123",
 			OrderId:         "order-AAA",
 			UserId:          "user-BBB",
@@ -56,7 +56,7 @@ func TestHTTPSyncProcessor_ProcessOrderWebhook(t *testing.T) {
 			},
 		}
 
-		err := processor.ProcessOrderWebhook(context.Background(), webhook)
+		err := processor.ProcessOrderUpdate(context.Background(), webhook)
 
 		require.NoError(t, err)
 		assert.Equal(t, "evt-123", mock.lastOrderReq.ProviderEventID)
@@ -72,20 +72,20 @@ func TestHTTPSyncProcessor_ProcessOrderWebhook(t *testing.T) {
 		mock := &mockClient{orderErr: expectedErr}
 		processor := NewHTTPSyncProcessor(mock)
 
-		webhook := order.PaymentWebhook{
+		webhook := order.OrderUpdate{
 			ProviderEventID: "evt-123",
 			OrderId:         "order-AAA",
 			UserId:          "user-BBB",
 			Status:          order.StatusCreated,
 		}
 
-		err := processor.ProcessOrderWebhook(context.Background(), webhook)
+		err := processor.ProcessOrderUpdate(context.Background(), webhook)
 
 		assert.ErrorIs(t, err, expectedErr)
 	})
 }
 
-func TestHTTPSyncProcessor_ProcessDisputeWebhook(t *testing.T) {
+func TestHTTPSyncProcessor_ProcessDisputeUpdate(t *testing.T) {
 	t.Run("converts webhook to DTO and sends", func(t *testing.T) {
 		mock := &mockClient{}
 		processor := NewHTTPSyncProcessor(mock)
@@ -109,7 +109,7 @@ func TestHTTPSyncProcessor_ProcessDisputeWebhook(t *testing.T) {
 			},
 		}
 
-		err := processor.ProcessDisputeWebhook(context.Background(), webhook)
+		err := processor.ProcessDisputeUpdate(context.Background(), webhook)
 
 		require.NoError(t, err)
 		assert.Equal(t, "evt-456", mock.lastDisputeReq.ProviderEventID)
@@ -135,7 +135,7 @@ func TestHTTPSyncProcessor_ProcessDisputeWebhook(t *testing.T) {
 			Status:          dispute.ChargebackOpened,
 		}
 
-		err := processor.ProcessDisputeWebhook(context.Background(), webhook)
+		err := processor.ProcessDisputeUpdate(context.Background(), webhook)
 
 		assert.ErrorIs(t, err, expectedErr)
 	})

@@ -19,7 +19,7 @@ type PgOrderEventRepo struct {
 	builder squirrel.StatementBuilderType
 }
 
-var _ order.EventSink = (*PgOrderEventRepo)(nil)
+var _ order.OrderEvents = (*PgOrderEventRepo)(nil)
 
 func NewPgOrderEventRepo(db postgres.Executor, builder squirrel.StatementBuilderType) *PgOrderEventRepo {
 	return &PgOrderEventRepo{

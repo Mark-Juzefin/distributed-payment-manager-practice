@@ -6,12 +6,12 @@ Each feature has its own folder:
 
 ```
 docs/features/
-├── 001-kafka-ingestion/
+├── 001-kafka-ingestion-pipeline/
 │   ├── README.md           ← main feature file (status, overview, tasks)
 │   ├── plan-subtask-1.md   ← plan for subtask 1
 │   ├── plan-subtask-2.md   ← plan for subtask 2
 │   └── ...
-├── 002-sharding/
+├── 002-observability/
 │   ├── README.md
 │   └── ...
 ```

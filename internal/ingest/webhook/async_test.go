@@ -28,12 +28,12 @@ func (m *mockPublisher) Close() error {
 }
 
 func TestAsyncProcessor_PartitionKey(t *testing.T) {
-	t.Run("ProcessOrderWebhook uses UserId as partition key", func(t *testing.T) {
+	t.Run("ProcessOrderUpdate uses UserId as partition key", func(t *testing.T) {
 		// Arrange
 		mockPub := &mockPublisher{}
 		processor := NewAsyncProcessor(mockPub, nil)
 
-		webhook := order.PaymentWebhook{
+		webhook := order.OrderUpdate{
 			ProviderEventID: "evt-123",
 			OrderId:         "order-AAA",
 			UserId:          "user-BBB", // Different from OrderId!
@@ -43,7 +43,7 @@ func TestAsyncProcessor_PartitionKey(t *testing.T) {
 		}
 
 		// Act
-		err := processor.ProcessOrderWebhook(context.Background(), webhook)
+		err := processor.ProcessOrderUpdate(context.Background(), webhook)
 
 		// Assert
 		require.NoError(t, err)
@@ -52,7 +52,7 @@ func TestAsyncProcessor_PartitionKey(t *testing.T) {
 			"Partition key should be UserId, not OrderId")
 	})
 
-	t.Run("ProcessDisputeWebhook uses UserID as partition key", func(t *testing.T) {
+	t.Run("ProcessDisputeUpdate uses UserID as partition key", func(t *testing.T) {
 		// Arrange
 		mockPub := &mockPublisher{}
 		processor := NewAsyncProcessor(nil, mockPub)
@@ -67,7 +67,7 @@ func TestAsyncProcessor_PartitionKey(t *testing.T) {
 		}
 
 		// Act
-		err := processor.ProcessDisputeWebhook(context.Background(), webhook)
+		err := processor.ProcessDisputeUpdate(context.Background(), webhook)
 
 		// Assert
 		require.NoError(t, err)

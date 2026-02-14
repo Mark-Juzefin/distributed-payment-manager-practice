@@ -81,6 +81,12 @@ type Executor interface {
 	Exec(ctx context.Context, sql string, args ...interface{}) (pgconn.CommandTag, error)
 }
 
+// Transactor provides transaction management.
+// *Postgres satisfies this interface automatically.
+type Transactor interface {
+	InTransaction(ctx context.Context, fn func(tx Executor) error) error
+}
+
 func (p *Postgres) InTransaction(ctx context.Context, fn func(tx Executor) error) (err error) {
 	tx, err := p.Pool.BeginTx(ctx, pgx.TxOptions{
 		IsoLevel: pgx.Serializable,

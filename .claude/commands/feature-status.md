@@ -49,25 +49,25 @@ Shows the current state of all features with focus on the active one.
 📊 Feature Status Dashboard
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-🎯 Active: 002-ingest-service-extraction (In Progress)
+🎯 Active: 003-outbox-cdc-analytics (In Progress)
 
-Progress: 2/4 tasks completed (50%)
+Progress: 1/4 tasks completed (25%)
 
-✅ Subtask 1: Extract Ingest Service
-✅ Subtask 2: Configure Kafka mode
-⏳ Subtask 3: Add integration tests ← CURRENT
-☐ Subtask 4: Update documentation
+✅ Subtask 1: Outbox tables
+⏳ Subtask 2: CDC pipeline ← CURRENT
+☐ Subtask 3: Analytics indexing
+☐ Subtask 4: Exactly-once semantics
 
-Plan status: plan-subtask-3.md exists ✓
-
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-Other Features:
-
-001-kafka-ingestion     | Done        | 5/5 ✅
-003-distributed-tracing | Planned     | 0/6 📋
+Plan status: plan-subtask-2.md exists ✓
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-▶️ Next Step: Continue implementing subtask 3 using plan-subtask-3.md
+Completed Steps:
+
+001-kafka-ingestion-pipeline | Done | ✅
+002-observability            | Done | ✅
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+▶️ Next Step: Continue implementing subtask 2 using plan-subtask-2.md
 ```
 
 ## Usage

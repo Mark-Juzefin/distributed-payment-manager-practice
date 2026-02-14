@@ -18,7 +18,7 @@ This is a **learning sandbox** for practicing highload/distributed systems conce
 
 ## Current Focus
 
-**Active feature:** [Outbox Pattern → CDC → Analytics](docs/features/003-outbox-cdc-analytics/)
+**Active feature:** [Inbox Pattern: Reliable Webhook Ingestion](docs/features/004-inbox-pattern/)
 
 Full roadmap: [docs/roadmap.md](docs/roadmap.md)
 

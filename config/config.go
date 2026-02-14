@@ -19,12 +19,21 @@ type IngestConfig struct {
 	KafkaOrdersTopic   string   `env:"KAFKA_ORDERS_TOPIC" envDefault:"webhooks.orders"`
 	KafkaDisputesTopic string   `env:"KAFKA_DISPUTES_TOPIC" envDefault:"webhooks.disputes"`
 
-	// HTTP mode configuration (required for http mode)
+	// Inbox mode configuration (required for inbox mode)
+	PgURL     string `env:"INGEST_PG_URL"`
+	PgPoolMax int    `env:"INGEST_PG_POOL_MAX" envDefault:"5"`
+
+	// HTTP mode configuration (required for http and inbox modes)
 	APIBaseURL        string        `env:"API_BASE_URL" envDefault:"http://localhost:3000"`
 	APITimeout        time.Duration `env:"API_TIMEOUT" envDefault:"10s"`
 	APIRetryAttempts  int           `env:"API_RETRY_ATTEMPTS" envDefault:"3"`
 	APIRetryBaseDelay time.Duration `env:"API_RETRY_BASE_DELAY" envDefault:"100ms"`
 	APIRetryMaxDelay  time.Duration `env:"API_RETRY_MAX_DELAY" envDefault:"5s"`
+
+	// Inbox worker configuration (required for inbox mode)
+	InboxPollInterval time.Duration `env:"INBOX_POLL_INTERVAL" envDefault:"100ms"`
+	InboxBatchSize    int           `env:"INBOX_BATCH_SIZE" envDefault:"10"`
+	InboxMaxRetries   int           `env:"INBOX_MAX_RETRIES" envDefault:"5"`
 }
 
 // APIConfig - full configuration for API service (domain logic, consumers, manual operations)

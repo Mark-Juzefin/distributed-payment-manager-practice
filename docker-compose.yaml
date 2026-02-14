@@ -192,6 +192,7 @@ services:
       - '5432:5432'
     volumes:
       - db-data:/var/lib/postgresql/data/
+      - ./scripts/init-db.sh:/docker-entrypoint-initdb.d/init-db.sh
 
   opensearch-node1:
     image: opensearchproject/opensearch:3

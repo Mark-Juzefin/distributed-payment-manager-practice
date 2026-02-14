@@ -8,7 +8,7 @@ import (
 	"log/slog"
 
 	"TestTaskJustPay/internal/api/domain/order"
-	"TestTaskJustPay/internal/api/messaging"
+	"TestTaskJustPay/internal/shared/messaging"
 )
 
 // OrderMessageController handles order webhook messages from Kafka.

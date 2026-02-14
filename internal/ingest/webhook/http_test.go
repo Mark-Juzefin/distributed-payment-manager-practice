@@ -8,8 +8,6 @@ import (
 	"testing"
 	"time"
 
-	"TestTaskJustPay/internal/api/domain/dispute"
-	"TestTaskJustPay/internal/api/domain/order"
 	"TestTaskJustPay/internal/shared/dto"
 
 	"github.com/stretchr/testify/assert"
@@ -39,16 +37,16 @@ func (m *mockClient) Close() error {
 }
 
 func TestHTTPSyncProcessor_ProcessOrderUpdate(t *testing.T) {
-	t.Run("converts webhook to DTO and sends", func(t *testing.T) {
+	t.Run("passes request to client unchanged", func(t *testing.T) {
 		mock := &mockClient{}
 		processor := NewHTTPSyncProcessor(mock)
 
 		now := time.Now()
-		webhook := order.OrderUpdate{
+		req := dto.OrderUpdateRequest{
 			ProviderEventID: "evt-123",
-			OrderId:         "order-AAA",
-			UserId:          "user-BBB",
-			Status:          order.StatusCreated,
+			OrderID:         "order-AAA",
+			UserID:          "user-BBB",
+			Status:          "created",
 			CreatedAt:       now,
 			UpdatedAt:       now,
 			Meta: map[string]string{
@@ -56,7 +54,7 @@ func TestHTTPSyncProcessor_ProcessOrderUpdate(t *testing.T) {
 			},
 		}
 
-		err := processor.ProcessOrderUpdate(context.Background(), webhook)
+		err := processor.ProcessOrderUpdate(context.Background(), req)
 
 		require.NoError(t, err)
 		assert.Equal(t, "evt-123", mock.lastOrderReq.ProviderEventID)
@@ -72,44 +70,42 @@ func TestHTTPSyncProcessor_ProcessOrderUpdate(t *testing.T) {
 		mock := &mockClient{orderErr: expectedErr}
 		processor := NewHTTPSyncProcessor(mock)
 
-		webhook := order.OrderUpdate{
+		req := dto.OrderUpdateRequest{
 			ProviderEventID: "evt-123",
-			OrderId:         "order-AAA",
-			UserId:          "user-BBB",
-			Status:          order.StatusCreated,
+			OrderID:         "order-AAA",
+			UserID:          "user-BBB",
+			Status:          "created",
 		}
 
-		err := processor.ProcessOrderUpdate(context.Background(), webhook)
+		err := processor.ProcessOrderUpdate(context.Background(), req)
 
 		assert.ErrorIs(t, err, expectedErr)
 	})
 }
 
 func TestHTTPSyncProcessor_ProcessDisputeUpdate(t *testing.T) {
-	t.Run("converts webhook to DTO and sends", func(t *testing.T) {
+	t.Run("passes request to client unchanged", func(t *testing.T) {
 		mock := &mockClient{}
 		processor := NewHTTPSyncProcessor(mock)
 
 		now := time.Now()
 		dueAt := now.Add(24 * time.Hour)
-		webhook := dispute.ChargebackWebhook{
+		req := dto.DisputeUpdateRequest{
 			ProviderEventID: "evt-456",
 			OrderID:         "order-XXX",
 			UserID:          "user-YYY",
-			Status:          dispute.ChargebackOpened,
+			Status:          "opened",
 			Reason:          "fraud",
-			Money: dispute.Money{
-				Amount:   250.75,
-				Currency: "USD",
-			},
-			OccurredAt:    now,
-			EvidenceDueAt: &dueAt,
+			Amount:          250.75,
+			Currency:        "USD",
+			OccurredAt:      now,
+			EvidenceDueAt:   &dueAt,
 			Meta: map[string]string{
 				"resolution": "pending",
 			},
 		}
 
-		err := processor.ProcessDisputeUpdate(context.Background(), webhook)
+		err := processor.ProcessDisputeUpdate(context.Background(), req)
 
 		require.NoError(t, err)
 		assert.Equal(t, "evt-456", mock.lastDisputeReq.ProviderEventID)
@@ -128,14 +124,14 @@ func TestHTTPSyncProcessor_ProcessDisputeUpdate(t *testing.T) {
 		mock := &mockClient{disputeErr: expectedErr}
 		processor := NewHTTPSyncProcessor(mock)
 
-		webhook := dispute.ChargebackWebhook{
+		req := dto.DisputeUpdateRequest{
 			ProviderEventID: "evt-456",
 			OrderID:         "order-XXX",
 			UserID:          "user-YYY",
-			Status:          dispute.ChargebackOpened,
+			Status:          "opened",
 		}
 
-		err := processor.ProcessDisputeUpdate(context.Background(), webhook)
+		err := processor.ProcessDisputeUpdate(context.Background(), req)
 
 		assert.ErrorIs(t, err, expectedErr)
 	})

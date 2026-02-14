@@ -1,6 +1,6 @@
 # Step 3: Outbox Pattern → CDC → Analytics
 
-**Status:** In Progress
+**Status:** Paused
 
 ## Overview
 
@@ -87,6 +87,7 @@ Existing `order_events` / `dispute_events` tables remain untouched. A new unifie
   - Graceful shutdown — close replication slot cleanly, flush pending messages
   - Analytics consumer — Kafka `domain.events` → OpenSearch `domain-events` index
   - Old OpenSearch stub removed, APIConfig cleaned up
+- [ ] Subtask 3.1: Outbox e2e & integration test revision — review and improve existing outbox/CDC/analytics tests
 - [ ] Subtask 4: Partitioning for unified events table (pg_partman)
 - [ ] Subtask 5: TBD
 

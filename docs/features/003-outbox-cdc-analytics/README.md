@@ -76,8 +76,8 @@ Existing `order_events` / `dispute_events` tables remain untouched. A new unifie
 
 ## Tasks
 
-- [x] Subtask 1: Transactor refactoring — services own transactions — [plan](plan-subtask-1.md)
-- [x] Subtask 2: Unified events table + atomic writes — [plan](plan-subtask-2.md)
+- [x] Subtask 1: Transactor refactoring — services own transactions
+- [x] Subtask 2: Unified events table + atomic writes
 - [x] Subtask 3: Go CDC worker — WAL tailing via logical replication + Analytics consumer
   - PostgreSQL logical replication setup (publication, replication slot, `wal_level=logical`)
   - Replication connection via `pglogrepl` — start streaming, receive WAL messages

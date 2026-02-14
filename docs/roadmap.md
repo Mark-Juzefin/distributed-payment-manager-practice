@@ -15,15 +15,18 @@
   - [x] Ingest Service extraction: separate microservice (`cmd/ingest/`), service-based monorepo
   - [x] HTTP sync mode: internal endpoints for service-to-service calls
   - [ ] Graceful shutdown for Kafka components (DLQ flush ordering)
+  - [ ] Realistic user_id lookup (cache layer, lookup service)
 
 - **Step 2: Observability** — [details](features/002-observability/)
   - [x] Prometheus metrics: HTTP latency histograms, request counters, Kafka processing
   - [x] Grafana dashboards: service health, Kafka throughput
   - [x] Correlation IDs across services
   - [x] Health checks (/health/live, /health/ready)
+  - [ ] Kafka consumer lag metric
   - [ ] Distributed tracing: Jaeger/OTLP integration
   - [ ] Profiling: pprof endpoints for CPU/memory profiling
   - [ ] Audit logging: structured audit trail for compliance
+  - [ ] Log sampling for high-frequency events
 
 - **Step 3: Outbox Pattern → CDC → Analytics** ← *active* — [details](features/003-outbox-cdc-analytics/)
   - [x] Unified `events` table (outbox) — atomic writes in same TX as business data

@@ -20,7 +20,7 @@ Observability infrastructure for the microservice architecture: Prometheus metri
 - HTTP handler latency histogram (p50/p95/p99)
 - Request counter by endpoint and status
 
-### Kafka Metrics (Subtask 2) — [plan-kafka-metrics.md](plan-kafka-metrics.md)
+### Kafka Metrics (Subtask 2)
 - Kafka message processing duration histogram
 - `WithMetrics` middleware in messaging middleware chain
 - Processing counter by topic, consumer group, status
@@ -47,7 +47,7 @@ Observability infrastructure for the microservice architecture: Prometheus metri
 - Goreman via `go run` (no manual install)
 - DLQ topics auto-created in kafka-init
 
-### Logger Refactoring (Subtask 9) — [plan-logger-refactoring.md](plan-logger-refactoring.md)
+### Logger Refactoring (Subtask 9)
 - Migrated from zerolog to Go stdlib slog
 - Structured logging API (key-value pairs)
 - Automatic source location (file:line)
@@ -82,8 +82,7 @@ Observability infrastructure for the microservice architecture: Prometheus metri
 ## Deferred Work
 
 ### Kafka Consumer Lag Metric
-- `Stats()` method added to consumer, but full lag metric not wired
-- Plan with implementation details: [plan-kafka-metrics.md](plan-kafka-metrics.md)
+- `Stats()` method added to consumer, but full lag metric not wired yet
 
 ### Distributed Tracing (Subtask 6)
 - OpenTelemetry SDK integration

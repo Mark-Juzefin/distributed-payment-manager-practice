@@ -99,10 +99,8 @@ HTTP sync mode for service-to-service communication between Ingest and API.
 ### Testing Infrastructure
 
 - **E2E Test Refactoring** — Done. Docker-based E2E with testcontainers for API + Ingest on shared Docker network.
-  - Plan: [plan-e2e-test-refactoring.md](plan-e2e-test-refactoring.md)
 
-- **Go-based Load Testing** — Not implemented yet. Order lifecycle + dispute scenarios, VU runner with stats.
-  - Plan: [plan-load-testing.md](plan-load-testing.md)
+- **Go-based Load Testing** — Done. Order lifecycle + dispute scenarios, VU runner with stats (`loadtest/main.go`).
 
 ### Future: Realistic user_id Lookup
 

@@ -17,6 +17,7 @@ import (
 	"TestTaskJustPay/internal/ingest/handlers"
 	inboxrepo "TestTaskJustPay/internal/ingest/repo/inbox"
 	"TestTaskJustPay/internal/ingest/webhook"
+	"TestTaskJustPay/internal/ingest/worker"
 	"TestTaskJustPay/internal/shared/kafka"
 	"TestTaskJustPay/pkg/health"
 	"TestTaskJustPay/pkg/logger"
@@ -107,6 +108,28 @@ func Run(cfg config.IngestConfig) {
 
 		repo := inboxrepo.NewPgInboxRepo(pool.Pool, pool.Builder)
 		processor = webhook.NewInboxProcessor(repo)
+
+		// Create HTTP client for forwarding to API
+		client := apiclient.NewHTTPClient(apiclient.HTTPClientConfig{
+			BaseURL:        cfg.APIBaseURL,
+			Timeout:        cfg.APITimeout,
+			RetryAttempts:  cfg.APIRetryAttempts,
+			RetryBaseDelay: cfg.APIRetryBaseDelay,
+			RetryMaxDelay:  cfg.APIRetryMaxDelay,
+		})
+		closers = append(closers, client)
+
+		// Start inbox worker for background processing
+		inboxWorker := worker.NewInboxWorker(repo, client, worker.Config{
+			PollInterval: cfg.InboxPollInterval,
+			BatchSize:    cfg.InboxBatchSize,
+			MaxRetries:   cfg.InboxMaxRetries,
+		})
+		go func() {
+			if err := inboxWorker.Start(ctx); err != nil {
+				slog.Info("Inbox worker exited", slog.Any("error", err))
+			}
+		}()
 
 		healthCheckers = append(healthCheckers, health.NewPostgresChecker(pool.Pool))
 

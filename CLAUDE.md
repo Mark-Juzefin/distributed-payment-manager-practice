@@ -18,7 +18,7 @@ This is a **learning sandbox** for practicing highload/distributed systems conce
 
 ## Current Focus
 
-**Active feature:** [Inbox Pattern: Reliable Webhook Ingestion](docs/features/004-inbox-pattern/)
+**Active feature:** [PostgreSQL HA & DR: Streaming Replication](docs/features/005-postgres-ha/)
 
 Full roadmap: [docs/roadmap.md](docs/roadmap.md)
 

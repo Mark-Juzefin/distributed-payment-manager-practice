@@ -57,6 +57,17 @@ type APIConfig struct {
 	KafkaDisputesDLQTopic      string   `env:"KAFKA_DISPUTES_DLQ_TOPIC" envDefault:"webhooks.disputes.dlq"`
 }
 
+// CDCConfig - configuration for CDC worker (WAL → log/Kafka)
+type CDCConfig struct {
+	PgURL           string `env:"PG_URL" required:"true"`
+	SlotName        string `env:"CDC_SLOT_NAME" envDefault:"cdc_slot"`
+	PublicationName string `env:"CDC_PUBLICATION" envDefault:"events_pub"`
+	LogLevel        string `env:"LOG_LEVEL" envDefault:"info"`
+
+	KafkaBrokers     []string `env:"KAFKA_BROKERS" envSeparator:","`
+	KafkaEventsTopic string   `env:"KAFKA_EVENTS_TOPIC" envDefault:"domain.events"`
+}
+
 // Config - backward compatibility alias for APIConfig
 type Config = APIConfig
 
@@ -75,6 +86,16 @@ func NewAPIConfig() (APIConfig, error) {
 	c, err := env.ParseAs[APIConfig]()
 	if err != nil {
 		return APIConfig{}, err
+	}
+
+	return c, nil
+}
+
+// NewCDCConfig parses environment variables for CDC worker
+func NewCDCConfig() (CDCConfig, error) {
+	c, err := env.ParseAs[CDCConfig]()
+	if err != nil {
+		return CDCConfig{}, err
 	}
 
 	return c, nil

@@ -45,12 +45,12 @@
   - [ ] CDC + Kafka variant: inbox + outbox in one TX, CDC publishes to Kafka
   - [ ] Benchmarks & comparison: loadtest both approaches, latency/throughput metrics
 
-- **Step 5: PostgreSQL HA & DR**
-  - [ ] Streaming replication: primary-standby setup, synchronous vs asynchronous
-  - [ ] Read replica routing: write → primary, read → replica (pgpool or application-level)
+- **Step 5: PostgreSQL HA & DR** ← *active* — [details](features/005-postgres-ha/)
+  - [x] Streaming replication: primary + async standby via Docker Compose (standalone demo, not integrated with app)
+  - [ ] Read replica routing: application-level read/write split
   - [ ] Failover/switchover: manual and automated (Patroni basics)
-  - [ ] Backup/restore: pg_dump logical backups, pg_basebackup for PITR, restore verification
-  - [ ] Monitoring: replication lag metrics, backup success/failure alerts, RTO/RPO tracking
+  - [ ] Backup/restore: pg_basebackup for PITR, restore verification
+  - [ ] Monitoring: replication lag metrics, backup success/failure alerts
 
 - **Step 6: Simple Deployment Profile + VPS Hosting**
   - [ ] Single-node deployment without Kafka dependency (sync mode as default)

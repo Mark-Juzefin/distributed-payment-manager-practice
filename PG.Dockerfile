@@ -10,4 +10,9 @@ RUN wget "https://github.com/pgpartman/pg_partman/archive/refs/tags/v5.2.4.tar.g
      && rm -rf /var/lib/apt/lists/* v5.2.4.tar.gz pg_partman-5.2.4
 
 
-CMD ["postgres","-c","shared_preload_libraries=pg_partman_bgw", "-c", "wal_level=logical"]
+CMD ["postgres", \
+     "-c", "shared_preload_libraries=pg_partman_bgw", \
+     "-c", "wal_level=logical", \
+     "-c", "max_wal_senders=3", \
+     "-c", "wal_keep_size=64MB", \
+     "-c", "hot_standby=on"]

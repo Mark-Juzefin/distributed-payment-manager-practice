@@ -54,6 +54,13 @@ stop-monitoring:
 build-pg-image:
 	docker build -f PG.Dockerfile -t pg17-partman:local .
 
+# Streaming replication: primary + async standby
+run-replication:
+	docker compose --profile replication up --build
+
+stop-replication:
+	docker compose --profile replication down -v
+
 lint:
 	golangci-lint run
 

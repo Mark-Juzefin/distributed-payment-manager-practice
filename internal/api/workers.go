@@ -8,8 +8,8 @@ import (
 	"TestTaskJustPay/internal/api/consumers"
 	"TestTaskJustPay/internal/api/domain/dispute"
 	"TestTaskJustPay/internal/api/domain/order"
-	"TestTaskJustPay/internal/api/external/kafka"
-	"TestTaskJustPay/internal/api/messaging"
+	"TestTaskJustPay/internal/shared/kafka"
+	"TestTaskJustPay/internal/shared/messaging"
 )
 
 // StartWorkers starts Kafka consumers for order and dispute processing.

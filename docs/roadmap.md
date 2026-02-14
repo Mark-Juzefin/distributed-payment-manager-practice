@@ -28,7 +28,7 @@
   - [ ] Audit logging: structured audit trail for compliance
   - [ ] Log sampling for high-frequency events
 
-- **Step 3: Outbox Pattern → CDC → Analytics** ← *active* — [details](features/003-outbox-cdc-analytics/)
+- **Step 3: Outbox Pattern → CDC → Analytics** ← *paused* — [details](features/003-outbox-cdc-analytics/)
   - [x] Unified `events` table (outbox) — atomic writes in same TX as business data
   - [x] Custom Go CDC worker — PG logical replication (WAL → Kafka `domain.events`)
   - [x] Analytics consumer — Kafka → OpenSearch projection (`domain-events` index)
@@ -36,7 +36,7 @@
   - [ ] Exactly-once semantics: demonstrate the tradeoffs and limitations
   - [ ] Old event tables cleanup (Strangler Fig completion)
 
-- **Step 4: Inbox Pattern: Reliable Webhook Ingestion** — [details](features/004-inbox-pattern/)
+- **Step 4: Inbox Pattern: Reliable Webhook Ingestion** ← *active* — [details](features/004-inbox-pattern/)
   - [ ] Inbox table for durable webhook storage before processing
   - [ ] Store-and-forward: save raw payload → return 200 OK → process async
   - [ ] Backpressure and replay capabilities for incoming webhooks

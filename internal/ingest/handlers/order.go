@@ -1,8 +1,9 @@
 package handlers
 
 import (
-	"TestTaskJustPay/internal/api/domain/order"
+	"TestTaskJustPay/internal/ingest/apiclient"
 	"TestTaskJustPay/internal/ingest/webhook"
+	"TestTaskJustPay/internal/shared/dto"
 	"errors"
 	"net/http"
 
@@ -18,19 +19,19 @@ func NewOrderHandler(p webhook.Processor) *OrderHandler {
 }
 
 func (h *OrderHandler) Webhook(c *gin.Context) {
-	var event order.OrderUpdate
-	if err := c.ShouldBindJSON(&event); err != nil {
+	var req dto.OrderUpdateRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"message": "Missing order_id"})
 		return
 	}
 
-	err := h.processor.ProcessOrderUpdate(c.Request.Context(), event)
+	err := h.processor.ProcessOrderUpdate(c.Request.Context(), req)
 	if err != nil {
-		if errors.Is(err, order.ErrInvalidStatus) {
+		if errors.Is(err, apiclient.ErrInvalidStatus) {
 			c.JSON(http.StatusUnprocessableEntity, gin.H{"message": err.Error()})
-		} else if errors.Is(err, order.ErrNotFound) {
+		} else if errors.Is(err, apiclient.ErrNotFound) {
 			c.JSON(http.StatusNotFound, gin.H{"message": err.Error()})
-		} else if errors.Is(err, order.ErrEventAlreadyStored) {
+		} else if errors.Is(err, apiclient.ErrConflict) {
 			c.JSON(http.StatusConflict, gin.H{"message": err.Error()})
 		} else {
 			c.JSON(http.StatusInternalServerError, gin.H{"message": err.Error()})

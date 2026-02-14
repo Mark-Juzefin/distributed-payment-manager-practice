@@ -8,7 +8,7 @@ import (
 	"log/slog"
 
 	"TestTaskJustPay/internal/api/domain/dispute"
-	"TestTaskJustPay/internal/api/messaging"
+	"TestTaskJustPay/internal/shared/messaging"
 )
 
 // DisputeMessageController handles dispute/chargeback messages from Kafka.

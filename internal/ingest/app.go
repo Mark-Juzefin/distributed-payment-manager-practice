@@ -13,10 +13,10 @@ import (
 	"time"
 
 	"TestTaskJustPay/config"
-	"TestTaskJustPay/internal/api/external/kafka"
 	"TestTaskJustPay/internal/ingest/apiclient"
 	"TestTaskJustPay/internal/ingest/handlers"
 	"TestTaskJustPay/internal/ingest/webhook"
+	"TestTaskJustPay/internal/shared/kafka"
 	"TestTaskJustPay/pkg/health"
 	"TestTaskJustPay/pkg/logger"
 	"TestTaskJustPay/pkg/metrics"

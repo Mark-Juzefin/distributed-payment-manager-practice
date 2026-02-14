@@ -3,8 +3,6 @@ package webhook
 import (
 	"context"
 
-	"TestTaskJustPay/internal/api/domain/dispute"
-	"TestTaskJustPay/internal/api/domain/order"
 	"TestTaskJustPay/internal/ingest/apiclient"
 	"TestTaskJustPay/internal/shared/dto"
 )
@@ -21,33 +19,12 @@ func NewHTTPSyncProcessor(client apiclient.Client) *HTTPSyncProcessor {
 	}
 }
 
-// ProcessOrderUpdate converts the webhook to a DTO and sends it to API service.
-func (p *HTTPSyncProcessor) ProcessOrderUpdate(ctx context.Context, webhook order.OrderUpdate) error {
-	req := dto.OrderUpdateRequest{
-		ProviderEventID: webhook.ProviderEventID,
-		OrderID:         webhook.OrderId,
-		UserID:          webhook.UserId,
-		Status:          string(webhook.Status),
-		UpdatedAt:       webhook.UpdatedAt,
-		CreatedAt:       webhook.CreatedAt,
-		Meta:            webhook.Meta,
-	}
+// ProcessOrderUpdate sends the order update request to API service.
+func (p *HTTPSyncProcessor) ProcessOrderUpdate(ctx context.Context, req dto.OrderUpdateRequest) error {
 	return p.client.SendOrderUpdate(ctx, req)
 }
 
-// ProcessDisputeUpdate converts the webhook to a DTO and sends it to API service.
-func (p *HTTPSyncProcessor) ProcessDisputeUpdate(ctx context.Context, webhook dispute.ChargebackWebhook) error {
-	req := dto.DisputeUpdateRequest{
-		ProviderEventID: webhook.ProviderEventID,
-		OrderID:         webhook.OrderID,
-		UserID:          webhook.UserID,
-		Status:          string(webhook.Status),
-		Reason:          webhook.Reason,
-		Amount:          webhook.Amount,
-		Currency:        webhook.Currency,
-		OccurredAt:      webhook.OccurredAt,
-		EvidenceDueAt:   webhook.EvidenceDueAt,
-		Meta:            webhook.Meta,
-	}
+// ProcessDisputeUpdate sends the dispute update request to API service.
+func (p *HTTPSyncProcessor) ProcessDisputeUpdate(ctx context.Context, req dto.DisputeUpdateRequest) error {
 	return p.client.SendDisputeUpdate(ctx, req)
 }

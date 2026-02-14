@@ -1,6 +1,6 @@
 # Inbox Pattern: Reliable Webhook Ingestion
 
-**Status:** Planned
+**Status:** In Progress
 
 ## Overview
 
@@ -38,32 +38,38 @@ With Inbox Pattern:
 - **Shared Kernel refactoring** — decouple Ingest from API domain types as part of the pattern
 - **Replay & debugging** — full history of raw incoming webhooks
 
-## Scope
+## Implementation Phases
 
-### Core: Inbox Pattern
-- Inbox table in Ingest service's own database (or shared DB with separate schema)
-- Raw webhook payload stored as JSONB (no domain type dependency)
-- Background worker picks up unprocessed rows and forwards to API
-- Status tracking: `pending` → `processing` → `done` / `failed`
-- Retry logic for failed processing
-- Cleanup/archival of processed rows
+### Phase 1: DB-queue (Postgres + SKIP LOCKED)
+Simple polling approach — Ingest writes to inbox table, API poll worker reads with `SELECT ... FOR UPDATE SKIP LOCKED`.
 
-### Bonus: Shared Kernel Refactoring
-- Extract `PaymentWebhook`, `ChargebackWebhook` to `internal/shared/` or define Ingest-own DTOs
-- Move `kafka.Publisher` to `pkg/kafka/` or `internal/shared/kafka/`
-- Ingest no longer imports anything from `internal/api/`
+### Phase 2: CDC + Kafka (reuse Step 3 infrastructure)
+Production-style — Ingest writes inbox + outbox in one transaction, CDC publishes outbox to Kafka, API consumes from Kafka.
+
+### Phase 3: Benchmarks & comparison
+Load test both approaches, measure latency/throughput, document trade-offs.
+
+## Architectural Decisions
+
+| Decision | Choice | Reasoning |
+|----------|--------|-----------|
+| Ingest database | Separate Postgres instance | Ingest owns its data, no shared-DB coupling |
+| Shared kernel refactoring | Separate subtask | Clean boundary before inbox implementation |
+| Phase 1 approach | DB-queue (SKIP LOCKED) | Simpler, fewer moving parts, good baseline |
+| Phase 2 approach | CDC + Kafka | Reuse Step 3 CDC infra, compare with Phase 1 |
 
 ## Tasks
 
-> Subtasks will be defined during planning phase.
-
-- [ ] Subtask 1: TBD
-- [ ] Subtask 2: TBD
-- [ ] Subtask 3: TBD
+- [x] Subtask 1: Shared kernel refactoring — decouple Ingest from API domain types — [plan](plan-subtask-1.md)
+- [ ] Subtask 2: Inbox table + Ingest writes (separate Postgres for Ingest, raw JSONB payloads, return 200 OK)
+- [ ] Subtask 3: DB-queue worker (SKIP LOCKED) — API poll worker reads inbox, processes, updates status, retry logic
+- [ ] Subtask 4: CDC + Kafka variant — inbox + outbox in one TX, CDC publishes to Kafka, API consumes
+- [ ] Subtask 5: Benchmarks & comparison — loadtest both approaches, latency/throughput metrics, trade-off analysis
 
 ## Notes
 
-- CDC infrastructure from Feature 003 (Outbox) can potentially be reused for Inbox processing
-- Decision needed: separate DB for Ingest vs shared DB with separate schema
-- Decision needed: polling worker vs CDC for inbox processing
-- Consider combining with DLQ improvements — failed inbox items vs current DLQ topic approach
+- CDC infrastructure from Feature 003 (Outbox) can be reused for Phase 2 inbox processing
+- Ingest gets its own Postgres instance (separate from API's database)
+- `SKIP LOCKED` is the standard Postgres pattern for job queues — avoids row-level contention between workers
+- At-least-once delivery in both phases — idempotent processing required on API side
+- Raw webhook payloads stored as JSONB — no domain type dependency at ingestion time

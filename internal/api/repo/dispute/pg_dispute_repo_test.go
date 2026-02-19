@@ -18,7 +18,7 @@ func TestGetDisputeByID(t *testing.T) {
 	require.NoError(t, err)
 	defer mock.Close()
 
-	repo := &repo{db: mock, builder: squirrel.StatementBuilder.PlaceholderFormat(squirrel.Dollar)}
+	repo := &repo{db: mock, readDB: mock, builder: squirrel.StatementBuilder.PlaceholderFormat(squirrel.Dollar)}
 	ctx := context.Background()
 
 	t.Run("should return dispute with basic query", func(t *testing.T) {
@@ -81,7 +81,7 @@ func TestGetDisputeByOrderID(t *testing.T) {
 	require.NoError(t, err)
 	defer mock.Close()
 
-	repo := &repo{db: mock, builder: squirrel.StatementBuilder.PlaceholderFormat(squirrel.Dollar)}
+	repo := &repo{db: mock, readDB: mock, builder: squirrel.StatementBuilder.PlaceholderFormat(squirrel.Dollar)}
 	ctx := context.Background()
 
 	t.Run("should return dispute by order ID", func(t *testing.T) {
@@ -112,7 +112,7 @@ func TestCreateDispute(t *testing.T) {
 	require.NoError(t, err)
 	defer mock.Close()
 
-	repo := &repo{db: mock, builder: squirrel.StatementBuilder.PlaceholderFormat(squirrel.Dollar)}
+	repo := &repo{db: mock, readDB: mock, builder: squirrel.StatementBuilder.PlaceholderFormat(squirrel.Dollar)}
 	ctx := context.Background()
 
 	t.Run("should create dispute successfully", func(t *testing.T) {
@@ -179,7 +179,7 @@ func TestUpdateDispute(t *testing.T) {
 	require.NoError(t, err)
 	defer mock.Close()
 
-	repo := &repo{db: mock, builder: squirrel.StatementBuilder.PlaceholderFormat(squirrel.Dollar)}
+	repo := &repo{db: mock, readDB: mock, builder: squirrel.StatementBuilder.PlaceholderFormat(squirrel.Dollar)}
 	ctx := context.Background()
 
 	t.Run("should update dispute successfully", func(t *testing.T) {
@@ -239,7 +239,7 @@ func TestUpsertEvidence(t *testing.T) {
 		require.NoError(t, err)
 		defer mock.Close()
 
-		repo := &repo{db: mock, builder: squirrel.StatementBuilder.PlaceholderFormat(squirrel.Dollar)}
+		repo := &repo{db: mock, readDB: mock, builder: squirrel.StatementBuilder.PlaceholderFormat(squirrel.Dollar)}
 		ctx := context.Background()
 
 		disputeID := "dispute-1"
@@ -288,7 +288,7 @@ func TestUpsertEvidence(t *testing.T) {
 		require.NoError(t, err)
 		defer mock.Close()
 
-		repo := &repo{db: mock, builder: squirrel.StatementBuilder.PlaceholderFormat(squirrel.Dollar)}
+		repo := &repo{db: mock, readDB: mock, builder: squirrel.StatementBuilder.PlaceholderFormat(squirrel.Dollar)}
 		ctx := context.Background()
 
 		disputeID := "dispute-2"
@@ -320,7 +320,7 @@ func TestUpsertEvidence(t *testing.T) {
 		require.NoError(t, err)
 		defer mock.Close()
 
-		repo := &repo{db: mock, builder: squirrel.StatementBuilder.PlaceholderFormat(squirrel.Dollar)}
+		repo := &repo{db: mock, readDB: mock, builder: squirrel.StatementBuilder.PlaceholderFormat(squirrel.Dollar)}
 		ctx := context.Background()
 
 		disputeID := "dispute-3"
@@ -346,7 +346,7 @@ func TestUpsertEvidence(t *testing.T) {
 		require.NoError(t, err)
 		defer mock.Close()
 
-		repo := &repo{db: mock, builder: squirrel.StatementBuilder.PlaceholderFormat(squirrel.Dollar)}
+		repo := &repo{db: mock, readDB: mock, builder: squirrel.StatementBuilder.PlaceholderFormat(squirrel.Dollar)}
 		ctx := context.Background()
 
 		disputeID := "dispute-4"
@@ -378,7 +378,7 @@ func TestUpsertEvidence(t *testing.T) {
 		require.NoError(t, err)
 		defer mock.Close()
 
-		repo := &repo{db: mock, builder: squirrel.StatementBuilder.PlaceholderFormat(squirrel.Dollar)}
+		repo := &repo{db: mock, readDB: mock, builder: squirrel.StatementBuilder.PlaceholderFormat(squirrel.Dollar)}
 		ctx := context.Background()
 
 		disputeID := "dispute-5"
@@ -412,7 +412,7 @@ func TestGetEvidence(t *testing.T) {
 		require.NoError(t, err)
 		defer mock.Close()
 
-		repo := &repo{db: mock, builder: squirrel.StatementBuilder.PlaceholderFormat(squirrel.Dollar)}
+		repo := &repo{db: mock, readDB: mock, builder: squirrel.StatementBuilder.PlaceholderFormat(squirrel.Dollar)}
 		ctx := context.Background()
 
 		disputeID := "dispute-1"
@@ -447,7 +447,7 @@ func TestGetEvidence(t *testing.T) {
 		require.NoError(t, err)
 		defer mock.Close()
 
-		repo := &repo{db: mock, builder: squirrel.StatementBuilder.PlaceholderFormat(squirrel.Dollar)}
+		repo := &repo{db: mock, readDB: mock, builder: squirrel.StatementBuilder.PlaceholderFormat(squirrel.Dollar)}
 		ctx := context.Background()
 
 		disputeID := "nonexistent"
@@ -467,7 +467,7 @@ func TestGetEvidence(t *testing.T) {
 		require.NoError(t, err)
 		defer mock.Close()
 
-		repo := &repo{db: mock, builder: squirrel.StatementBuilder.PlaceholderFormat(squirrel.Dollar)}
+		repo := &repo{db: mock, readDB: mock, builder: squirrel.StatementBuilder.PlaceholderFormat(squirrel.Dollar)}
 		ctx := context.Background()
 
 		disputeID := "dispute-1"
@@ -488,7 +488,7 @@ func TestGetEvidence(t *testing.T) {
 		require.NoError(t, err)
 		defer mock.Close()
 
-		repo := &repo{db: mock, builder: squirrel.StatementBuilder.PlaceholderFormat(squirrel.Dollar)}
+		repo := &repo{db: mock, readDB: mock, builder: squirrel.StatementBuilder.PlaceholderFormat(squirrel.Dollar)}
 		ctx := context.Background()
 
 		disputeID := "dispute-2"
@@ -518,7 +518,7 @@ func TestGetEvidence(t *testing.T) {
 		require.NoError(t, err)
 		defer mock.Close()
 
-		repo := &repo{db: mock, builder: squirrel.StatementBuilder.PlaceholderFormat(squirrel.Dollar)}
+		repo := &repo{db: mock, readDB: mock, builder: squirrel.StatementBuilder.PlaceholderFormat(squirrel.Dollar)}
 		ctx := context.Background()
 
 		disputeID := "dispute-3"
@@ -548,7 +548,7 @@ func TestGetEvidence(t *testing.T) {
 		require.NoError(t, err)
 		defer mock.Close()
 
-		repo := &repo{db: mock, builder: squirrel.StatementBuilder.PlaceholderFormat(squirrel.Dollar)}
+		repo := &repo{db: mock, readDB: mock, builder: squirrel.StatementBuilder.PlaceholderFormat(squirrel.Dollar)}
 		ctx := context.Background()
 
 		disputeID := "dispute-1"
@@ -572,7 +572,7 @@ func TestGetEvidence(t *testing.T) {
 		require.NoError(t, err)
 		defer mock.Close()
 
-		repo := &repo{db: mock, builder: squirrel.StatementBuilder.PlaceholderFormat(squirrel.Dollar)}
+		repo := &repo{db: mock, readDB: mock, builder: squirrel.StatementBuilder.PlaceholderFormat(squirrel.Dollar)}
 		ctx := context.Background()
 
 		disputeID := "dispute-1"
@@ -599,7 +599,7 @@ func TestGetEvidence(t *testing.T) {
 		require.NoError(t, err)
 		defer mock.Close()
 
-		repo := &repo{db: mock, builder: squirrel.StatementBuilder.PlaceholderFormat(squirrel.Dollar)}
+		repo := &repo{db: mock, readDB: mock, builder: squirrel.StatementBuilder.PlaceholderFormat(squirrel.Dollar)}
 		ctx := context.Background()
 
 		disputeID := "dispute-1"

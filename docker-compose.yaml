@@ -11,8 +11,8 @@ services:
       context: .
       dockerfile: Dockerfile.api
     depends_on:
-      db:
-        condition: service_started
+      db-primary:
+        condition: service_healthy
       opensearch-node1:
         condition: service_started
       kafka-init:
@@ -62,8 +62,8 @@ services:
       context: .
       dockerfile: Dockerfile
     depends_on:
-      db:
-        condition: service_started
+      db-primary:
+        condition: service_healthy
       opensearch-node1:
         condition: service_started
       kafka-init:
@@ -173,27 +173,6 @@ services:
       - ./integration-test/mappings:/home/wiremock/mappings
     entrypoint: ["/docker-entrypoint.sh", "--global-response-templating", "--disable-gzip", "--verbose"]
 
-  db:
-    build:
-      dockerfile: ./PG.Dockerfile
-    restart: always
-    hostname: db
-    profiles:
-      - prod
-      - infra
-    networks:
-      - backend
-    environment:
-      POSTGRES_DB: payments
-      POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: secret
-      PGDATA: /var/lib/postgresql/data/
-    ports:
-      - '5432:5432'
-    volumes:
-      - db-data:/var/lib/postgresql/data/
-      - ./scripts/init-db.sh:/docker-entrypoint-initdb.d/init-db.sh
-
   opensearch-node1:
     image: opensearchproject/opensearch:3
     container_name: opensearch-node1
@@ -270,7 +249,7 @@ services:
     image: prom/prometheus:v2.51.0
     container_name: prometheus
     profiles:
-      - monitoring
+      - infra
     networks:
       - backend
     ports:
@@ -287,7 +266,7 @@ services:
     image: grafana/grafana:10.4.0
     container_name: grafana
     profiles:
-      - monitoring
+      - infra
     networks:
       - backend
     ports:
@@ -304,7 +283,7 @@ services:
       - prometheus
 
 
-  # Streaming replication cluster (profile: replication)
+  # Streaming replication cluster
   db-primary:
     build:
       dockerfile: ./PG.Dockerfile
@@ -312,7 +291,8 @@ services:
     container_name: db-primary
     hostname: db-primary
     profiles:
-      - replication
+      - infra
+      - prod
     networks:
       - backend
     environment:
@@ -325,6 +305,13 @@ services:
     volumes:
       - db-primary-data:/var/lib/postgresql/data/
       - ./scripts/init-db.sh:/docker-entrypoint-initdb.d/init-db.sh
+    command: >
+      postgres
+      -c shared_preload_libraries=pg_partman_bgw
+      -c wal_level=logical
+      -c max_wal_senders=10
+      -c max_replication_slots=10
+      -c wal_keep_size=256MB
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U postgres"]
       interval: 5s
@@ -337,7 +324,7 @@ services:
     container_name: db-replica
     hostname: db-replica
     profiles:
-      - replication
+      - infra
     networks:
       - backend
     environment:
@@ -353,10 +340,70 @@ services:
       db-primary:
         condition: service_healthy
 
+  db-replica-2:
+    build:
+      dockerfile: ./PG.Dockerfile
+    container_name: db-replica-2
+    hostname: db-replica-2
+    profiles:
+      - infra
+    networks:
+      - backend
+    environment:
+      PGDATA: /var/lib/postgresql/data/
+      PGPASSWORD: replicator_pass
+    ports:
+      - '5434:5432'
+    volumes:
+      - db-replica-2-data:/var/lib/postgresql/data/
+      - ./scripts/init-replica.sh:/init-replica.sh
+    entrypoint: ["/bin/bash", "/init-replica.sh"]
+    depends_on:
+      db-primary:
+        condition: service_healthy
+
+  haproxy:
+    image: haproxy:2.9
+    container_name: haproxy
+    profiles:
+      - infra
+    networks:
+      - backend
+    ports:
+      - '5440:5440'
+      - '5441:5441'
+      - '8404:8404'
+    volumes:
+      - ./config/haproxy.cfg:/usr/local/etc/haproxy/haproxy.cfg:ro
+    depends_on:
+      db-primary:
+        condition: service_healthy
+      db-replica:
+        condition: service_started
+      db-replica-2:
+        condition: service_started
+
+  postgres-exporter:
+    image: prometheuscommunity/postgres-exporter:v0.15.0
+    container_name: postgres-exporter
+    profiles:
+      - infra
+    networks:
+      - backend
+    ports:
+      - '9187:9187'
+    environment:
+      DATA_SOURCE_URI: db-primary:5432/payments?sslmode=disable
+      DATA_SOURCE_USER: postgres
+      DATA_SOURCE_PASS: secret
+    depends_on:
+      db-primary:
+        condition: service_healthy
+
 volumes:
-  db-data:
   db-primary-data:
   db-replica-data:
+  db-replica-2-data:
   opensearch-data1:
   opensearch-data2:
   zookeeper-data:

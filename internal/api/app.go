@@ -49,10 +49,24 @@ func Run(cfg config.Config) {
 	}
 	defer pool.Close()
 
-	orderRepo := order_repo.NewPgOrderRepo(pool)
-	disputeRepo := dispute_repo.NewPgDisputeRepo(pool)
-	disputeEvents := dispute_eventsink.NewPgEventRepo(pool.Pool, pool.Builder)
-	orderEvents := order_eventsink.NewPgOrderEventRepo(pool.Pool, pool.Builder)
+	// Read pool: replica if configured, otherwise same as primary
+	var readDB postgres.Executor = pool.Pool
+	var readPG *postgres.Postgres
+	if cfg.PgReplicaURL != "" {
+		readPG, err = postgres.New(cfg.PgReplicaURL, postgres.MaxPoolSize(cfg.PgPoolMax))
+		if err != nil {
+			slog.Error("Failed to connect to read replica", slog.Any("error", err))
+			os.Exit(1)
+		}
+		defer readPG.Close()
+		readDB = readPG.Pool
+		slog.Info("Read replica pool configured")
+	}
+
+	orderRepo := order_repo.NewPgOrderRepo(pool, readDB)
+	disputeRepo := dispute_repo.NewPgDisputeRepo(pool, readDB)
+	disputeEvents := dispute_eventsink.NewPgEventRepo(pool.Pool, readDB, pool.Builder)
+	orderEvents := order_eventsink.NewPgOrderEventRepo(pool.Pool, readDB, pool.Builder)
 
 	silvergateClient := silvergate.New(
 		cfg.SilvergateBaseURL,
@@ -77,6 +91,9 @@ func Run(cfg config.Config) {
 	// Health checks registry
 	var healthCheckers []health.Checker
 	healthCheckers = append(healthCheckers, health.NewPostgresChecker(pool.Pool))
+	if readPG != nil {
+		healthCheckers = append(healthCheckers, health.NewPostgresChecker(readPG.Pool))
+	}
 	if cfg.WebhookMode == "kafka" {
 		healthCheckers = append(healthCheckers, health.NewKafkaChecker(cfg.KafkaBrokers))
 	}

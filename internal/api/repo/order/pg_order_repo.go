@@ -18,28 +18,29 @@ type PgOrderRepo struct {
 	repo
 }
 
-func NewPgOrderRepo(pg *postgres.Postgres) order.OrderRepo {
+func NewPgOrderRepo(pg *postgres.Postgres, readDB postgres.Executor) order.OrderRepo {
 	return &PgOrderRepo{
 		pg:   pg,
-		repo: repo{db: pg.Pool, builder: pg.Builder},
+		repo: repo{db: pg.Pool, readDB: readDB, builder: pg.Builder},
 	}
 }
 
 // TxRepoFactory returns a factory that creates transaction-scoped order repositories.
 func TxRepoFactory(builder squirrel.StatementBuilderType) func(postgres.Executor) order.OrderRepo {
 	return func(tx postgres.Executor) order.OrderRepo {
-		return &repo{db: tx, builder: builder}
+		return &repo{db: tx, readDB: tx, builder: builder}
 	}
 }
 
 type repo struct {
 	db      postgres.Executor
+	readDB  postgres.Executor
 	builder squirrel.StatementBuilderType
 }
 
 func (r *repo) GetOrders(ctx context.Context, query *order.OrdersQuery) ([]order.Order, error) {
 	sql, args := r.buildOrdersQuery(query)
-	rows, err := r.db.Query(ctx, sql, args...)
+	rows, err := r.readDB.Query(ctx, sql, args...)
 	if err != nil {
 		return nil, fmt.Errorf("query orders: %w", err)
 	}

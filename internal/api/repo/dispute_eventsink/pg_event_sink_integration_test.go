@@ -62,7 +62,7 @@ func TestCreateDisputeEventIntegration(t *testing.T) {
 			seed: func(t *testing.T, tx postgres.Executor) {
 				applyBaseFixture(t, tx)
 				// First, create one event
-				repo := dispute_eventsink.NewPgEventRepo(tx, pool.Builder)
+				repo := dispute_eventsink.NewPgEventRepo(tx, tx, pool.Builder)
 				firstEvent := dispute.NewDisputeEvent{
 					DisputeID:       "dispute_001",
 					Kind:            dispute.DisputeEventEvidenceAdded,
@@ -89,7 +89,7 @@ func TestCreateDisputeEventIntegration(t *testing.T) {
 			err := pool.SandboxTransaction(ctx, func(tx postgres.Executor) error {
 				tt.seed(t, tx)
 
-				repo := dispute_eventsink.NewPgEventRepo(tx, pool.Builder)
+				repo := dispute_eventsink.NewPgEventRepo(tx, tx, pool.Builder)
 				createdEvent, err := repo.CreateDisputeEvent(ctx, tt.event)
 
 				if tt.expectError {
@@ -178,7 +178,7 @@ func TestGetDisputeEventByIDIntegration(t *testing.T) {
 			err := pool.SandboxTransaction(ctx, func(tx postgres.Executor) error {
 				tt.seed(t, tx)
 
-				repo := dispute_eventsink.NewPgEventRepo(tx, pool.Builder)
+				repo := dispute_eventsink.NewPgEventRepo(tx, tx, pool.Builder)
 				event, err := repo.GetDisputeEventByID(ctx, tt.eventID)
 
 				if tt.expectError {
@@ -333,7 +333,7 @@ func TestGetDisputeEventsIntegration(t *testing.T) {
 			err := pool.SandboxTransaction(ctx, func(tx postgres.Executor) error {
 				tt.seed(t, tx)
 
-				repo := dispute_eventsink.NewPgEventRepo(tx, pool.Builder)
+				repo := dispute_eventsink.NewPgEventRepo(tx, tx, pool.Builder)
 				result, err := repo.GetDisputeEvents(ctx, tt.query)
 
 				if tt.expectError {
@@ -433,7 +433,7 @@ func TestCreateDisputeEvent_IdempotencyConstraint(t *testing.T) {
 			err := pool.SandboxTransaction(ctx, func(tx postgres.Executor) error {
 				tt.seed(t, tx)
 
-				repo := dispute_eventsink.NewPgEventRepo(tx, pool.Builder)
+				repo := dispute_eventsink.NewPgEventRepo(tx, tx, pool.Builder)
 
 				// Create first event
 				firstCreated, err := repo.CreateDisputeEvent(ctx, tt.firstEvent)

@@ -16,14 +16,16 @@ import (
 
 type PgOrderEventRepo struct {
 	db      postgres.Executor
+	readDB  postgres.Executor
 	builder squirrel.StatementBuilderType
 }
 
 var _ order.OrderEvents = (*PgOrderEventRepo)(nil)
 
-func NewPgOrderEventRepo(db postgres.Executor, builder squirrel.StatementBuilderType) *PgOrderEventRepo {
+func NewPgOrderEventRepo(db postgres.Executor, readDB postgres.Executor, builder squirrel.StatementBuilderType) *PgOrderEventRepo {
 	return &PgOrderEventRepo{
 		db:      db,
+		readDB:  readDB,
 		builder: builder,
 	}
 }
@@ -62,7 +64,7 @@ func (r *PgOrderEventRepo) GetOrderEventByID(ctx context.Context, eventID string
 		return nil, fmt.Errorf("build get order event by id query: %w", err)
 	}
 
-	rows, err := r.db.Query(ctx, query, args...)
+	rows, err := r.readDB.Query(ctx, query, args...)
 	if err != nil {
 		return nil, fmt.Errorf("query order event by id: %w", err)
 	}
@@ -93,7 +95,7 @@ func (r *PgOrderEventRepo) GetOrderEvents(ctx context.Context, query order.Order
 		return order.OrderEventPage{}, fmt.Errorf("build order event query: %w", err)
 	}
 
-	rows, err := r.db.Query(ctx, sqlQuery, args...)
+	rows, err := r.readDB.Query(ctx, sqlQuery, args...)
 	if err != nil {
 		return order.OrderEventPage{}, fmt.Errorf("query order events: %w", err)
 	}

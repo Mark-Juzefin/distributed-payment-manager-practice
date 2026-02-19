@@ -45,6 +45,7 @@ type Stats struct {
 	Errors    atomic.Int64
 	Orders    atomic.Int64
 	Disputes  atomic.Int64
+	Reads     atomic.Int64
 	Latencies []time.Duration
 	mu        sync.Mutex
 }
@@ -56,10 +57,13 @@ func (s *Stats) Record(r Result) {
 	} else {
 		s.Success.Add(1)
 	}
-	if r.Endpoint == "/webhooks/payments/orders" {
+	switch r.Endpoint {
+	case "/webhooks/payments/orders":
 		s.Orders.Add(1)
-	} else {
+	case "/webhooks/payments/chargebacks":
 		s.Disputes.Add(1)
+	default:
+		s.Reads.Add(1)
 	}
 	s.mu.Lock()
 	s.Latencies = append(s.Latencies, r.Duration)
@@ -70,6 +74,7 @@ var disputeRatio = flag.Float64("dispute-ratio", 0.3, "Probability of dispute pe
 
 func main() {
 	target := flag.String("target", "http://localhost:3001", "Ingest service URL")
+	apiTarget := flag.String("api", "http://localhost:3000", "API service URL (for read queries)")
 	vus := flag.Int("vus", 10, "Virtual users (concurrent workers)")
 	duration := flag.Duration("duration", 0, "Test duration (0 = run until Ctrl+C)")
 	flag.Parse()
@@ -106,14 +111,14 @@ func main() {
 	start := time.Now()
 	for i := 0; i < *vus; i++ {
 		wg.Add(1)
-		go runVU(ctx, &wg, *target, stats)
+		go runVU(ctx, &wg, *target, *apiTarget, stats)
 	}
 
 	wg.Wait()
 	printSummary(stats, time.Since(start))
 }
 
-func runVU(ctx context.Context, wg *sync.WaitGroup, target string, stats *Stats) {
+func runVU(ctx context.Context, wg *sync.WaitGroup, target, apiTarget string, stats *Stats) {
 	defer wg.Done()
 	client := &http.Client{Timeout: 5 * time.Second}
 
@@ -123,6 +128,9 @@ func runVU(ctx context.Context, wg *sync.WaitGroup, target string, stats *Stats)
 			return
 		default:
 			orderID, userID, finalStatus := runOrderScenario(ctx, client, target, stats)
+
+			// Read queries — go to replicas via readDB
+			runReadQueries(ctx, client, apiTarget, orderID, stats)
 
 			if finalStatus == orderSuccess && rand.Float64() < *disputeRatio {
 				runDisputeScenario(ctx, client, target, orderID, userID, stats)
@@ -224,6 +232,40 @@ func runDisputeScenario(ctx context.Context, client *http.Client, target, orderI
 	stats.Record(result)
 }
 
+func runReadQueries(ctx context.Context, client *http.Client, apiTarget, orderID string, stats *Stats) {
+	endpoints := []string{
+		"/orders/" + orderID,
+		"/orders?limit=10",
+		"/orders/events?limit=10",
+	}
+
+	for _, ep := range endpoints {
+		select {
+		case <-ctx.Done():
+			return
+		default:
+		}
+
+		result := sendGET(client, apiTarget, ep)
+		stats.Record(result)
+	}
+}
+
+func sendGET(client *http.Client, target, endpoint string) Result {
+	url := target + endpoint
+
+	start := time.Now()
+	resp, err := client.Get(url)
+	duration := time.Since(start)
+
+	result := Result{Endpoint: endpoint, Duration: duration, Error: err}
+	if resp != nil {
+		result.Status = resp.StatusCode
+		resp.Body.Close()
+	}
+	return result
+}
+
 func sendOrderWebhook(client *http.Client, target, orderID, userID, status string, now time.Time) Result {
 	payload := map[string]any{
 		"provider_event_id": uuid.NewString(),
@@ -278,6 +320,7 @@ func printSummary(stats *Stats, elapsed time.Duration) {
 	errors := stats.Errors.Load()
 	orders := stats.Orders.Load()
 	disputes := stats.Disputes.Load()
+	reads := stats.Reads.Load()
 
 	fmt.Println("\n========== SUMMARY ==========")
 	fmt.Printf("Duration:    %s\n", elapsed.Round(time.Millisecond))
@@ -288,6 +331,7 @@ func printSummary(stats *Stats, elapsed time.Duration) {
 	}
 	fmt.Printf("  Orders:    %d\n", orders)
 	fmt.Printf("  Disputes:  %d\n", disputes)
+	fmt.Printf("  Reads:     %d\n", reads)
 	fmt.Printf("Success:     %d\n", success)
 	if total > 0 {
 		fmt.Printf("Errors:      %d (%.2f%%)\n", errors, float64(errors)/float64(total)*100)

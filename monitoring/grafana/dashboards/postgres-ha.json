@@ -1,0 +1,155 @@
+{
+  "annotations": { "list": [] },
+  "editable": true,
+  "fiscalYearStartMonth": 0,
+  "graphTooltip": 1,
+  "links": [],
+  "panels": [
+    {
+      "title": "Replication Lag (bytes behind primary)",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 0 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "decbytes",
+          "custom": { "fillOpacity": 10 }
+        }
+      },
+      "targets": [
+        {
+          "expr": "pg_stat_replication_pg_wal_lsn_diff",
+          "legendFormat": "{{client_addr}} (slot {{slot_name}})"
+        }
+      ]
+    },
+    {
+      "title": "WAL Senders",
+      "type": "stat",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 0 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "decbytes",
+          "thresholds": {
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "yellow", "value": 1048576 },
+              { "color": "red", "value": 104857600 }
+            ]
+          }
+        }
+      },
+      "options": {
+        "colorMode": "background",
+        "graphMode": "none"
+      },
+      "targets": [
+        {
+          "expr": "pg_stat_replication_pg_wal_lsn_diff",
+          "legendFormat": "{{client_addr}}"
+        }
+      ]
+    },
+    {
+      "title": "HAProxy: Sessions by Backend",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 8 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [
+        {
+          "expr": "haproxy_server_current_sessions",
+          "legendFormat": "{{proxy}} / {{server}}"
+        }
+      ]
+    },
+    {
+      "title": "HAProxy: Bytes Out Rate",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 8 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "Bps",
+          "custom": { "fillOpacity": 10 }
+        }
+      },
+      "targets": [
+        {
+          "expr": "rate(haproxy_server_bytes_out_total[1m])",
+          "legendFormat": "{{proxy}} / {{server}}"
+        }
+      ]
+    },
+    {
+      "title": "HAProxy: Total Sessions",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 16 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": {
+        "defaults": {
+          "custom": { "fillOpacity": 10 }
+        }
+      },
+      "targets": [
+        {
+          "expr": "rate(haproxy_server_sessions_total[1m])",
+          "legendFormat": "{{proxy}} / {{server}}"
+        }
+      ]
+    },
+    {
+      "title": "HAProxy: Backend Up/Down",
+      "type": "stat",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 16 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": {
+        "defaults": {
+          "mappings": [
+            { "type": "value", "options": { "1": { "text": "UP", "color": "green" } } },
+            { "type": "value", "options": { "0": { "text": "DOWN", "color": "red" } } }
+          ]
+        }
+      },
+      "targets": [
+        {
+          "expr": "haproxy_server_status{state=\"UP\"}",
+          "legendFormat": "{{proxy}} / {{server}}"
+        }
+      ]
+    },
+    {
+      "title": "PG: Active Connections",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 24 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [
+        {
+          "expr": "pg_stat_activity_count{datname=\"payments\"}",
+          "legendFormat": "{{state}}"
+        }
+      ]
+    },
+    {
+      "title": "PG: Database Size",
+      "type": "stat",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 24 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": {
+        "defaults": { "unit": "decbytes" }
+      },
+      "targets": [
+        {
+          "expr": "pg_database_size_bytes{datname=\"payments\"}",
+          "legendFormat": "payments"
+        }
+      ]
+    }
+  ],
+  "schemaVersion": 39,
+  "tags": ["postgres", "haproxy", "ha"],
+  "templating": { "list": [] },
+  "time": { "from": "now-30m", "to": "now" },
+  "title": "PostgreSQL HA",
+  "uid": "postgres-ha"
+}

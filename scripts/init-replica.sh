@@ -7,7 +7,17 @@ until pg_isready -h db-primary -U postgres; do
     sleep 2
 done
 
-# Ensure PGDATA directory exists and is owned by postgres
+# If PGDATA has valid replica data (standby.signal), skip pg_basebackup
+if [ -f "$PGDATA/standby.signal" ]; then
+    echo "Existing replica data found, starting replica directly..."
+    exec gosu postgres postgres \
+        -c "shared_preload_libraries=pg_partman_bgw" \
+        -c "wal_level=logical" \
+        -c "hot_standby=on"
+fi
+
+# Clean PGDATA and run fresh base backup
+rm -rf "${PGDATA:?}"/*
 mkdir -p "$PGDATA"
 chown -R postgres:postgres "$PGDATA"
 chmod 0700 "$PGDATA"

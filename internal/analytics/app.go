@@ -35,7 +35,7 @@ func Run(cfg config.AnalyticsConfig) {
 		"index", cfg.OpensearchIndex,
 	)
 
-	idx, err := newIndexer(cfg.OpensearchURLs, cfg.OpensearchIndex)
+	idx, err := newIndexer(ctx, cfg.OpensearchURLs, cfg.OpensearchIndex)
 	if err != nil {
 		slog.Error("Failed to create OpenSearch indexer", slog.Any("error", err))
 		os.Exit(1)

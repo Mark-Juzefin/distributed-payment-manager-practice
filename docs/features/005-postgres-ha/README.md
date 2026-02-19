@@ -37,6 +37,7 @@ App (API) ──rw pool──→ HAProxy :5440 ──→ db-primary
 - [x] Subtask 2: Read replica routing — HAProxy (rw/ro endpoints), 2 replicas, app-level read/write split at repository level
   - **Plan:** [plan-subtask-2.md](plan-subtask-2.md)
 - [ ] Subtask 3: Failover/switchover — manual promotion, automated failover with Patroni basics
+  - Reference: [HA PostgreSQL with Patroni and HAProxy](https://jfrog.com/community/devops/highly-available-postgresql-cluster-using-patroni-and-haproxy/)
 - [ ] Subtask 4: Backup/restore — pg_basebackup for PITR, WAL archiving, restore verification
 - [x] Subtask 5a: Monitoring — replication lag metrics, HAProxy metrics, postgres-exporter, Grafana dashboard
 - [ ] Subtask 5b: Monitoring — backup success/failure alerts

@@ -42,6 +42,7 @@
   - [x] Inbox table + Ingest writes: durable webhook storage, return 202 OK
   - [x] DB-queue worker (SKIP LOCKED): poll inbox, forward to API via HTTP, retry logic
   - [ ] Inbox e2e & integration tests: full flow webhook→inbox→worker→API→DB
+  - [ ] Concurrent workers with SKIP LOCKED: run N workers claiming from inbox in parallel, observe no double-processing under load
   - [ ] CDC + Kafka variant: inbox + outbox in one TX, CDC publishes to Kafka
   - [ ] Benchmarks & comparison: loadtest both approaches, latency/throughput metrics
 

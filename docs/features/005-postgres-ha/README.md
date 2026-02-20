@@ -41,6 +41,7 @@ App (API) ──rw pool──→ HAProxy :5440 ──→ db-primary
 - [ ] Subtask 4: Backup/restore — pg_basebackup for PITR, WAL archiving, restore verification
 - [x] Subtask 5a: Monitoring — replication lag metrics, HAProxy metrics, postgres-exporter, Grafana dashboard
 - [ ] Subtask 5b: Monitoring — backup success/failure alerts
+- [ ] Subtask 6: Replication lag consistency test — demonstrate read-after-write inconsistency with read replicas
 
 ## Useful Links
 

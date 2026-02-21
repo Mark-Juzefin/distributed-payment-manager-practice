@@ -97,7 +97,7 @@ func TestCreateOrderEvent_IdempotencyConstraint(t *testing.T) {
 			err := pool.SandboxTransaction(ctx, func(tx postgres.Executor) error {
 				tt.seed(t, tx)
 
-				repo := order_eventsink.NewPgOrderEventRepo(tx, pool.Builder)
+				repo := order_eventsink.NewPgOrderEventRepo(tx, tx, pool.Builder)
 
 				// Create first event
 				firstCreated, err := repo.CreateOrderEvent(ctx, tt.firstEvent)

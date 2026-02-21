@@ -25,7 +25,7 @@ Go, PostgreSQL, pg_partman, Docker, MongoDB, OpenSearch, Kafka, testcontainers-g
 
 # Status
 
-Building **Outbox → CDC → Analytics** pipeline — reliable event publishing via outbox pattern, custom Go CDC worker (PostgreSQL logical replication), and OpenSearch projection consumer. Core pipeline is working end-to-end; next up is partitioning for the events table and exactly-once semantics exploration.
+Building **PostgreSQL HA** — Patroni + etcd cluster (3 identical PG nodes with automated failover), HAProxy for rw/ro traffic splitting via Patroni REST API health checks, app-level read/write routing at repository level. Monitoring with postgres-exporter and Grafana dashboard for replication lag and HAProxy metrics.
 
 # Roadmap
 
@@ -44,12 +44,23 @@ flowchart LR
 
   ING -->|Kafka| API["API<br/>:3000"]
 
-  subgraph TX["PostgreSQL (single TX)"]
+  subgraph PG["PostgreSQL HA (Patroni + etcd)"]
     direction TB
-    BIZ["orders / disputes"]
-    EVT["events (outbox)"]
+    ETCD["etcd<br/>leader election"]
+    HAP["HAProxy<br/>:5440 rw / :5441 ro"]
+    subgraph PAT["Patroni Cluster"]
+      P1["patroni1<br/>PG + Patroni"]
+      P2["patroni2<br/>PG + Patroni"]
+      P3["patroni3<br/>PG + Patroni"]
+    end
+    ETCD ---|leader key| PAT
+    HAP -->|"httpchk /primary"| PAT
+    HAP -->|"httpchk /replica (round-robin)"| PAT
+    P1 -->|streaming replication| P2
+    P1 -->|streaming replication| P3
   end
-  API --> TX
+  API -->|rw pool| HAP
+  API -->|ro pool| HAP
 
   EVT -->|WAL logical replication| CDC["CDC Worker"]
   CDC -->|produce| TOPIC["Kafka<br/>domain.events"]
@@ -126,8 +137,11 @@ Each virtual user creates orders (full lifecycle: created → updated → succes
 
 # Monitoring
 
-Services expose Prometheus metrics at `/metrics`; Grafana dashboards visualize HTTP latency, error rates, and Kafka throughput.
+Monitoring starts automatically with `make start_containers` (part of `infra` profile).
 
-```bash
-make start-monitoring  # Prometheus :9090, Grafana :3100 (admin/admin)
-```
+- **Prometheus** :9090 — scrapes API, Ingest, HAProxy, postgres-exporter
+- **Grafana** :3100 (admin/admin) — dashboards:
+  - [Service Health](http://localhost:3100/d/service-health) — HTTP latency, error rates, Kafka throughput
+  - [PostgreSQL HA](http://localhost:3100/d/postgres-ha) — replication lag, HAProxy sessions, PG connections
+- **HAProxy stats** :8404/stats — backend health, session distribution
+- **postgres-exporter** :9187 — PG replication, activity, database size metrics

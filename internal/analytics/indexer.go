@@ -6,7 +6,9 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log/slog"
 	"net/http"
+	"time"
 
 	"github.com/opensearch-project/opensearch-go"
 )
@@ -16,7 +18,7 @@ type indexer struct {
 	index  string
 }
 
-func newIndexer(urls []string, index string) (*indexer, error) {
+func newIndexer(ctx context.Context, urls []string, index string) (*indexer, error) {
 	if len(urls) == 0 {
 		return nil, errors.New("no OpenSearch addresses configured")
 	}
@@ -32,10 +34,23 @@ func newIndexer(urls []string, index string) (*indexer, error) {
 	}
 
 	idx := &indexer{client: client, index: index}
-	if err := idx.ensureIndex(context.Background()); err != nil {
-		return nil, err
+
+	const maxRetries = 30
+	for i := range maxRetries {
+		if err = idx.ensureIndex(ctx); err == nil {
+			return idx, nil
+		}
+		slog.Warn("OpenSearch not ready, retrying...",
+			"attempt", i+1,
+			"error", err,
+		)
+		select {
+		case <-ctx.Done():
+			return nil, ctx.Err()
+		case <-time.After(2 * time.Second):
+		}
 	}
-	return idx, nil
+	return nil, fmt.Errorf("opensearch not ready after %d retries: %w", maxRetries, err)
 }
 
 // ensureIndex creates the index with mapping if it does not exist yet.

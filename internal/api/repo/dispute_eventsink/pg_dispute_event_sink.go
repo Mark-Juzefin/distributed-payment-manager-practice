@@ -16,14 +16,16 @@ import (
 
 type PgDisputeEventRepo struct {
 	db      postgres.Executor
+	readDB  postgres.Executor
 	builder squirrel.StatementBuilderType
 }
 
 var _ dispute.DisputeEvents = (*PgDisputeEventRepo)(nil)
 
-func NewPgEventRepo(db postgres.Executor, builder squirrel.StatementBuilderType) *PgDisputeEventRepo {
+func NewPgEventRepo(db postgres.Executor, readDB postgres.Executor, builder squirrel.StatementBuilderType) *PgDisputeEventRepo {
 	return &PgDisputeEventRepo{
 		db:      db,
+		readDB:  readDB,
 		builder: builder,
 	}
 }
@@ -62,7 +64,7 @@ func (r *PgDisputeEventRepo) GetDisputeEventByID(ctx context.Context, eventID st
 		return nil, fmt.Errorf("build get dispute event by id query: %w", err)
 	}
 
-	rows, err := r.db.Query(ctx, query, args...)
+	rows, err := r.readDB.Query(ctx, query, args...)
 	if err != nil {
 		return nil, fmt.Errorf("query dispute event by id: %w", err)
 	}
@@ -93,7 +95,7 @@ func (r *PgDisputeEventRepo) GetDisputeEvents(ctx context.Context, query dispute
 		return dispute.DisputeEventPage{}, fmt.Errorf("build dispute event query: %w", err)
 	}
 
-	rows, err := r.db.Query(ctx, sqlQuery, args...)
+	rows, err := r.readDB.Query(ctx, sqlQuery, args...)
 	if err != nil {
 		return dispute.DisputeEventPage{}, fmt.Errorf("query dispute events: %w", err)
 	}

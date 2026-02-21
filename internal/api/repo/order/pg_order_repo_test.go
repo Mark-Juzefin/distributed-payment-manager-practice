@@ -18,7 +18,7 @@ func TestGetOrders(t *testing.T) {
 	require.NoError(t, err)
 	defer mock.Close()
 
-	repo := &repo{db: mock, builder: squirrel.StatementBuilder.PlaceholderFormat(squirrel.Dollar)}
+	repo := &repo{db: mock, readDB: mock, builder: squirrel.StatementBuilder.PlaceholderFormat(squirrel.Dollar)}
 	ctx := context.Background()
 
 	t.Run("should return orders with basic query", func(t *testing.T) {
@@ -53,7 +53,7 @@ func TestUpdateOrder(t *testing.T) {
 	require.NoError(t, err)
 	defer mock.Close()
 
-	repo := &repo{db: mock, builder: squirrel.StatementBuilder.PlaceholderFormat(squirrel.Dollar)}
+	repo := &repo{db: mock, readDB: mock, builder: squirrel.StatementBuilder.PlaceholderFormat(squirrel.Dollar)}
 	ctx := context.Background()
 
 	t.Run("should update order successfully", func(t *testing.T) {
@@ -101,7 +101,7 @@ func TestCreateOrderByEvent(t *testing.T) {
 	require.NoError(t, err)
 	defer mock.Close()
 
-	repo := &repo{db: mock, builder: squirrel.StatementBuilder.PlaceholderFormat(squirrel.Dollar)}
+	repo := &repo{db: mock, readDB: mock, builder: squirrel.StatementBuilder.PlaceholderFormat(squirrel.Dollar)}
 	ctx := context.Background()
 
 	t.Run("should create order successfully", func(t *testing.T) {
@@ -150,7 +150,7 @@ func TestUpdateOrderHold(t *testing.T) {
 	require.NoError(t, err)
 	defer mock.Close()
 
-	repo := &repo{db: mock, builder: squirrel.StatementBuilder.PlaceholderFormat(squirrel.Dollar)}
+	repo := &repo{db: mock, readDB: mock, builder: squirrel.StatementBuilder.PlaceholderFormat(squirrel.Dollar)}
 	ctx := context.Background()
 
 	t.Run("should set order on hold successfully", func(t *testing.T) {

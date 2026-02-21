@@ -23,28 +23,29 @@ type PgDisputeRepo struct {
 	repo
 }
 
-func NewPgDisputeRepo(pg *postgres.Postgres) dispute.DisputeRepo {
+func NewPgDisputeRepo(pg *postgres.Postgres, readDB postgres.Executor) dispute.DisputeRepo {
 	return &PgDisputeRepo{
 		pg:   pg,
-		repo: repo{db: pg.Pool, builder: pg.Builder},
+		repo: repo{db: pg.Pool, readDB: readDB, builder: pg.Builder},
 	}
 }
 
 // TxRepoFactory returns a factory that creates transaction-scoped dispute repositories.
 func TxRepoFactory(builder squirrel.StatementBuilderType) func(postgres.Executor) dispute.DisputeRepo {
 	return func(tx postgres.Executor) dispute.DisputeRepo {
-		return &repo{db: tx, builder: builder}
+		return &repo{db: tx, readDB: tx, builder: builder}
 	}
 }
 
 type repo struct {
 	db      postgres.Executor
+	readDB  postgres.Executor
 	builder squirrel.StatementBuilderType
 }
 
 func (r *repo) GetDisputes(ctx context.Context) ([]dispute.Dispute, error) {
 	query, args := r.buildDisputesQuery()
-	rows, err := r.db.Query(ctx, query, args...)
+	rows, err := r.readDB.Query(ctx, query, args...)
 	if err != nil {
 		return nil, fmt.Errorf("query disputes: %w", err)
 	}
@@ -55,7 +56,7 @@ func (r *repo) GetDisputes(ctx context.Context) ([]dispute.Dispute, error) {
 
 func (r *repo) GetDisputeByID(ctx context.Context, disputeID string) (*dispute.Dispute, error) {
 	query, args := r.buildDisputeByIDQuery(disputeID)
-	rows, err := r.db.Query(ctx, query, args...)
+	rows, err := r.readDB.Query(ctx, query, args...)
 	if err != nil {
 		return nil, fmt.Errorf("query dispute by id: %w", err)
 	}
@@ -72,7 +73,7 @@ func (r *repo) GetDisputeByID(ctx context.Context, disputeID string) (*dispute.D
 }
 func (r *repo) GetDisputeByOrderID(ctx context.Context, orderID string) (*dispute.Dispute, error) {
 	query, args := r.buildDisputeByOrderIDQuery(orderID)
-	rows, err := r.db.Query(ctx, query, args...)
+	rows, err := r.readDB.Query(ctx, query, args...)
 	if err != nil {
 		return nil, fmt.Errorf("query dispute by order id: %w", err)
 	}
@@ -157,7 +158,7 @@ func (r *repo) UpsertEvidence(ctx context.Context, disputeID string, upsert disp
 
 func (r *repo) GetEvidence(ctx context.Context, disputeID string) (*dispute.Evidence, error) {
 	query, args := r.buildGetEvidenceQuery(disputeID)
-	rows, err := r.db.Query(ctx, query, args...)
+	rows, err := r.readDB.Query(ctx, query, args...)
 	if err != nil {
 		return nil, fmt.Errorf("query evidence: %w", err)
 	}

@@ -38,10 +38,11 @@ type IngestConfig struct {
 
 // APIConfig - full configuration for API service (domain logic, consumers, manual operations)
 type APIConfig struct {
-	Port      int    `env:"PORT" envDefault:"3000"`
-	PgURL     string `env:"PG_URL" required:"true"`
-	PgPoolMax int    `env:"PG_POOL_MAX" envDefault:"10"`
-	LogLevel  string `env:"LOG_LEVEL" envDefault:"info"`
+	Port         int    `env:"PORT" envDefault:"3000"`
+	PgURL        string `env:"PG_URL" required:"true"`
+	PgReplicaURL string `env:"PG_REPLICA_URL"`
+	PgPoolMax    int    `env:"PG_POOL_MAX" envDefault:"10"`
+	LogLevel     string `env:"LOG_LEVEL" envDefault:"info"`
 
 	SilvergateBaseURL                 string        `env:"SILVERGATE_BASE_URL" required:"true"`
 	SilvergateSubmitRepresentmentPath string        `env:"SILVERGATE_SUBMIT_REPRESENTMENT_PATH" required:"true"`

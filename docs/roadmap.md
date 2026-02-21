@@ -42,15 +42,17 @@
   - [x] Inbox table + Ingest writes: durable webhook storage, return 202 OK
   - [x] DB-queue worker (SKIP LOCKED): poll inbox, forward to API via HTTP, retry logic
   - [ ] Inbox e2e & integration tests: full flow webhook→inbox→worker→API→DB
+  - [ ] Concurrent workers with SKIP LOCKED: run N workers claiming from inbox in parallel, observe no double-processing under load
   - [ ] CDC + Kafka variant: inbox + outbox in one TX, CDC publishes to Kafka
   - [ ] Benchmarks & comparison: loadtest both approaches, latency/throughput metrics
 
-- **Step 5: PostgreSQL HA & DR** ← *active* — [details](features/005-postgres-ha/)
-  - [x] Streaming replication: primary + async standby via Docker Compose (standalone demo, not integrated with app)
-  - [ ] Read replica routing: application-level read/write split
-  - [ ] Failover/switchover: manual and automated (Patroni basics)
+- **Step 5: PostgreSQL HA & DR** ← *paused* — [details](features/005-postgres-ha/)
+  - [x] Streaming replication: primary + async standby via Docker Compose
+  - [x] Read replica routing: HAProxy rw/ro split, app-level routing at repository level
+  - [x] Failover/switchover: Patroni + etcd automated failover, HAProxy REST API health checks
+  - [x] Monitoring: replication lag, HAProxy metrics, postgres-exporter, Grafana dashboard
   - [ ] Backup/restore: pg_basebackup for PITR, restore verification
-  - [ ] Monitoring: replication lag metrics, backup success/failure alerts
+  - [ ] Replication lag consistency test: demonstrate read-after-write issues
 
 - **Step 6: Simple Deployment Profile + VPS Hosting**
   - [ ] Single-node deployment without Kafka dependency (sync mode as default)

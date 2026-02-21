@@ -54,15 +54,16 @@
   - [ ] Backup/restore: pg_basebackup for PITR, restore verification
   - [ ] Replication lag consistency test: demonstrate read-after-write issues
 
-- **Step 6: Simple Deployment Profile + VPS Hosting**
+- **Step 6: Sharding Experiments** ← *next*
+  - Infra approach: Citus, Patroni Operator on K8s, or app-level with duplicated docker-compose — decide before implementation
+  - [ ] Split orders/disputes across multiple Postgres shards by hash(user_id)
+  - [ ] Routing strategies, rebalancing, cross-shard queries, failure modes
+
+- **Step 7: Simple Deployment Profile + VPS Hosting**
   - [ ] Single-node deployment without Kafka dependency (sync mode as default)
   - [ ] HTMX admin dashboard for viewing orders, disputes, events
   - [ ] VPS deployment: systemd services, nginx reverse proxy, basic security hardening
   - [ ] Local dev tooling: research alternatives to goreman (Overmind, process-compose, etc.)
-
-- **Step 7: Sharding Experiments**
-  - [ ] Split orders/disputes across multiple Postgres shards by hash(user_id)
-  - [ ] Routing strategies, rebalancing, cross-shard queries, failure modes
 
 - **Step 8: Infrastructure (Kubernetes, API Gateway, Service Mesh)**
   - [ ] Kubernetes: deploy services, HPA, liveness/readiness, ConfigMaps/Secrets

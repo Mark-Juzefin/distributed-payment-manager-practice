@@ -3,7 +3,7 @@ export
 
 MIGRATION_DIR=internal/api/migrations
 
-.PHONY: run run-dev run-kafka run-http run-inbox run-api run-ingest start_containers stop_containers stop_containers_remove lint test integration-test e2e-test generate migrate seed-db print-db-size clean-db benchmark build-pg-image test-webhook loadtest loadtest-steady
+.PHONY: run run-dev run-kafka run-http run-inbox run-api run-ingest start_containers stop_containers stop_containers_remove lint test integration-test e2e-test generate migrate seed-db print-db-size clean-db benchmark build-pg-image test-webhook loadtest loadtest-steady patroni-status
 
 run:
 	docker compose --profile prod up --build
@@ -34,7 +34,7 @@ run-ingest:
 	go run ./cmd/ingest
 
 start_containers:
-	docker-compose --profile infra up --build -d
+	docker-compose --profile infra up --build -d --wait
 
 stop_containers:
 	docker compose --profile infra --profile prod down --remove-orphans
@@ -82,6 +82,16 @@ ifndef name
 	$(error "Usage: make migrate name=your_migration_name")
 endif
 	go tool goose -dir=$(MIGRATION_DIR) create $(name) sql
+
+db-primary:
+	PGPASSWORD=secret psql -h localhost -p 5440 -U postgres -d payments
+
+db-replica:
+	PGPASSWORD=secret psql -h localhost -p 5441 -U postgres -d payments
+
+# Patroni cluster status
+patroni-status:
+	docker exec patroni1 patronictl -c /etc/patroni/patroni.yml list
 
 seed-db:
 	psql -d "$(PG_URL)" -f ./benchmark/generate_dispute_events.sql

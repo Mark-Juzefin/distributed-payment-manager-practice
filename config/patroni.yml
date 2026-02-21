@@ -1,0 +1,53 @@
+scope: payments-cluster
+
+etcd3:
+  hosts: etcd:2379
+
+restapi:
+  listen: 0.0.0.0:8008
+
+bootstrap:
+  dcs:
+    ttl: 30
+    loop_wait: 10
+    retry_timeout: 10
+    maximum_lag_on_failover: 1048576  # 1MB — don't promote replica that's too far behind
+    postgresql:
+      use_pg_rewind: true
+      use_slots: true
+      parameters:
+        shared_preload_libraries: 'pg_partman_bgw'
+        wal_level: logical
+        max_wal_senders: 10
+        max_replication_slots: 10
+        wal_keep_size: 256MB
+        hot_standby: 'on'
+  initdb:
+    - encoding: UTF8
+    - locale: en_US.UTF-8
+    - data-checksums
+  pg_hba:
+    - local all all trust
+    - host all all 0.0.0.0/0 md5
+    - host replication replicator 0.0.0.0/0 md5
+  post_bootstrap: /etc/patroni/post-bootstrap.sh
+
+postgresql:
+  listen: 0.0.0.0:5432
+  data_dir: /var/lib/postgresql/data/patroni
+  authentication:
+    superuser:
+      username: postgres
+      password: secret
+    replication:
+      username: replicator
+      password: replicator_pass
+  basebackup:
+    - checkpoint: fast
+    - max-rate: 100M
+  parameters:
+    shared_preload_libraries: 'pg_partman_bgw'
+  pg_hba:
+    - local all all trust
+    - host all all 0.0.0.0/0 md5
+    - host replication replicator 0.0.0.0/0 md5

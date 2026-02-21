@@ -24,10 +24,22 @@ Practice PostgreSQL streaming replication with a primary-standby setup and appli
 ## Architecture
 
 ```
-App (API) ──rw pool──→ HAProxy :5440 ──→ db-primary
-          ──ro pool──→ HAProxy :5441 ──→ db-replica (round-robin)
-                                     ──→ db-replica-2
-          primary ──streaming replication──→ replicas
+                    ┌─────────┐
+                    │  etcd   │  ← leader election
+                    └────┬────┘
+                         │
+          ┌──────────────┼──────────────┐
+          │              │              │
+    ┌─────┴─────┐  ┌─────┴─────┐  ┌─────┴─────┐
+    │ patroni1  │  │ patroni2  │  │ patroni3  │
+    │ PG + Pat  │  │ PG + Pat  │  │ PG + Pat  │
+    │ :8008 API │  │ :8008 API │  │ :8008 API │
+    └───────────┘  └───────────┘  └───────────┘
+          │              │              │
+          └──────────────┼──────────────┘
+                         │
+App (API) ──rw pool──→ HAProxy :5440 ──→ /primary (httpchk)
+          ──ro pool──→ HAProxy :5441 ──→ /replica (httpchk, round-robin)
 ```
 
 ## Tasks
@@ -36,7 +48,8 @@ App (API) ──rw pool──→ HAProxy :5440 ──→ db-primary
   - **Plan:** [plan-subtask-1.md](plan-subtask-1.md)
 - [x] Subtask 2: Read replica routing — HAProxy (rw/ro endpoints), 2 replicas, app-level read/write split at repository level
   - **Plan:** [plan-subtask-2.md](plan-subtask-2.md)
-- [ ] Subtask 3: Failover/switchover — manual promotion, automated failover with Patroni basics
+- [x] Subtask 3: Failover/switchover — manual promotion, automated failover with Patroni basics
+  - **Plan:** [plan-subtask-3.md](plan-subtask-3.md)
   - Reference: [HA PostgreSQL with Patroni and HAProxy](https://jfrog.com/community/devops/highly-available-postgresql-cluster-using-patroni-and-haproxy/)
 - [ ] Subtask 4: Backup/restore — pg_basebackup for PITR, WAL archiving, restore verification
 - [x] Subtask 5a: Monitoring — replication lag metrics, HAProxy metrics, postgres-exporter, Grafana dashboard
@@ -86,3 +99,19 @@ App (API) ──rw pool──→ HAProxy :5440 ──→ db-primary
 - **Grafana dashboard** `postgres-ha` — replication lag, HAProxy sessions/bytes/status, PG connections, DB size
 - **Loadtest** updated — sends GET queries (orders, events) alongside webhooks to exercise read replicas
 - **Analytics retry** — `newIndexer` retries up to 60s waiting for OpenSearch startup
+
+### Subtask 3: Patroni + etcd — Automated Failover
+- **Replaced manual replication** with Patroni cluster manager — all 3 PG nodes identical, Patroni decides roles
+- **etcd** (1 node) as DCS — stores leader key, used for leader election
+- **PG.Dockerfile** — added `patroni[etcd3]` via pip, custom entrypoint (`patroni-entrypoint.sh`) ensures data dir permissions
+- **`config/patroni.yml`** — single config for all nodes: bootstrap params, pg_hba, replication auth, `use_pg_rewind`, `use_slots`
+- Node-specific settings (`name`, `connect_address`) via env vars in docker-compose (`PATRONI_NAME`, `PATRONI_RESTAPI_CONNECT_ADDRESS`, `PATRONI_POSTGRESQL_CONNECT_ADDRESS`)
+- **`scripts/post-bootstrap.sh`** — creates `payments` and `ingest` databases on initial leader bootstrap
+- **HAProxy** — switched from `pgsql-check` to Patroni REST API health checks (`/primary`, `/replica` on port 8008)
+- All 3 nodes listed in both backends — HAProxy determines who is primary/replica via health checks
+- `on-marked-down shutdown-sessions` — immediately drops connections on failover
+- **docker-compose** — `--wait` flag ensures `start_containers` returns only when all Patroni healthchecks pass
+- **Deleted** `scripts/init-db.sh`, `scripts/init-replica.sh` — Patroni handles bootstrap, replication user, pg_basebackup
+- **Failover tested**: `docker stop <leader>` → new leader elected in ~10-15s, HAProxy reroutes automatically
+- **17% errors during failover** are expected — async replication means ~2-5s unavailability window
+- After failover, stopped node rejoins as replica via `pg_rewind` (no full basebackup needed)

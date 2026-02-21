@@ -25,7 +25,7 @@ Go, PostgreSQL, pg_partman, Docker, MongoDB, OpenSearch, Kafka, testcontainers-g
 
 # Status
 
-Building **PostgreSQL HA** — streaming replication with primary + 2 async replicas, HAProxy for rw/ro traffic splitting, app-level read/write routing at repository level. Monitoring with postgres-exporter and Grafana dashboard for replication lag and HAProxy metrics.
+Building **PostgreSQL HA** — Patroni + etcd cluster (3 identical PG nodes with automated failover), HAProxy for rw/ro traffic splitting via Patroni REST API health checks, app-level read/write routing at repository level. Monitoring with postgres-exporter and Grafana dashboard for replication lag and HAProxy metrics.
 
 # Roadmap
 
@@ -44,20 +44,20 @@ flowchart LR
 
   ING -->|Kafka| API["API<br/>:3000"]
 
-  subgraph PG["PostgreSQL HA"]
+  subgraph PG["PostgreSQL HA (Patroni + etcd)"]
     direction TB
+    ETCD["etcd<br/>leader election"]
     HAP["HAProxy<br/>:5440 rw / :5441 ro"]
-    subgraph PRI["Primary"]
-      BIZ["orders / disputes"]
-      EVT["events (outbox)"]
+    subgraph PAT["Patroni Cluster"]
+      P1["patroni1<br/>PG + Patroni"]
+      P2["patroni2<br/>PG + Patroni"]
+      P3["patroni3<br/>PG + Patroni"]
     end
-    REP1["Replica 1"]
-    REP2["Replica 2"]
-    HAP -->|writes| PRI
-    HAP -->|reads round-robin| REP1
-    HAP -->|reads round-robin| REP2
-    PRI -->|streaming replication| REP1
-    PRI -->|streaming replication| REP2
+    ETCD ---|leader key| PAT
+    HAP -->|"httpchk /primary"| PAT
+    HAP -->|"httpchk /replica (round-robin)"| PAT
+    P1 -->|streaming replication| P2
+    P1 -->|streaming replication| P3
   end
   API -->|rw pool| HAP
   API -->|ro pool| HAP

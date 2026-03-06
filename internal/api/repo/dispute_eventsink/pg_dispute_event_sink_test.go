@@ -27,7 +27,7 @@ func TestPgEventRepo_buildDisputeEventPageQuery(t *testing.T) {
 		name          string
 		query         dispute.DisputeEventQuery
 		expectedSQL   string
-		expectedArgs  []interface{}
+		expectedArgs  []any
 		shouldError   bool
 		errorContains string
 	}{
@@ -38,7 +38,7 @@ func TestPgEventRepo_buildDisputeEventPageQuery(t *testing.T) {
 				Limit:      10,
 			},
 			expectedSQL: "SELECT id, dispute_id, kind, provider_event_id, data, created_at FROM dispute_events WHERE dispute_id IN ($1,$2) ORDER BY created_at DESC, id DESC LIMIT 11",
-			expectedArgs: []interface{}{
+			expectedArgs: []any{
 				"dispute_1", "dispute_2",
 			},
 		},
@@ -50,7 +50,7 @@ func TestPgEventRepo_buildDisputeEventPageQuery(t *testing.T) {
 				Limit:      5,
 			},
 			expectedSQL: "SELECT id, dispute_id, kind, provider_event_id, data, created_at FROM dispute_events WHERE dispute_id IN ($1) AND kind IN ($2,$3) ORDER BY created_at DESC, id DESC LIMIT 6",
-			expectedArgs: []interface{}{
+			expectedArgs: []any{
 				"dispute_1", dispute.DisputeEventWebhookOpened, dispute.DisputeEventEvidenceAdded,
 			},
 		},
@@ -63,7 +63,7 @@ func TestPgEventRepo_buildDisputeEventPageQuery(t *testing.T) {
 				Limit:      10,
 			},
 			expectedSQL: "SELECT id, dispute_id, kind, provider_event_id, data, created_at FROM dispute_events WHERE dispute_id IN ($1) AND created_at >= $2 AND created_at < $3 ORDER BY created_at DESC, id DESC LIMIT 11",
-			expectedArgs: []interface{}{
+			expectedArgs: []any{
 				"dispute_1", testTime.UTC(), testTime.Add(24 * time.Hour).UTC(),
 			},
 		},
@@ -76,7 +76,7 @@ func TestPgEventRepo_buildDisputeEventPageQuery(t *testing.T) {
 				Limit:      10,
 			},
 			expectedSQL: "SELECT id, dispute_id, kind, provider_event_id, data, created_at FROM dispute_events WHERE dispute_id IN ($1) AND (created_at, id) < ($2, $3) ORDER BY created_at DESC, id DESC LIMIT 11",
-			expectedArgs: []interface{}{
+			expectedArgs: []any{
 				"dispute_1", testTime.UTC(), "event_123",
 			},
 		},
@@ -89,7 +89,7 @@ func TestPgEventRepo_buildDisputeEventPageQuery(t *testing.T) {
 				Limit:      10,
 			},
 			expectedSQL: "SELECT id, dispute_id, kind, provider_event_id, data, created_at FROM dispute_events WHERE dispute_id IN ($1) AND (created_at, id) > ($2, $3) ORDER BY created_at ASC, id ASC LIMIT 11",
-			expectedArgs: []interface{}{
+			expectedArgs: []any{
 				"dispute_1", testTime.UTC(), "event_123",
 			},
 		},
@@ -105,7 +105,7 @@ func TestPgEventRepo_buildDisputeEventPageQuery(t *testing.T) {
 				Limit:      20,
 			},
 			expectedSQL: "SELECT id, dispute_id, kind, provider_event_id, data, created_at FROM dispute_events WHERE dispute_id IN ($1,$2) AND kind IN ($3) AND created_at >= $4 AND created_at < $5 AND (created_at, id) < ($6, $7) ORDER BY created_at DESC, id DESC LIMIT 21",
-			expectedArgs: []interface{}{
+			expectedArgs: []any{
 				"dispute_1", "dispute_2", dispute.DisputeEventWebhookOpened, testTime.UTC(), testTime.Add(24 * time.Hour).UTC(), testTime.UTC(), "event_123",
 			},
 		},
@@ -126,7 +126,7 @@ func TestPgEventRepo_buildDisputeEventPageQuery(t *testing.T) {
 				Limit:      10,
 			},
 			expectedSQL: "SELECT id, dispute_id, kind, provider_event_id, data, created_at FROM dispute_events WHERE dispute_id IN ($1) AND created_at >= $2 ORDER BY created_at DESC, id DESC LIMIT 11",
-			expectedArgs: []interface{}{
+			expectedArgs: []any{
 				"dispute_1", testTime.UTC(),
 			},
 		},
@@ -138,7 +138,7 @@ func TestPgEventRepo_buildDisputeEventPageQuery(t *testing.T) {
 				Limit:      10,
 			},
 			expectedSQL: "SELECT id, dispute_id, kind, provider_event_id, data, created_at FROM dispute_events WHERE dispute_id IN ($1) AND created_at < $2 ORDER BY created_at DESC, id DESC LIMIT 11",
-			expectedArgs: []interface{}{
+			expectedArgs: []any{
 				"dispute_1", testTime.UTC(),
 			},
 		},
@@ -160,7 +160,7 @@ func TestPgEventRepo_buildDisputeEventPageQuery(t *testing.T) {
 				Limit:      10,
 			},
 			expectedSQL: "SELECT id, dispute_id, kind, provider_event_id, data, created_at FROM dispute_events WHERE dispute_id IN ($1) ORDER BY created_at ASC, id ASC LIMIT 11",
-			expectedArgs: []interface{}{
+			expectedArgs: []any{
 				"dispute_1",
 			},
 		},

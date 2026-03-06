@@ -28,7 +28,6 @@ func (r *Runner) Start(ctx context.Context) error {
 	g, ctx := errgroup.WithContext(ctx)
 
 	for i, w := range r.workers {
-		i, w := i, w
 		g.Go(func() error {
 			defer func() {
 				if rec := recover(); rec != nil {

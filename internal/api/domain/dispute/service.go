@@ -1,7 +1,6 @@
 package dispute
 
 import (
-	"TestTaskJustPay/pkg/pointers"
 	"context"
 	"encoding/json"
 	"errors"
@@ -257,8 +256,8 @@ func (s *DisputeService) Submit(ctx context.Context, disputeID string) error {
 			"provider_submission_id", res.ProviderSubmissionID)
 
 		//TODO: refactor
-		d.SubmittedAt = pointers.Ptr(time.Now())
-		d.SubmittingId = pointers.Ptr(res.ProviderSubmissionID)
+		d.SubmittedAt = new(time.Now())
+		d.SubmittingId = new(res.ProviderSubmissionID)
 		d.Status = DisputeSubmitted
 
 		err = txRepo.UpdateDispute(ctx, *d)

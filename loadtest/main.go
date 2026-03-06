@@ -10,7 +10,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
-	"sort"
+	"slices"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -344,7 +344,7 @@ func printSummary(stats *Stats, elapsed time.Duration) {
 	stats.mu.Unlock()
 
 	if len(latencies) > 0 {
-		sort.Slice(latencies, func(i, j int) bool { return latencies[i] < latencies[j] })
+		slices.Sort(latencies)
 		p50 := latencies[len(latencies)*50/100]
 		p95 := latencies[len(latencies)*95/100]
 		p99 := latencies[len(latencies)*99/100]

@@ -103,7 +103,7 @@ func (r *repo) CreateOrder(ctx context.Context, update order.OrderUpdate) error 
 	return nil
 }
 
-func (r *repo) buildOrdersQuery(q *order.OrdersQuery) (string, []interface{}) {
+func (r *repo) buildOrdersQuery(q *order.OrdersQuery) (string, []any) {
 	query := r.builder.Select("id", "user_id", "status", "on_hold", "hold_reason", "created_at", "updated_at").
 		From("orders")
 
@@ -135,7 +135,7 @@ func (r *repo) buildOrdersQuery(q *order.OrdersQuery) (string, []interface{}) {
 	return sql, args
 }
 
-func (r *repo) buildEventsQuery(q *order.EventQuery) (string, []interface{}) {
+func (r *repo) buildEventsQuery(q *order.EventQuery) (string, []any) {
 	query := r.builder.Select("id", "order_id", "user_id", "status", "created_at", "updated_at").
 		From("order_events").
 		OrderBy("created_at DESC")

@@ -77,8 +77,8 @@ func (p *Postgres) Close() {
 
 // Executor interface abstracts pgxpool.Pool and pgx.Tx for database operations
 type Executor interface {
-	Query(ctx context.Context, sql string, args ...interface{}) (pgx.Rows, error)
-	Exec(ctx context.Context, sql string, args ...interface{}) (pgconn.CommandTag, error)
+	Query(ctx context.Context, sql string, args ...any) (pgx.Rows, error)
+	Exec(ctx context.Context, sql string, args ...any) (pgconn.CommandTag, error)
 }
 
 // Transactor provides transaction management.

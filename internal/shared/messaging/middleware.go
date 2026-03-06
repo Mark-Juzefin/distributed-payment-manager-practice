@@ -46,10 +46,7 @@ func WithRetry(handler MessageHandler, cfg RetryConfig) MessageHandler {
 			if attempt < cfg.MaxAttempts-1 {
 				// Add jitter: backoff + random(0-100ms)
 				jitter := time.Duration(rand.Intn(100)) * time.Millisecond
-				sleepTime := backoff + jitter
-				if sleepTime > cfg.MaxBackoff {
-					sleepTime = cfg.MaxBackoff
-				}
+				sleepTime := min(backoff+jitter, cfg.MaxBackoff)
 
 				select {
 				case <-ctx.Done():

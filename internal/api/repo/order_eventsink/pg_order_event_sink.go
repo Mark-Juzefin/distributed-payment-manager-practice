@@ -156,7 +156,7 @@ func decodeEventCursor(s string) (eventCursor, error) {
 //
 // ORDER BY created_at DESC/ASC, id DESC/ASC
 // LIMIT @Limit+1
-func (r *PgOrderEventRepo) buildOrderEventPageQuery(q order.OrderEventQuery) (string, []interface{}, error) {
+func (r *PgOrderEventRepo) buildOrderEventPageQuery(q order.OrderEventQuery) (string, []any, error) {
 	b := r.builder.Select("id", "order_id", "kind", "provider_event_id", "data", "created_at").
 		From("order_events")
 

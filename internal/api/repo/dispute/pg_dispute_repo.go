@@ -174,7 +174,7 @@ func (r *repo) GetEvidence(ctx context.Context, disputeID string) (*dispute.Evid
 	return &evidence[0], nil
 }
 
-func (r *repo) buildUpsertEvidenceQuery(disputeID string, upsert dispute.EvidenceUpsert) (string, []interface{}, error) {
+func (r *repo) buildUpsertEvidenceQuery(disputeID string, upsert dispute.EvidenceUpsert) (string, []any, error) {
 	fieldsJSON, err := json.Marshal(upsert.Fields)
 	if err != nil {
 		return "", nil, fmt.Errorf("marshal fields: %w", err)
@@ -194,7 +194,7 @@ func (r *repo) buildUpsertEvidenceQuery(disputeID string, upsert dispute.Evidenc
 	return query.ToSql()
 }
 
-func (r *repo) buildGetEvidenceQuery(disputeID string) (string, []interface{}) {
+func (r *repo) buildGetEvidenceQuery(disputeID string) (string, []any) {
 	query := r.builder.Select("dispute_id", "fields", "files", "updated_at").
 		From("evidence").
 		Where(squirrel.Eq{"dispute_id": disputeID})
@@ -203,7 +203,7 @@ func (r *repo) buildGetEvidenceQuery(disputeID string) (string, []interface{}) {
 	return sql, args
 }
 
-func (r *repo) buildDisputesQuery() (string, []interface{}) {
+func (r *repo) buildDisputesQuery() (string, []any) {
 	query := r.builder.Select(disputeColumns...).
 		From("disputes").
 		OrderBy("opened_at DESC")
@@ -212,7 +212,7 @@ func (r *repo) buildDisputesQuery() (string, []interface{}) {
 	return sql, args
 }
 
-func (r *repo) buildDisputeByIDQuery(disputeID string) (string, []interface{}) {
+func (r *repo) buildDisputeByIDQuery(disputeID string) (string, []any) {
 	query := r.builder.Select(disputeColumns...).
 		From("disputes").
 		Where(squirrel.Eq{"id": disputeID})
@@ -221,7 +221,7 @@ func (r *repo) buildDisputeByIDQuery(disputeID string) (string, []interface{}) {
 	return sql, args
 }
 
-func (r *repo) buildDisputeByOrderIDQuery(orderID string) (string, []interface{}) {
+func (r *repo) buildDisputeByOrderIDQuery(orderID string) (string, []any) {
 	query := r.builder.Select(disputeColumns...).
 		From("disputes").
 		Where(squirrel.Eq{"order_id": orderID})

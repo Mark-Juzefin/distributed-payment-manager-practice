@@ -1,5 +1,4 @@
 //go:build integration
-// +build integration
 
 package dispute_eventsink_test
 

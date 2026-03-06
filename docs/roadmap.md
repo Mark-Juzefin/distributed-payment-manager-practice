@@ -69,11 +69,21 @@
   - [ ] Kubernetes: deploy services, HPA, liveness/readiness, ConfigMaps/Secrets
   - [ ] API Gateway: ingress (NGINX/Traefik/Kong), routing, rate limiting, authn/z
   - [ ] Service mesh: circuit breakers, retries/timeouts (Envoy/Istio-lite)
-  - [ ] Workflow orchestration: Temporal for long-running transactions (saga pattern)
   - [ ] Postgres access: PgBouncer per service, connection limits
   - [ ] CI/CD: build pipelines, image tagging, per-env configs
 
-- **Step 9: Security Foundations**
+- **Step 9: Subscription Engine with Temporal** — [details](features/006-subscription-engine/)
+  - [ ] Temporal dev server setup, new `cmd/subscriptions` service skeleton
+  - [ ] Subscription CRUD API, PostgreSQL schema, domain model (lifecycle state machine)
+  - [ ] Solidgate payment provider mock (Wiremock), tokenized recurring charges
+  - [ ] BillingCycleWorkflow — invoice creation, payment charge, webhook reconciliation
+  - [ ] SubscriptionWorkflow — lifecycle orchestration, billing loop, signals (cancel/pause/resume)
+  - [ ] Dunning & retry logic — exponential retry on decline, past_due state
+  - [ ] Payment method update, invoice history API
+  - [ ] Integration tests with Temporal test framework, E2E with Wiremock
+  - [ ] Observability — Temporal metrics, Grafana dashboard
+
+- **Step 10: Security Foundations**
   - [ ] TLS: TLS termination on reverse proxy (nginx/traefik), HTTPS for external endpoints
   - [ ] Secrets management: separate config vs secrets, sops/age or docker secrets
   - [ ] Least privilege: separate Postgres roles (migrations user, app RW, readonly)

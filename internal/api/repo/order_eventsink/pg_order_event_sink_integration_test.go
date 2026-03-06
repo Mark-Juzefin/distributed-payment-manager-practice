@@ -1,5 +1,4 @@
 //go:build integration
-// +build integration
 
 package order_eventsink_test
 

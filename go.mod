@@ -1,6 +1,6 @@
 module TestTaskJustPay
 
-go 1.24.5
+go 1.26.1
 
 tool github.com/pressly/goose/v3/cmd/goose
 

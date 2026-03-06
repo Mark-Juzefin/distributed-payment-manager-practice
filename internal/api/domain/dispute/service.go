@@ -1,6 +1,7 @@
 package dispute
 
 import (
+	"TestTaskJustPay/pkg/pointers"
 	"context"
 	"encoding/json"
 	"errors"
@@ -10,7 +11,6 @@ import (
 
 	"TestTaskJustPay/internal/api/domain/events"
 	"TestTaskJustPay/internal/api/domain/gateway"
-	"TestTaskJustPay/pkg/pointers"
 	"TestTaskJustPay/pkg/postgres"
 
 	"github.com/google/uuid"

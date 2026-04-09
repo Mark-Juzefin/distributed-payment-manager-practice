@@ -58,7 +58,7 @@ func NewAPIContainer(ctx context.Context, cfg APIContainerConfig) (*APIContainer
 	req := testcontainers.ContainerRequest{
 		FromDockerfile: testcontainers.FromDockerfile{
 			Context:    cfg.ProjectRoot,
-			Dockerfile: "Dockerfile.api",
+			Dockerfile: "Dockerfile.paymanager",
 		},
 		ExposedPorts: []string{"3000/tcp"},
 		Env:          env,

@@ -4,7 +4,7 @@ package integration_test
 
 import (
 	"TestTaskJustPay/pkg/testinfra"
-	api "TestTaskJustPay/services/api"
+	api "TestTaskJustPay/services/paymanager"
 	"context"
 	"fmt"
 	"os"

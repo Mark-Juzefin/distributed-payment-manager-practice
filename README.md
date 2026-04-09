@@ -25,7 +25,7 @@ Go, PostgreSQL, pg_partman, Docker, MongoDB, OpenSearch, Kafka, testcontainers-g
 
 # Status
 
-Building **PostgreSQL HA** — Patroni + etcd cluster (3 identical PG nodes with automated failover), HAProxy for rw/ro traffic splitting via Patroni REST API health checks, app-level read/write routing at repository level. Monitoring with postgres-exporter and Grafana dashboard for replication lag and HAProxy metrics.
+Experimenting with **Payment System Logic** — provider routing, multi-provider support, and payment flow orchestration. Previous focus (PostgreSQL HA with Patroni + etcd) is paused with core functionality complete.
 
 # Roadmap
 
@@ -72,7 +72,7 @@ flowchart LR
 
 | Service | Path | Description |
 |---------|------|-------------|
-| **API** :3000 | `services/api/cmd` | Core business logic, DB owner, Kafka consumers, manual ops |
+| **Paymanager** :3000 | `services/paymanager/cmd` | Core business logic, DB owner, Kafka consumers, manual ops |
 | **Ingest** :3001 | `services/ingest/cmd` | HTTP → Kafka gateway for webhooks, no DB |
 | **CDC Worker** | `services/cdc/cmd` | PG WAL → Kafka `domain.events` via logical replication |
 | **Analytics** | `services/analytics/cmd` | Kafka → OpenSearch `domain-events` projection |

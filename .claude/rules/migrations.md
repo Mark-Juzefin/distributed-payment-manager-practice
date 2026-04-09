@@ -19,9 +19,9 @@ Add integration tests when your migration includes:
 Tests go in the repository module that interacts with the migrated table:
 
 ```
-Migration file: services/api/migrations/20251227102937_add_idempotency_constraints.sql
-Test location:  services/api/repo/order_eventsink/pg_order_event_sink_integration_test.go
-                services/api/repo/dispute_eventsink/pg_event_sink_integration_test.go
+Migration file: services/paymanager/migrations/20251227102937_add_idempotency_constraints.sql
+Test location:  services/paymanager/repo/order_eventsink/pg_order_event_sink_integration_test.go
+                services/paymanager/repo/dispute_eventsink/pg_event_sink_integration_test.go
 ```
 
 ### What to Test
@@ -157,6 +157,6 @@ Before creating migration:
 make run-dev
 
 # Or manually via goose (for testing)
-cd services/api/migrations
+cd services/paymanager/migrations
 goose postgres "connection-string" up
 ```

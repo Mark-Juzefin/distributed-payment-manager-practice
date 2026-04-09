@@ -1,0 +1,26 @@
+FROM golang:1.26-alpine AS builder
+
+WORKDIR /app
+
+# Copy workspace and module files for dependency caching
+COPY go.work ./
+COPY pkg/go.mod pkg/go.sum ./pkg/
+COPY services/paymanager/go.mod services/paymanager/go.sum ./services/paymanager/
+RUN cd pkg && go mod download && cd ../services/paymanager && go mod download
+
+# Copy source code
+COPY pkg/ ./pkg/
+COPY services/paymanager/ ./services/paymanager/
+
+# Build the paymanager binary
+WORKDIR /app/services/paymanager
+RUN CGO_ENABLED=0 GOOS=linux go build -o /paymanager ./cmd
+
+# Final stage
+FROM alpine:latest
+
+RUN apk --no-cache add ca-certificates
+
+COPY --from=builder /paymanager /paymanager
+
+ENTRYPOINT ["/paymanager"]

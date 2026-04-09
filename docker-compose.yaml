@@ -1,15 +1,15 @@
 services:
   # New microservices architecture
-  api-service:
-    image: payment-api
-    container_name: payment-api
+  paymanager-service:
+    image: payment-paymanager
+    container_name: payment-paymanager
     profiles:
       - prod
     networks:
       - backend
     build:
       context: .
-      dockerfile: Dockerfile.api
+      dockerfile: Dockerfile.paymanager
     depends_on:
       haproxy:
         condition: service_started
@@ -20,7 +20,7 @@ services:
     env_file:
       - env/common.env
       - env/endpoints.docker.env
-      - env/api.env
+      - env/paymanager.env
     environment:
       - PORT=${API_PORT}
       - WEBHOOK_MODE=kafka

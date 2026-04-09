@@ -18,7 +18,7 @@ This is a **learning sandbox** for practicing highload/distributed systems conce
 
 ## Current Focus
 
-**Active feature:** [PostgreSQL HA & DR: Streaming Replication](docs/features/005-postgres-ha/)
+**Active feature:** [Payment System Logic](docs/features/007-payment-system-logic/)
 
 Full roadmap: [docs/roadmap.md](docs/roadmap.md)
 
@@ -59,7 +59,7 @@ Full roadmap: [docs/roadmap.md](docs/roadmap.md)
 This is a **Distributed Payment Manager** written in Go - a financial transaction management system that handles payment order lifecycle, dispute/chargeback management, and event sourcing. The system integrates with external payment providers (Silvergate) and uses PostgreSQL with time-series partitioning for high-performance event storage.
 
 **Architecture:** The system consists of four microservices in an isolated Go workspace:
-- **API Service** (`services/api`) - Core business logic, database owner, Kafka consumers, manual operations
+- **Paymanager Service** (`services/paymanager`) - Core business logic, database owner, Kafka consumers, manual operations
 - **Ingest Service** (`services/ingest`) - Lightweight HTTP → Kafka gateway for webhook ingestion
 - **CDC Service** (`services/cdc`) - PostgreSQL WAL → Kafka change data capture
 - **Analytics Service** (`services/analytics`) - Kafka → OpenSearch event indexing
@@ -74,7 +74,7 @@ This is a **Distributed Payment Manager** written in Go - a financial transactio
 ```bash
 make run-dev              # Kafka mode: Start infrastructure + run both API + Ingest services (default)
 make run-http             # HTTP mode: Start infrastructure + run both services via HTTP sync
-make run-api              # Run API service only (standalone)
+make run-paymanager       # Run Paymanager service only (standalone)
 make run-ingest           # Run Ingest service only (standalone)
 make start_containers     # Start only PostgreSQL, OpenSearch, Kafka, and Wiremock
 make stop_containers      # Stop all containers
@@ -108,10 +108,10 @@ make build-pg-image      # Build custom PostgreSQL 17 image with pg_partman
 go test -v -run TestName ./path/to/package
 
 # Run integration tests for specific package
-go test -tags=integration -v ./services/api/repo/dispute_eventsink
+go test -tags=integration -v ./services/paymanager/repo/dispute_eventsink
 
 # Run with race detection
-go test -race ./services/api/domain/order
+go test -race ./services/paymanager/domain/order
 ```
 
 ## Architecture
@@ -135,7 +135,7 @@ pkg/                            # Shared library module (go.mod: TestTaskJustPay
 └── testinfra/                  # Test containers (Postgres, Kafka, Wiremock, E2E suite)
 
 services/
-├── api/                        # API Service module (go.mod: TestTaskJustPay/services/api)
+├── paymanager/                 # Paymanager Service module (go.mod: TestTaskJustPay/services/paymanager)
 │   ├── cmd/main.go             # Entry point
 │   ├── app.go                  # Bootstrap and dependency injection
 │   ├── router.go               # API routes
@@ -181,7 +181,7 @@ loadtest/                       # Load test module (go.mod: TestTaskJustPay/load
 
 **Domain-Driven Design**: Three bounded contexts (order, dispute, gateway) with clear aggregate roots and value objects.
 
-**Repository Pattern**: All data access is abstracted behind interfaces defined in `services/api/domain/*/repo.go`, implemented in `services/api/repo/`.
+**Repository Pattern**: All data access is abstracted behind interfaces defined in `services/paymanager/domain/*/repo.go`, implemented in `services/paymanager/repo/`.
 
 **Transaction Support**: Repositories support `InTransaction(func(Repo) error)` pattern for atomic multi-step operations:
 ```go
@@ -256,13 +256,13 @@ DisputeOpen → DisputeUnderReview → DisputeSubmitted → DisputeWon
 ## Important Patterns & Conventions
 
 ### Error Handling
-Domain-specific errors are defined in `services/api/domain/*/errors.go` and map to HTTP status codes in handlers. Always return typed errors from services.
+Domain-specific errors are defined in `services/paymanager/domain/*/errors.go` and map to HTTP status codes in handlers. Always return typed errors from services.
 
 ### Query Building
 Use Squirrel query builder for type-safe SQL. Pagination uses cursor-based approach with `id` and `created_at` for stable ordering.
 
 ### Configuration
-Each service has its own `config/config.go` (e.g., `services/api/config/`) using `caarlos0/env/v11`. Required vars will cause startup failure. See `env/` directory for all options.
+Each service has its own `config/config.go` (e.g., `services/paymanager/config/`) using `caarlos0/env/v11`. Required vars will cause startup failure. See `env/` directory for all options.
 
 ### Logging
 Use structured logging via `pkg/logger/`. Log contexts include `order_id`, `dispute_id`, `correlation_id` for traceability.
@@ -286,7 +286,7 @@ Run `make generate` after modifying interfaces to regenerate mocks. Mock files a
 ### PostgreSQL
 - **Version**: PostgreSQL 17 with `pg_partman` extension
 - **Custom Image**: Built via `make build-pg-image` (see `PG.Dockerfile`)
-- **Migrations**: Managed with `pressly/goose/v3` in `services/api/migrations/`
+- **Migrations**: Managed with `pressly/goose/v3` in `services/paymanager/migrations/`
 
 ## Development Workflow
 
@@ -303,7 +303,7 @@ Migrations use Goose SQL format. Create new migrations with:
 make migrate name=add_feature_table
 ```
 
-This creates two files in `services/api/migrations/`:
+This creates two files in `services/paymanager/migrations/`:
 - `<timestamp>_add_feature_table.sql` - up migration
 - (rollback in same file with `-- +goose Down` comment)
 

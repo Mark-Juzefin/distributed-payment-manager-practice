@@ -5,7 +5,7 @@ use (
 	./loadtest
 	./pkg
 	./services/analytics
-	./services/api
+	./services/paymanager
 	./services/cdc
 	./services/ingest
 )

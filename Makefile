@@ -1,9 +1,9 @@
 -include env/common.env
 export
 
-MIGRATION_DIR=services/api/migrations
+MIGRATION_DIR=services/paymanager/migrations
 
-.PHONY: run run-dev run-kafka run-http run-inbox run-api run-ingest start_containers stop_containers stop_containers_remove lint test integration-test e2e-test generate migrate seed-db print-db-size clean-db benchmark build-pg-image test-webhook loadtest loadtest-steady patroni-status
+.PHONY: run run-dev run-kafka run-http run-inbox run-paymanager run-ingest start_containers stop_containers stop_containers_remove lint test integration-test e2e-test generate migrate seed-db print-db-size clean-db benchmark build-pg-image test-webhook loadtest loadtest-steady patroni-status
 
 run:
 	docker compose --profile prod up --build
@@ -27,8 +27,8 @@ run-inbox: start_containers
 	go run github.com/mattn/goreman@latest -f Procfile.inbox start
 
 # Standalone targets
-run-api: start_containers
-	go run ./services/api/cmd
+run-paymanager: start_containers
+	go run ./services/paymanager/cmd
 
 run-ingest:
 	go run ./services/ingest/cmd
@@ -54,9 +54,9 @@ test:
 	go test -race ./...
 
 INTEGRATION_DIRS = \
-	./services/api/repo/dispute_eventsink \
-	./services/api/repo/order_eventsink \
-	./services/api/repo/events \
+	./services/paymanager/repo/dispute_eventsink \
+	./services/paymanager/repo/order_eventsink \
+	./services/paymanager/repo/events \
 	./services/ingest/repo/inbox
 
 integration-test:
@@ -75,7 +75,7 @@ e2e-test:
 
 
 generate:
-	cd services/api && go generate ./...
+	cd services/paymanager && go generate ./...
 	cd services/ingest && go generate ./...
 
 migrate:

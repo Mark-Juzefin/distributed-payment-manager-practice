@@ -28,3 +28,8 @@ func (p *HTTPSyncProcessor) ProcessOrderUpdate(ctx context.Context, req dto.Orde
 func (p *HTTPSyncProcessor) ProcessDisputeUpdate(ctx context.Context, req dto.DisputeUpdateRequest) error {
 	return p.client.SendDisputeUpdate(ctx, req)
 }
+
+// ProcessPaymentWebhook sends the payment webhook to Paymanager service.
+func (p *HTTPSyncProcessor) ProcessPaymentWebhook(ctx context.Context, req dto.PaymentWebhookRequest) error {
+	return p.client.SendPaymentWebhook(ctx, req)
+}

@@ -41,7 +41,9 @@ func NewAPIContainer(ctx context.Context, cfg APIContainerConfig) (*APIContainer
 		"SILVERGATE_BASE_URL":                  cfg.SilvergateBaseURL,
 		"SILVERGATE_SUBMIT_REPRESENTMENT_PATH": "/api/v1/dispute-representments/create",
 		"SILVERGATE_CAPTURE_PATH":              "/api/v1/capture",
+		"SILVERGATE_AUTH_PATH":                 "/api/v1/auth",
 		"HTTP_SILVERGATE_CLIENT_TIMEOUT":       "20s",
+		"MERCHANT_ID":                          "merchant_e2e",
 	}
 
 	// Add Kafka config when webhook processing is via Kafka
@@ -53,6 +55,9 @@ func NewAPIContainer(ctx context.Context, cfg APIContainerConfig) (*APIContainer
 		env["KAFKA_DISPUTES_CONSUMER_GROUP"] = cfg.KafkaTopics.DisputesGroup
 		env["KAFKA_ORDERS_DLQ_TOPIC"] = cfg.KafkaTopics.OrdersTopic + ".dlq"
 		env["KAFKA_DISPUTES_DLQ_TOPIC"] = cfg.KafkaTopics.DisputesTopic + ".dlq"
+		env["KAFKA_PAYMENTS_TOPIC"] = cfg.KafkaTopics.PaymentsTopic
+		env["KAFKA_PAYMENTS_CONSUMER_GROUP"] = cfg.KafkaTopics.PaymentsGroup
+		env["KAFKA_PAYMENTS_DLQ_TOPIC"] = cfg.KafkaTopics.PaymentsTopic + ".dlq"
 	}
 
 	req := testcontainers.ContainerRequest{

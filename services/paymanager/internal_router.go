@@ -24,5 +24,6 @@ func (r *InternalRouter) SetUp(engine *gin.Engine) {
 	{
 		internalGroup.POST("/updates/orders", r.updates.HandleOrderUpdate)
 		internalGroup.POST("/updates/disputes", r.updates.HandleDisputeUpdate)
+		internalGroup.POST("/updates/payments", r.updates.HandlePaymentWebhook)
 	}
 }

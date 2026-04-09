@@ -18,6 +18,7 @@ type Config struct {
 	KafkaBrokers       []string `env:"KAFKA_BROKERS" envSeparator:","`
 	KafkaOrdersTopic   string   `env:"KAFKA_ORDERS_TOPIC" envDefault:"webhooks.orders"`
 	KafkaDisputesTopic string   `env:"KAFKA_DISPUTES_TOPIC" envDefault:"webhooks.disputes"`
+	KafkaPaymentsTopic string   `env:"KAFKA_PAYMENTS_TOPIC" envDefault:"webhooks.payments"`
 
 	// Inbox mode configuration (required for inbox mode)
 	PgURL     string `env:"INGEST_PG_URL"`

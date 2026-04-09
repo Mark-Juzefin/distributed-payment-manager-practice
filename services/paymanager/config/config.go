@@ -17,7 +17,10 @@ type Config struct {
 	SilvergateBaseURL                 string        `env:"SILVERGATE_BASE_URL" required:"true"`
 	SilvergateSubmitRepresentmentPath string        `env:"SILVERGATE_SUBMIT_REPRESENTMENT_PATH" required:"true"`
 	SilvergateCapturePath             string        `env:"SILVERGATE_CAPTURE_PATH" required:"true"`
+	SilvergateAuthPath                string        `env:"SILVERGATE_AUTH_PATH" envDefault:"/api/v1/auth"`
 	HTTPSilvergateClientTimeout       time.Duration `env:"HTTP_SILVERGATE_CLIENT_TIMEOUT" envDefault:"20s"`
+
+	MerchantID string `env:"MERCHANT_ID" envDefault:"merchant_1"`
 
 	// Webhook processing mode: "sync" (direct) or "kafka" (async via Kafka)
 	WebhookMode string `env:"WEBHOOK_MODE" envDefault:"sync"`
@@ -30,6 +33,9 @@ type Config struct {
 	KafkaDisputesConsumerGroup string   `env:"KAFKA_DISPUTES_CONSUMER_GROUP" envDefault:"payment-app-disputes"`
 	KafkaOrdersDLQTopic        string   `env:"KAFKA_ORDERS_DLQ_TOPIC" envDefault:"webhooks.orders.dlq"`
 	KafkaDisputesDLQTopic      string   `env:"KAFKA_DISPUTES_DLQ_TOPIC" envDefault:"webhooks.disputes.dlq"`
+	KafkaPaymentsTopic         string   `env:"KAFKA_PAYMENTS_TOPIC" envDefault:"webhooks.payments"`
+	KafkaPaymentsConsumerGroup string   `env:"KAFKA_PAYMENTS_CONSUMER_GROUP" envDefault:"payment-app-payments"`
+	KafkaPaymentsDLQTopic      string   `env:"KAFKA_PAYMENTS_DLQ_TOPIC" envDefault:"webhooks.payments.dlq"`
 }
 
 // New parses environment variables for the API service.

@@ -40,6 +40,21 @@ func (m *MockProvider) EXPECT() *MockProviderMockRecorder {
 	return m.recorder
 }
 
+// AuthorizePayment mocks base method.
+func (m *MockProvider) AuthorizePayment(ctx context.Context, req AuthRequest) (AuthResult, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "AuthorizePayment", ctx, req)
+	ret0, _ := ret[0].(AuthResult)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// AuthorizePayment indicates an expected call of AuthorizePayment.
+func (mr *MockProviderMockRecorder) AuthorizePayment(ctx, req any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AuthorizePayment", reflect.TypeOf((*MockProvider)(nil).AuthorizePayment), ctx, req)
+}
+
 // CapturePayment mocks base method.
 func (m *MockProvider) CapturePayment(ctx context.Context, req CaptureRequest) (CaptureResult, error) {
 	m.ctrl.T.Helper()

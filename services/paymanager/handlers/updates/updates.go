@@ -6,6 +6,7 @@ import (
 
 	"TestTaskJustPay/services/paymanager/domain/dispute"
 	"TestTaskJustPay/services/paymanager/domain/order"
+	"TestTaskJustPay/services/paymanager/domain/payment"
 	"TestTaskJustPay/services/paymanager/dto"
 
 	"github.com/gin-gonic/gin"
@@ -15,12 +16,14 @@ import (
 type UpdatesHandler struct {
 	orderService   *order.OrderService
 	disputeService *dispute.DisputeService
+	paymentService *payment.PaymentService
 }
 
-func NewUpdatesHandler(orderService *order.OrderService, disputeService *dispute.DisputeService) *UpdatesHandler {
+func NewUpdatesHandler(orderService *order.OrderService, disputeService *dispute.DisputeService, paymentService *payment.PaymentService) *UpdatesHandler {
 	return &UpdatesHandler{
 		orderService:   orderService,
 		disputeService: disputeService,
+		paymentService: paymentService,
 	}
 }
 
@@ -114,6 +117,23 @@ func (h *UpdatesHandler) handleDisputeError(c *gin.Context, err error) {
 			Message: err.Error(),
 		})
 	}
+}
+
+// HandlePaymentWebhook processes payment webhook updates from Ingest service.
+// POST /internal/updates/payments
+func (h *UpdatesHandler) HandlePaymentWebhook(c *gin.Context) {
+	var req payment.CaptureWebhook
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"success": false, "message": err.Error()})
+		return
+	}
+
+	if err := h.paymentService.ProcessCaptureWebhook(c.Request.Context(), req); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"success": false, "message": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"success": true})
 }
 
 func mapOrderUpdateToWebhook(req dto.OrderUpdateRequest) order.OrderUpdate {

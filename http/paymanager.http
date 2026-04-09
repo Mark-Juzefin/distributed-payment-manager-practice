@@ -1,0 +1,67 @@
+### Paymanager — Payment Flow
+### Requires: Silvergate running on :3002, Paymanager on :3000, Ingest on :3001
+
+@base = http://localhost:3000
+
+### Health check
+GET {{base}}/health/ready
+
+### -----------------------------------------------
+### Create & Check Payment
+### -----------------------------------------------
+
+### 1. Create payment (triggers auth + capture via Silvergate)
+POST {{base}}/api/v1/payments
+Content-Type: application/json
+
+{
+  "amount": 5000,
+  "currency": "USD",
+  "card_token": "tok_visa_4242"
+}
+
+> {%
+    client.global.set("payment_id", response.body.id);
+    client.log("Payment ID: " + response.body.id);
+    client.log("Status: " + response.body.status);
+    client.log("Provider TX: " + response.body.provider_tx_id);
+%}
+
+### 2. Get payment status (run after ~1s to see captured)
+GET {{base}}/api/v1/payments/{{payment_id}}
+
+> {%
+    client.log("Status: " + response.body.status);
+%}
+
+### -----------------------------------------------
+### More payments
+### -----------------------------------------------
+
+### 3. Another payment — higher amount
+POST {{base}}/api/v1/payments
+Content-Type: application/json
+
+{
+  "amount": 99900,
+  "currency": "EUR",
+  "card_token": "tok_mc_1234"
+}
+
+> {%
+    client.global.set("payment_id_2", response.body.id);
+    client.log("Status: " + response.body.status);
+%}
+
+### 4. Invalid request (expect 400)
+POST {{base}}/api/v1/payments
+Content-Type: application/json
+
+{
+  "amount": -100,
+  "currency": "XXXX",
+  "card_token": ""
+}
+
+### 5. Non-existent payment (expect 404)
+GET {{base}}/api/v1/payments/00000000-0000-0000-0000-000000000000

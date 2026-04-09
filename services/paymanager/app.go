@@ -17,6 +17,7 @@ import (
 	"TestTaskJustPay/services/paymanager/config"
 	"TestTaskJustPay/services/paymanager/domain/dispute"
 	"TestTaskJustPay/services/paymanager/domain/order"
+	"TestTaskJustPay/services/paymanager/domain/payment"
 	"TestTaskJustPay/services/paymanager/external/silvergate"
 	"TestTaskJustPay/services/paymanager/handlers"
 	"TestTaskJustPay/services/paymanager/handlers/updates"
@@ -25,6 +26,7 @@ import (
 	events_repo "TestTaskJustPay/services/paymanager/repo/events"
 	order_repo "TestTaskJustPay/services/paymanager/repo/order"
 	"TestTaskJustPay/services/paymanager/repo/order_eventsink"
+	payment_repo "TestTaskJustPay/services/paymanager/repo/payment"
 )
 
 //go:embed migrations/*.sql
@@ -72,6 +74,7 @@ func Run(cfg config.Config) {
 		cfg.SilvergateBaseURL,
 		cfg.SilvergateSubmitRepresentmentPath,
 		cfg.SilvergateCapturePath,
+		cfg.SilvergateAuthPath,
 		&http.Client{Timeout: cfg.HTTPSilvergateClientTimeout},
 	)
 
@@ -80,13 +83,17 @@ func Run(cfg config.Config) {
 	orderService := order.NewOrderService(pool, order_repo.TxRepoFactory(pool.Builder), eventStoreFactory, orderRepo, silvergateClient, orderEvents)
 	disputeService := dispute.NewDisputeService(pool, dispute_repo.TxRepoFactory(pool.Builder), eventStoreFactory, disputeRepo, silvergateClient, disputeEvents)
 
+	paymentRepo := payment_repo.NewPgPaymentRepo(pool, readDB)
+	paymentService := payment.NewPaymentService(pool, payment_repo.TxRepoFactory(pool.Builder), eventStoreFactory, paymentRepo, silvergateClient, cfg.MerchantID)
+
 	// Handlers (clean - no processor dependency)
 	orderHandler := handlers.NewOrderHandler(orderService)
 	chargebackHandler := handlers.NewChargebackHandler(disputeService)
 	disputeHandler := handlers.NewDisputeHandler(disputeService)
+	paymentHandler := handlers.NewPaymentHandler(paymentService)
 
 	// Internal handlers (for service-to-service communication)
-	updatesHandler := updates.NewUpdatesHandler(orderService, disputeService)
+	updatesHandler := updates.NewUpdatesHandler(orderService, disputeService, paymentService)
 
 	// Health checks registry
 	var healthCheckers []health.Checker
@@ -100,7 +107,7 @@ func Run(cfg config.Config) {
 	healthRegistry := health.NewRegistry(healthCheckers...)
 
 	// Router (API endpoints only)
-	router := NewRouter(orderHandler, chargebackHandler, disputeHandler, healthRegistry)
+	router := NewRouter(orderHandler, chargebackHandler, disputeHandler, paymentHandler, healthRegistry)
 	router.SetUp(engine)
 
 	// Internal router (service-to-service endpoints)
@@ -117,7 +124,7 @@ func Run(cfg config.Config) {
 	// Start Kafka consumers if in kafka mode
 	if cfg.WebhookMode == "kafka" {
 		slog.Info("Webhook mode: kafka - starting Kafka consumers")
-		StartWorkers(ctx, cfg, orderService, disputeService)
+		StartWorkers(ctx, cfg, orderService, disputeService, paymentService)
 	}
 
 	// Start HTTP server in a goroutine

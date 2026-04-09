@@ -52,3 +52,20 @@ func (p *InboxProcessor) ProcessDisputeUpdate(ctx context.Context, req dto.Dispu
 	}
 	return err
 }
+
+func (p *InboxProcessor) ProcessPaymentWebhook(ctx context.Context, req dto.PaymentWebhookRequest) error {
+	payload, err := json.Marshal(req)
+	if err != nil {
+		return fmt.Errorf("marshal payment webhook payload: %w", err)
+	}
+
+	err = p.repo.Store(ctx, inbox.NewInboxMessage{
+		IdempotencyKey: "payment_webhook:" + req.TransactionID + ":" + req.Event,
+		WebhookType:    "payment_webhook",
+		Payload:        payload,
+	})
+	if errors.Is(err, inbox.ErrAlreadyExists) {
+		return nil
+	}
+	return err
+}

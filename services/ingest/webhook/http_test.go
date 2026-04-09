@@ -20,11 +20,16 @@ type mockClient struct {
 	lastDisputeReq dto.DisputeUpdateRequest
 	orderErr       error
 	disputeErr     error
+	paymentErr     error
 }
 
 func (m *mockClient) SendOrderUpdate(_ context.Context, req dto.OrderUpdateRequest) error {
 	m.lastOrderReq = req
 	return m.orderErr
+}
+
+func (m *mockClient) SendPaymentWebhook(_ context.Context, _ dto.PaymentWebhookRequest) error {
+	return m.paymentErr
 }
 
 func (m *mockClient) SendDisputeUpdate(_ context.Context, req dto.DisputeUpdateRequest) error {

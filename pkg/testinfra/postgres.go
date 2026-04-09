@@ -24,8 +24,9 @@ type PostgresContainer struct {
 
 // PostgresConfig allows customizing the test database name and migration FS.
 type PostgresConfig struct {
-	DBName      string
-	MigrationFS embed.FS
+	DBName       string
+	MigrationFS  embed.FS
+	NetworkAlias string // Docker network alias (default: "postgres")
 }
 
 // NewPostgresWithConfig starts a PostgreSQL container with the given configuration.
@@ -48,9 +49,13 @@ func NewPostgresWithConfig(ctx context.Context, cfg PostgresConfig, netCfg ...*N
 	// Apply network config if provided
 	if len(netCfg) > 0 && netCfg[0] != nil {
 		nc := netCfg[0]
+		alias := cfg.NetworkAlias
+		if alias == "" {
+			alias = "postgres"
+		}
 		req.Networks = []string{nc.Name}
 		req.NetworkAliases = map[string][]string{
-			nc.Name: {"postgres"},
+			nc.Name: {alias},
 		}
 	}
 
@@ -100,6 +105,6 @@ func (c *PostgresContainer) Cleanup(ctx context.Context) {
 // Truncate clears all tables (for isolation between tests)
 func (c *PostgresContainer) Truncate(ctx context.Context) error {
 	_, err := c.Pool.Pool.Exec(ctx,
-		"TRUNCATE TABLE events, dispute_events, disputes, order_events, orders, evidence CASCADE")
+		"TRUNCATE TABLE events, dispute_events, disputes, order_events, orders, evidence, payments CASCADE")
 	return err
 }

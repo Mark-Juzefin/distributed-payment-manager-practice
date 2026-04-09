@@ -30,7 +30,7 @@ func TestAsyncProcessor_PartitionKey(t *testing.T) {
 	t.Run("ProcessOrderUpdate uses UserID as partition key", func(t *testing.T) {
 		// Arrange
 		mockPub := &mockPublisher{}
-		processor := NewAsyncProcessor(mockPub, nil)
+		processor := NewAsyncProcessor(mockPub, nil, nil)
 
 		req := dto.OrderUpdateRequest{
 			ProviderEventID: "evt-123",
@@ -54,7 +54,7 @@ func TestAsyncProcessor_PartitionKey(t *testing.T) {
 	t.Run("ProcessDisputeUpdate uses UserID as partition key", func(t *testing.T) {
 		// Arrange
 		mockPub := &mockPublisher{}
-		processor := NewAsyncProcessor(nil, mockPub)
+		processor := NewAsyncProcessor(nil, mockPub, nil)
 
 		req := dto.DisputeUpdateRequest{
 			ProviderEventID: "evt-456",

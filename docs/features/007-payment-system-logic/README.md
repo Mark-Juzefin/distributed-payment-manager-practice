@@ -21,7 +21,7 @@ Disputes exist but are out of scope until auth/settle flow is solid.
 
 - **Subtask 1 plan:** TBD — rename api → paymanager
 - **Subtask 2 plan:** [plan-subtask-2.md](plan-subtask-2.md) — Silvergate service: auth & capture
-- **Subtask 3 plan:** TBD — integrate Silvergate into Paymanager (new payment entities)
+- **Subtask 3 plan:** [plan-subtask-3.md](plan-subtask-3.md) — integrate Silvergate into Paymanager
 - **Subtask 4 plan:** TBD — void & refund in Silvergate
 - **Subtask 5 plan:** TBD — void & refund integration in Paymanager
 

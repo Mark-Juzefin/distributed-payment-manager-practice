@@ -8,6 +8,7 @@ import "context"
 type Provider interface {
 	SubmitRepresentment(ctx context.Context, req RepresentmentRequest) (RepresentmentResult, error)
 	CapturePayment(ctx context.Context, req CaptureRequest) (CaptureResult, error)
+	AuthorizePayment(ctx context.Context, req AuthRequest) (AuthResult, error)
 }
 
 type RepresentmentRequest struct {
@@ -44,6 +45,27 @@ type CaptureResult struct {
 	ProviderTxID string
 	Status       CaptureStatus
 }
+
+type AuthRequest struct {
+	MerchantID string
+	OrderID    string // payment ID from merchant perspective
+	Amount     int64
+	Currency   string
+	CardToken  string
+}
+
+type AuthResult struct {
+	TransactionID string
+	Status        AuthStatus
+	DeclineReason string
+}
+
+type AuthStatus string
+
+const (
+	AuthStatusAuthorized AuthStatus = "authorized"
+	AuthStatusDeclined   AuthStatus = "declined"
+)
 
 type CaptureStatus string
 

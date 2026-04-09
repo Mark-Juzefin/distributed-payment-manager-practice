@@ -2,13 +2,20 @@ FROM golang:1.26-alpine AS builder
 
 WORKDIR /app
 
-# Copy workspace and module files for dependency caching
+# Copy workspace and ALL module files for dependency caching
 COPY go.work ./
 COPY pkg/go.mod pkg/go.sum ./pkg/
 COPY services/paymanager/go.mod services/paymanager/go.sum ./services/paymanager/
-RUN cd pkg && go mod download && cd ../services/paymanager && go mod download
+# Stub other modules referenced in go.work
+COPY services/silvergate/go.mod services/silvergate/go.sum ./services/silvergate/
+COPY services/ingest/go.mod services/ingest/go.sum ./services/ingest/
+COPY services/cdc/go.mod services/cdc/go.sum ./services/cdc/
+COPY services/analytics/go.mod services/analytics/go.sum ./services/analytics/
+COPY e2e/go.mod e2e/go.sum ./e2e/
+COPY loadtest/go.mod loadtest/go.sum ./loadtest/
+RUN cd services/paymanager && go mod download
 
-# Copy source code
+# Copy only the source code needed
 COPY pkg/ ./pkg/
 COPY services/paymanager/ ./services/paymanager/
 

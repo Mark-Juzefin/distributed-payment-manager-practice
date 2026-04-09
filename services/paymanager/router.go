@@ -13,6 +13,7 @@ type Router struct {
 	order          *handlers.OrderHandler
 	chargeback     *handlers.ChargebackHandler
 	dispute        *handlers.DisputeHandler
+	payment        *handlers.PaymentHandler
 	healthRegistry *health.Registry
 }
 
@@ -36,18 +37,24 @@ func (r *Router) SetUp(engine *gin.Engine) {
 	engine.GET("/disputes/:dispute_id/evidence", r.dispute.GetEvidence)
 	engine.POST("/disputes/:dispute_id/evidence", r.dispute.UpsertEvidence)
 	engine.POST("/disputes/:dispute_id/submit", r.dispute.Submit)
+
+	// Payments
+	engine.POST("/api/v1/payments", r.payment.Create)
+	engine.GET("/api/v1/payments/:id", r.payment.Get)
 }
 
 func NewRouter(
 	order *handlers.OrderHandler,
 	chargeback *handlers.ChargebackHandler,
 	dispute *handlers.DisputeHandler,
+	payment *handlers.PaymentHandler,
 	healthRegistry *health.Registry,
 ) *Router {
 	return &Router{
 		order:          order,
 		chargeback:     chargeback,
 		dispute:        dispute,
+		payment:        payment,
 		healthRegistry: healthRegistry,
 	}
 }

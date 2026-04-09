@@ -58,9 +58,11 @@ Full roadmap: [docs/roadmap.md](docs/roadmap.md)
 
 This is a **Distributed Payment Manager** written in Go - a financial transaction management system that handles payment order lifecycle, dispute/chargeback management, and event sourcing. The system integrates with external payment providers (Silvergate) and uses PostgreSQL with time-series partitioning for high-performance event storage.
 
-**Architecture:** The system consists of two microservices:
-- **API Service** (`cmd/api`) - Core business logic, database owner, Kafka consumers, manual operations
-- **Ingest Service** (`cmd/ingest`) - Lightweight HTTP → Kafka gateway for webhook ingestion
+**Architecture:** The system consists of four microservices in an isolated Go workspace:
+- **API Service** (`services/api`) - Core business logic, database owner, Kafka consumers, manual operations
+- **Ingest Service** (`services/ingest`) - Lightweight HTTP → Kafka gateway for webhook ingestion
+- **CDC Service** (`services/cdc`) - PostgreSQL WAL → Kafka change data capture
+- **Analytics Service** (`services/analytics`) - Kafka → OpenSearch event indexing
 
 **Deployment modes:**
 - **Kafka mode** (default): Both services, webhooks routed through Kafka
@@ -106,80 +108,80 @@ make build-pg-image      # Build custom PostgreSQL 17 image with pg_partman
 go test -v -run TestName ./path/to/package
 
 # Run integration tests for specific package
-go test -tags=integration -v ./internal/api/repo/dispute_eventsink
+go test -tags=integration -v ./services/api/repo/dispute_eventsink
 
 # Run with race detection
-go test -race ./internal/api/domain/order
+go test -race ./services/api/domain/order
 ```
 
 ## Architecture
 
-### Service-Based Monorepo Architecture
+### Go Workspace Monorepo Architecture
 
-The codebase follows a service-based monorepo structure with clean separation between microservices:
+The codebase uses **Go workspaces** (`go.work`) with isolated modules per service. Each service has its own `go.mod` and cannot import other services — enforced by the Go compiler.
 
 ```
-cmd/
-├── api/                    # API Service entry point
-│   └── main.go
-└── ingest/                 # Ingest Service entry point
-    └── main.go
+go.work                         # Go workspace — ties all modules together
 
-internal/
-├── api/                    # API Service (primary code owner)
-│   ├── app.go              # Bootstrap and dependency injection
-│   ├── router.go           # API routes (no webhooks)
-│   ├── gin_engine.go       # HTTP server configuration
-│   ├── migration.go        # Database migration runner
-│   ├── migrations/         # Embedded SQL migrations (Goose format)
-│   ├── workers.go          # Kafka consumer management
-│   ├── handlers/           # HTTP handlers (service only, no processor)
-│   │   ├── order.go        # GET, POST /orders/* operations
-│   │   ├── dispute.go      # Dispute operations
-│   │   └── chargeback.go   # Chargeback operations
-│   ├── consumers/          # Kafka consumer handlers
-│   │   ├── order.go        # Processes order webhooks from Kafka
-│   │   └── dispute.go      # Processes dispute webhooks from Kafka
-│   ├── domain/             # Core business logic (framework-agnostic)
-│   │   ├── order/          # Order aggregate, service, repository interface
-│   │   ├── dispute/        # Dispute aggregate, service, repository interface
-│   │   └── gateway/        # Payment provider abstraction (port)
-│   ├── repo/               # Data access implementations
-│   │   ├── order/          # PostgreSQL order repository
-│   │   ├── dispute/        # PostgreSQL dispute repository
-│   │   ├── order_eventsink/    # Order event persistence
-│   │   └── dispute_eventsink/  # Dispute event persistence (partitioned)
-│   ├── external/           # Third-party integrations
-│   │   ├── kafka/          # Kafka publishers and consumers
-│   │   ├── silvergate/     # Payment gateway client
-│   │   └── opensearch/     # Event indexing
-│   ├── webhook/            # Webhook processing
-│   │   ├── processor.go    # Processor interface
-│   │   ├── sync.go         # Sync processor (for sync mode)
-│   │   └── async.go        # Async processor (Kafka publisher)
-│   └── messaging/          # Kafka consumer infrastructure
-│
-├── ingest/                 # Ingest Service (lightweight HTTP → Kafka gateway)
-│   ├── app.go              # Bootstrap (no database, no business logic)
-│   ├── router.go           # Webhook routes only
-│   └── handlers/           # Webhook handlers (depends on api/webhook.Processor)
-│       ├── order.go        # POST /webhooks/payments/orders
-│       └── chargeback.go   # POST /webhooks/payments/chargebacks
-│
-└── shared/                 # Truly shared code
-    └── testinfra/          # Test utilities only
+pkg/                            # Shared library module (go.mod: TestTaskJustPay/pkg)
+├── correlation/                # Request correlation ID tracking
+├── health/                     # Health check infrastructure
+├── kafka/                      # Kafka Publisher, Consumer, DLQ implementations
+├── logger/                     # Structured logging (slog wrapper)
+├── messaging/                  # Message envelope, middleware (retry, DLQ, metrics)
+├── metrics/                    # Prometheus metrics registry and middleware
+├── migrations/                 # Goose migration runner
+├── postgres/                   # PostgreSQL connection pool + Squirrel builder
+└── testinfra/                  # Test containers (Postgres, Kafka, Wiremock, E2E suite)
 
-pkg/                        # Shared utilities
-├── logger/                 # Zerolog wrapper
-├── pointers/               # Pointer helpers
-└── postgres/               # PostgreSQL utilities
+services/
+├── api/                        # API Service module (go.mod: TestTaskJustPay/services/api)
+│   ├── cmd/main.go             # Entry point
+│   ├── app.go                  # Bootstrap and dependency injection
+│   ├── router.go               # API routes
+│   ├── gin_engine.go           # HTTP server configuration
+│   ├── migration.go            # Database migration runner
+│   ├── workers.go              # Kafka consumer management
+│   ├── config/                 # API-specific configuration
+│   ├── dto/                    # Data transfer objects (service-local)
+│   ├── migrations/             # Embedded SQL migrations (Goose format)
+│   ├── handlers/               # HTTP handlers
+│   ├── consumers/              # Kafka consumer handlers
+│   ├── domain/                 # Core business logic (order, dispute, gateway)
+│   ├── repo/                   # PostgreSQL repositories + event sinks
+│   └── external/               # Third-party integrations (silvergate, opensearch)
+│
+├── ingest/                     # Ingest Service module (go.mod: TestTaskJustPay/services/ingest)
+│   ├── cmd/main.go             # Entry point
+│   ├── app.go                  # Bootstrap
+│   ├── config/                 # Ingest-specific configuration
+│   ├── dto/                    # Data transfer objects (service-local)
+│   ├── handlers/               # Webhook HTTP handlers
+│   ├── webhook/                # Processor abstraction (async/http/inbox)
+│   ├── apiclient/              # HTTP client for API service
+│   ├── worker/                 # Inbox polling worker
+│   ├── repo/inbox/             # Inbox table repository
+│   └── migrations/             # Ingest-specific migrations
+│
+├── cdc/                        # CDC Service module (go.mod: TestTaskJustPay/services/cdc)
+│   ├── cmd/main.go             # Entry point
+│   ├── app.go                  # WAL consumer → Kafka publisher
+│   └── config/                 # CDC-specific configuration
+│
+└── analytics/                  # Analytics Service module (go.mod: TestTaskJustPay/services/analytics)
+    ├── cmd/main.go             # Entry point
+    ├── app.go                  # Kafka consumer → OpenSearch indexer
+    └── config/                 # Analytics-specific configuration
+
+e2e/                            # E2E test module (go.mod: TestTaskJustPay/e2e)
+loadtest/                       # Load test module (go.mod: TestTaskJustPay/loadtest)
 ```
 
 ### Key Architectural Patterns
 
 **Domain-Driven Design**: Three bounded contexts (order, dispute, gateway) with clear aggregate roots and value objects.
 
-**Repository Pattern**: All data access is abstracted behind interfaces defined in `internal/api/domain/*/repo.go`, implemented in `internal/api/repo/`.
+**Repository Pattern**: All data access is abstracted behind interfaces defined in `services/api/domain/*/repo.go`, implemented in `services/api/repo/`.
 
 **Transaction Support**: Repositories support `InTransaction(func(Repo) error)` pattern for atomic multi-step operations:
 ```go
@@ -254,13 +256,13 @@ DisputeOpen → DisputeUnderReview → DisputeSubmitted → DisputeWon
 ## Important Patterns & Conventions
 
 ### Error Handling
-Domain-specific errors are defined in `internal/shared/domain/*/errors.go` and map to HTTP status codes in handlers. Always return typed errors from services.
+Domain-specific errors are defined in `services/api/domain/*/errors.go` and map to HTTP status codes in handlers. Always return typed errors from services.
 
 ### Query Building
 Use Squirrel query builder for type-safe SQL. Pagination uses cursor-based approach with `id` and `created_at` for stable ordering.
 
 ### Configuration
-Environment variables are parsed in `config/config.go` using `caarlos0/env/v11`. Required vars will cause startup failure. See `.env.example` for all options.
+Each service has its own `config/config.go` (e.g., `services/api/config/`) using `caarlos0/env/v11`. Required vars will cause startup failure. See `env/` directory for all options.
 
 ### Logging
 Use structured logging via `pkg/logger/`. Log contexts include `order_id`, `dispute_id`, `correlation_id` for traceability.
@@ -273,7 +275,7 @@ Run `make generate` after modifying interfaces to regenerate mocks. Mock files a
 ### Silvergate (Payment Provider)
 - **Purpose**: Payment capture and dispute representment
 - **Configuration**: `SILVERGATE_BASE_URL`, `SILVERGATE_SUBMIT_REPRESENTMENT_PATH`, `SILVERGATE_CAPTURE_PATH`
-- **Mocking**: Wiremock stubs in `integration-test/mappings/` for local dev
+- **Mocking**: Wiremock stubs in `e2e/mappings/` for local dev
 
 ### OpenSearch
 - **Purpose**: Event indexing for analytics and audit trails
@@ -284,7 +286,7 @@ Run `make generate` after modifying interfaces to regenerate mocks. Mock files a
 ### PostgreSQL
 - **Version**: PostgreSQL 17 with `pg_partman` extension
 - **Custom Image**: Built via `make build-pg-image` (see `PG.Dockerfile`)
-- **Migrations**: Managed with `pressly/goose/v3` in `internal/app/migrations/`
+- **Migrations**: Managed with `pressly/goose/v3` in `services/api/migrations/`
 
 ## Development Workflow
 
@@ -301,7 +303,7 @@ Migrations use Goose SQL format. Create new migrations with:
 make migrate name=add_feature_table
 ```
 
-This creates two files in `internal/app/migrations/`:
+This creates two files in `services/api/migrations/`:
 - `<timestamp>_add_feature_table.sql` - up migration
 - (rollback in same file with `-- +goose Down` comment)
 

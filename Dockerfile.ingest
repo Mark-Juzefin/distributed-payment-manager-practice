@@ -1,16 +1,20 @@
-FROM golang:1.24-alpine AS builder
+FROM golang:1.26-alpine AS builder
 
 WORKDIR /app
 
-# Copy dependency files
-COPY go.mod go.sum ./
-RUN go mod download
+# Copy workspace and module files for dependency caching
+COPY go.work ./
+COPY pkg/go.mod pkg/go.sum ./pkg/
+COPY services/ingest/go.mod services/ingest/go.sum ./services/ingest/
+RUN cd pkg && go mod download && cd ../services/ingest && go mod download
 
 # Copy source code
-COPY . .
+COPY pkg/ ./pkg/
+COPY services/ingest/ ./services/ingest/
 
 # Build the Ingest binary
-RUN CGO_ENABLED=0 GOOS=linux go build -o /ingest ./cmd/ingest
+WORKDIR /app/services/ingest
+RUN CGO_ENABLED=0 GOOS=linux go build -o /ingest ./cmd
 
 # Final stage
 FROM alpine:latest

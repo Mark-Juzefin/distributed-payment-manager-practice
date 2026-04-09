@@ -20,7 +20,7 @@
 | `internal/webhook/sync.go` | SyncProcessor (HTTP → Service) |
 | `internal/controller/message/order.go` | Order message handler |
 | `internal/controller/message/dispute.go` | Dispute message handler |
-| `internal/app/workers.go` | Consumer startup |
+| `services/api/workers.go` | Consumer startup |
 
 ---
 

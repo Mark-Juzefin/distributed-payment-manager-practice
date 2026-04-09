@@ -140,10 +140,10 @@ type OrderService struct {
 - No partitioning yet (separate subtask), no foreign keys (generic aggregate_id)
 
 **Domain types:**
-- `internal/api/domain/events/` — `AggregateType`, `NewEvent`, `Event`, `Store` interface, `ErrEventAlreadyStored`
+- `services/api/domain/events/` — `AggregateType`, `NewEvent`, `Event`, `Store` interface, `ErrEventAlreadyStored`
 
 **Event store:**
-- `internal/api/repo/events/PgEventStore` — INSERT with unique violation → `ErrEventAlreadyStored`
+- `services/api/repo/events/PgEventStore` — INSERT with unique violation → `ErrEventAlreadyStored`
 - `TxStoreFactory(builder)` — partial application factory for tx-scoped stores
 
 **Atomic writes (outbox pattern):**
@@ -166,14 +166,14 @@ type OrderService struct {
 
 ### Subtask 3: CDC worker + Analytics consumer
 
-**CDC worker (`cmd/cdc`, `internal/cdc/`):**
+**CDC worker (`services/cdc/cmd`, `services/cdc/`):**
 - Connects to PG via logical replication (`pglogrepl`), tails WAL from `events` table
 - Decodes pgoutput INSERT messages → `walEvent` struct
 - Publishes JSON to Kafka `domain.events` topic (key = `aggregate_id`)
 - Retry loop with exponential backoff on replication failures
 - Standby heartbeats every 10s to keep replication slot alive
 
-**Analytics consumer (`cmd/analytics`, `internal/analytics/`):**
+**Analytics consumer (`services/analytics/cmd`, `services/analytics/`):**
 - New standalone service — Kafka consumer group `analytics-projection`
 - Reads from `domain.events`, indexes into OpenSearch `domain-events` index
 - Idempotent: uses event `id` as OpenSearch `_id` (re-index = overwrite)
@@ -182,13 +182,13 @@ type OrderService struct {
 - Manual commit: FetchMessage → unmarshal → indexEvent → CommitMessages
 
 **Cleanup:**
-- Deleted old unused `internal/api/external/opensearch/` stub
+- Deleted old unused `services/api/external/opensearch/` stub
 - Removed `OpensearchUrls`, `OpensearchIndexDisputes`, `OpensearchIndexOrders` from `APIConfig`
 
 **New files:**
-- `cmd/analytics/main.go` — entry point
-- `internal/analytics/event.go` — event struct + `normalizeTimestamp()`
-- `internal/analytics/indexer.go` — OpenSearch client
-- `internal/analytics/app.go` — `Run()` with consumer loop
-- `config/config.go` — `AnalyticsConfig`
+- `services/analytics/cmd/main.go` — entry point
+- `services/analytics/event.go` — event struct + `normalizeTimestamp()`
+- `services/analytics/indexer.go` — OpenSearch client
+- `services/analytics/app.go` — `Run()` with consumer loop
+- per-service `config/config.go` — `AnalyticsConfig`
 - `env/analytics.env`, `Procfile` updated

@@ -12,7 +12,7 @@
   - [x] Sync/Kafka mode switch via WEBHOOK_MODE env variable
   - [x] Consumer resilience: retry with exponential backoff, panic recovery, DLQ
   - [x] Topic partitioning
-  - [x] Ingest Service extraction: separate microservice (`cmd/ingest/`), service-based monorepo
+  - [x] Ingest Service extraction: separate microservice (`services/ingest/`), service-based monorepo
   - [x] HTTP sync mode: internal endpoints for service-to-service calls
   - [ ] Graceful shutdown for Kafka components (DLQ flush ordering)
   - [ ] Realistic user_id lookup (cache layer, lookup service)

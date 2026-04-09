@@ -170,7 +170,7 @@ services:
     ports:
       - '8080:8080'
     volumes:
-      - ./integration-test/mappings:/home/wiremock/mappings
+      - ./e2e/mappings:/home/wiremock/mappings
     entrypoint: ["/docker-entrypoint.sh", "--global-response-templating", "--disable-gzip", "--verbose"]
 
   opensearch-node1:

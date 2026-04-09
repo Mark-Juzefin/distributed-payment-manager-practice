@@ -1,0 +1,11 @@
+go 1.26.1
+
+use (
+	./e2e
+	./loadtest
+	./pkg
+	./services/analytics
+	./services/api
+	./services/cdc
+	./services/ingest
+)

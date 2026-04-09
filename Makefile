@@ -1,7 +1,7 @@
 -include env/common.env
 export
 
-MIGRATION_DIR=internal/api/migrations
+MIGRATION_DIR=services/api/migrations
 
 .PHONY: run run-dev run-kafka run-http run-inbox run-api run-ingest start_containers stop_containers stop_containers_remove lint test integration-test e2e-test generate migrate seed-db print-db-size clean-db benchmark build-pg-image test-webhook loadtest loadtest-steady patroni-status
 
@@ -28,10 +28,10 @@ run-inbox: start_containers
 
 # Standalone targets
 run-api: start_containers
-	go run ./cmd/api
+	go run ./services/api/cmd
 
 run-ingest:
-	go run ./cmd/ingest
+	go run ./services/ingest/cmd
 
 start_containers:
 	docker-compose --profile infra up --build -d --wait
@@ -54,10 +54,10 @@ test:
 	go test -race ./...
 
 INTEGRATION_DIRS = \
-	./internal/api/repo/dispute_eventsink \
-	./internal/api/repo/order_eventsink \
-	./internal/api/repo/events \
-	./internal/ingest/repo/inbox
+	./services/api/repo/dispute_eventsink \
+	./services/api/repo/order_eventsink \
+	./services/api/repo/events \
+	./services/ingest/repo/inbox
 
 integration-test:
 	go clean -testcache && go test -tags=integration -v  $(INTEGRATION_DIRS)
@@ -71,11 +71,12 @@ endif
 
 # E2E tests: Docker-based, real service containers
 e2e-test:
-	go clean -testcache && go test -tags=integration -v -timeout 5m ./integration-test/...
+	go clean -testcache && go test -tags=integration -v -timeout 5m ./e2e/...
 
 
 generate:
-	go generate ./...
+	cd services/api && go generate ./...
+	cd services/ingest && go generate ./...
 
 migrate:
 ifndef name

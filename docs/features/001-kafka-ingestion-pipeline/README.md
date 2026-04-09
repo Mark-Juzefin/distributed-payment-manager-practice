@@ -35,9 +35,9 @@ Replaced synchronous webhook processing with Kafka-based async ingestion.
 
 Created a separate Ingest microservice as a lightweight HTTP → Kafka gateway.
 
-- `cmd/ingest/` binary — lightweight edge service, no DB or domain logic
+- `services/ingest/` binary — lightweight edge service, no DB or domain logic
 - Domain errors refactoring — 7 order errors, 2 dispute errors moved to domain layer
-- Service-based monorepo: `internal/api/` (primary code owner) + `internal/ingest/` (lightweight)
+- Service-based monorepo: `services/api/` (primary code owner) + `services/ingest/` (lightweight)
 - Architecture simplification: business logic in `api/`, only `testinfra/` in `shared/`
 
 ### Phase 3: Inter-Service Communication (Feature 003)
@@ -158,15 +158,15 @@ Extensible architecture from the start made it easy to add DLQ wrapper, retry mi
 
 | File | Purpose |
 |------|---------|
-| `internal/api/messaging/middleware.go` | Retry + DLQ + Metrics middleware |
-| `internal/api/messaging/runner.go` | Worker lifecycle manager |
-| `internal/api/external/kafka/consumer.go` | Kafka consumer (segmentio/kafka-go) |
-| `internal/api/external/kafka/publisher.go` | Kafka publisher with Hash balancer |
-| `internal/api/webhook/processor.go` | Processor interface |
-| `internal/api/webhook/async.go` | AsyncProcessor (HTTP → Kafka) |
-| `internal/api/webhook/sync.go` | SyncProcessor (HTTP → Service) |
-| `internal/api/consumers/order.go` | Order message handler |
-| `internal/api/consumers/dispute.go` | Dispute message handler |
-| `internal/api/handlers/updates/` | Internal update endpoints (sync mode) |
-| `internal/ingest/apiclient/` | HTTP client for sync mode |
-| `internal/ingest/webhook/http.go` | HTTPSyncProcessor |
+| `services/api/messaging/middleware.go` | Retry + DLQ + Metrics middleware |
+| `services/api/messaging/runner.go` | Worker lifecycle manager |
+| `services/api/external/kafka/consumer.go` | Kafka consumer (segmentio/kafka-go) |
+| `services/api/external/kafka/publisher.go` | Kafka publisher with Hash balancer |
+| `services/api/webhook/processor.go` | Processor interface |
+| `services/api/webhook/async.go` | AsyncProcessor (HTTP → Kafka) |
+| `services/api/webhook/sync.go` | SyncProcessor (HTTP → Service) |
+| `services/api/consumers/order.go` | Order message handler |
+| `services/api/consumers/dispute.go` | Dispute message handler |
+| `services/api/handlers/updates/` | Internal update endpoints (sync mode) |
+| `services/ingest/apiclient/` | HTTP client for sync mode |
+| `services/ingest/webhook/http.go` | HTTPSyncProcessor |

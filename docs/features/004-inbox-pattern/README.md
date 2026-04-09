@@ -80,7 +80,7 @@ Load test both approaches, measure latency/throughput, document trade-offs.
 ### Subtask 1: Shared kernel refactoring
 
 **Shared DTO package:**
-- Moved `OrderUpdateRequest`, `DisputeUpdateRequest` and response types to `internal/shared/dto/`
+- Moved `OrderUpdateRequest`, `DisputeUpdateRequest` and response types to `services/*/dto/`
 - Both API and Ingest import from shared package — no cross-service domain dependency
 
 **Ingest decoupling:**
@@ -91,7 +91,7 @@ Load test both approaches, measure latency/throughput, document trade-offs.
 
 **Ingest-owned database:**
 - Ingest gets its own PostgreSQL connection (`INGEST_PG_URL`, `INGEST_PG_POOL_MAX`)
-- Separate migration system: `internal/ingest/migrations/` with embedded FS (`ingest.MigrationFS`)
+- Separate migration system: `services/ingest/migrations/` with embedded FS (`ingest.MigrationFS`)
 - Migrations applied on startup in `"inbox"` webhook mode
 
 **Inbox table:**
@@ -105,10 +105,10 @@ Load test both approaches, measure latency/throughput, document trade-offs.
 - New webhook mode `"inbox"` in Ingest service alongside existing `"kafka"` and `"http"`
 
 **New files:**
-- `internal/ingest/migration.go` — embed directive for migrations
-- `internal/ingest/migrations/20260214120000_create_inbox_table.sql`
-- `internal/ingest/repo/inbox/pg_inbox_repo.go` — `InboxRepo` interface + `PgInboxRepo`
-- `internal/ingest/webhook/inbox.go` — `InboxProcessor`
+- `services/ingest/migration.go` — embed directive for migrations
+- `services/ingest/migrations/20260214120000_create_inbox_table.sql`
+- `services/ingest/repo/inbox/pg_inbox_repo.go` — `InboxRepo` interface + `PgInboxRepo`
+- `services/ingest/webhook/inbox.go` — `InboxProcessor`
 - Integration tests: `pg_inbox_repo_integration_test.go` (Store, idempotency constraint)
 
 ### Subtask 3: DB-queue worker (SKIP LOCKED)
@@ -119,7 +119,7 @@ Load test both approaches, measure latency/throughput, document trade-offs.
 - `MarkProcessed(ctx, id)` — sets `status='processed'`, `processed_at=NOW()`
 - `MarkFailed(ctx, id, errMsg, maxRetries)` — increments `retry_count`, resets to `'pending'` if under max retries, sets `'failed'` if exhausted
 
-**Inbox worker (`internal/ingest/worker/`):**
+**Inbox worker (`services/ingest/worker/`):**
 - `InboxWorker` — polls inbox on configurable interval, fetches batch, processes sequentially
 - Dispatches by `webhook_type`: `"order_update"` → `client.SendOrderUpdate`, `"dispute_update"` → `client.SendDisputeUpdate`
 - Error classification: `ErrConflict` → treat as success (idempotent); `ErrBadRequest`/`ErrNotFound`/`ErrInvalidStatus` → permanent failure (maxRetries=0); `ErrServiceUnavailable` → transient (retry via pending reset)

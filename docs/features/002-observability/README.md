@@ -149,5 +149,5 @@ env/
 | `pkg/logger/logger.go` | `Setup(Options)`, level parsing |
 | `pkg/logger/correlation.go` | `CorrelationHandler` (slog) |
 | `pkg/logger/gin.go` | `GinBodyLogger()` middleware |
-| `internal/api/messaging/middleware.go` | `WithMetrics` Kafka middleware |
+| `services/api/messaging/middleware.go` | `WithMetrics` Kafka middleware |
 | `monitoring/` | Prometheus + Grafana configs and dashboards |

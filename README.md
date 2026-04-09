@@ -72,10 +72,10 @@ flowchart LR
 
 | Service | Path | Description |
 |---------|------|-------------|
-| **API** :3000 | `cmd/api` | Core business logic, DB owner, Kafka consumers, manual ops |
-| **Ingest** :3001 | `cmd/ingest` | HTTP → Kafka gateway for webhooks, no DB |
-| **CDC Worker** | `cmd/cdc` | PG WAL → Kafka `domain.events` via logical replication |
-| **Analytics** | `cmd/analytics` | Kafka → OpenSearch `domain-events` projection |
+| **API** :3000 | `services/api/cmd` | Core business logic, DB owner, Kafka consumers, manual ops |
+| **Ingest** :3001 | `services/ingest/cmd` | HTTP → Kafka gateway for webhooks, no DB |
+| **CDC Worker** | `services/cdc/cmd` | PG WAL → Kafka `domain.events` via logical replication |
+| **Analytics** | `services/analytics/cmd` | Kafka → OpenSearch `domain-events` projection |
 
 # Domain Entities
 

@@ -105,7 +105,7 @@ PG_REPLICA_URL=postgres://postgres:secret@haproxy:5441/payments?sslmode=disable
 
 ### 4. Add `PG_REPLICA_URL` to config
 
-**`config/config.go`** — add to `APIConfig`:
+**per-service `config/config.go`** — add to `APIConfig`:
 ```go
 PgReplicaURL string `env:"PG_REPLICA_URL"` // optional, fallback to PG_URL
 ```
@@ -214,13 +214,13 @@ Event sink constructors gain a `readDB` param. Existing tests pass `nil`:
 |------|--------|
 | `docker-compose.yaml` | Replace `db` with `db-primary` + replicas + `haproxy` in `infra`/`prod` |
 | `config/haproxy.cfg` | **New** — HAProxy rw/ro config |
-| `config/config.go` | Add `PgReplicaURL` to `APIConfig` |
+| per-service `config/config.go` | Add `PgReplicaURL` to `APIConfig` |
 | `pkg/postgres/postgres.go` | Add `ReadPool`, `ReadExecutor()`, `NewReadPool()`, update `Close()` |
-| `internal/api/repo/order/pg_order_repo.go` | Add `readDB` + `reader()`, update `GetOrders`, constructors |
-| `internal/api/repo/dispute/pg_dispute_repo.go` | Add `readDB` + `reader()`, update read methods, constructors |
-| `internal/api/repo/order_eventsink/pg_order_event_sink.go` | Add `readDB` + `reader()`, update read methods, constructor |
-| `internal/api/repo/dispute_eventsink/pg_dispute_event_sink.go` | Same as above |
-| `internal/api/app.go` | Create read pool, wire to repos + event sinks, health check |
+| `services/api/repo/order/pg_order_repo.go` | Add `readDB` + `reader()`, update `GetOrders`, constructors |
+| `services/api/repo/dispute/pg_dispute_repo.go` | Add `readDB` + `reader()`, update read methods, constructors |
+| `services/api/repo/order_eventsink/pg_order_event_sink.go` | Add `readDB` + `reader()`, update read methods, constructor |
+| `services/api/repo/dispute_eventsink/pg_dispute_event_sink.go` | Same as above |
+| `services/api/app.go` | Create read pool, wire to repos + event sinks, health check |
 | `env/endpoints.host.env` | Update `PG_URL` to HAProxy rw, add `PG_REPLICA_URL` |
 | `env/endpoints.docker.env` | Update `PG_URL` to HAProxy rw, add `PG_REPLICA_URL` |
 | `Makefile` | Remove `run-replication`/`stop-replication` |

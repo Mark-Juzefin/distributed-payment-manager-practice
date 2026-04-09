@@ -1,16 +1,20 @@
-FROM golang:1.24-alpine AS builder
+FROM golang:1.26-alpine AS builder
 
 WORKDIR /app
 
-# Copy dependency files
-COPY go.mod go.sum ./
-RUN go mod download
+# Copy workspace and module files for dependency caching
+COPY go.work ./
+COPY pkg/go.mod pkg/go.sum ./pkg/
+COPY services/api/go.mod services/api/go.sum ./services/api/
+RUN cd pkg && go mod download && cd ../services/api && go mod download
 
 # Copy source code
-COPY . .
+COPY pkg/ ./pkg/
+COPY services/api/ ./services/api/
 
 # Build the API binary
-RUN CGO_ENABLED=0 GOOS=linux go build -o /api ./cmd/api
+WORKDIR /app/services/api
+RUN CGO_ENABLED=0 GOOS=linux go build -o /api ./cmd
 
 # Final stage
 FROM alpine:latest

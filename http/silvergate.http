@@ -1,0 +1,108 @@
+### Silvergate PSP — Auth & Capture Flow
+### Run requests sequentially from top to bottom
+
+@base = http://localhost:3002
+
+### Health check
+GET {{base}}/health/ready
+
+### -----------------------------------------------
+### Auth & Capture: happy path
+### -----------------------------------------------
+
+### 1. Authorize payment
+POST {{base}}/api/v1/auth
+Content-Type: application/json
+
+{
+  "merchant_id": "merchant_1",
+  "order_id": "ord_001",
+  "amount": 5000,
+  "currency": "USD",
+  "card_token": "tok_visa_4242"
+}
+
+> {%
+    client.global.set("tx_id", response.body.transaction_id);
+    client.log("Auth status: " + response.body.status);
+    client.log("Transaction ID: " + response.body.transaction_id);
+%}
+
+### 2. Capture authorized payment
+POST {{base}}/api/v1/capture
+Content-Type: application/json
+
+{
+  "transaction_id": "{{tx_id}}",
+  "amount": 5000,
+  "idempotency_key": "cap_001"
+}
+
+> {%
+    client.log("Capture status: " + response.body.status);
+%}
+
+### -----------------------------------------------
+### Edge cases
+### -----------------------------------------------
+
+### 3. Another auth — different order, higher amount
+POST {{base}}/api/v1/auth
+Content-Type: application/json
+
+{
+  "merchant_id": "merchant_1",
+  "order_id": "ord_002",
+  "amount": 99900,
+  "currency": "EUR",
+  "card_token": "tok_mc_1234"
+}
+
+> {%
+    client.global.set("tx_id_2", response.body.transaction_id);
+    client.log("Auth status: " + response.body.status);
+%}
+
+### 4. Duplicate idempotency key (expect 409 conflict)
+POST {{base}}/api/v1/capture
+Content-Type: application/json
+
+{
+  "transaction_id": "{{tx_id}}",
+  "amount": 5000,
+  "idempotency_key": "cap_001"
+}
+
+> {%
+    client.log("Expected conflict: " + response.status + " " + JSON.stringify(response.body));
+%}
+
+### 5. Capture non-existent transaction (expect 404)
+POST {{base}}/api/v1/capture
+Content-Type: application/json
+
+{
+  "transaction_id": "00000000-0000-0000-0000-000000000000",
+  "amount": 1000,
+  "idempotency_key": "cap_ghost"
+}
+
+> {%
+    client.log("Expected 404: " + response.status + " " + JSON.stringify(response.body));
+%}
+
+### 6. Auth with invalid request (expect 400)
+POST {{base}}/api/v1/auth
+Content-Type: application/json
+
+{
+  "merchant_id": "merchant_1",
+  "order_id": "ord_bad",
+  "amount": -100,
+  "currency": "INVALID",
+  "card_token": ""
+}
+
+> {%
+    client.log("Expected 400: " + response.status + " " + JSON.stringify(response.body));
+%}

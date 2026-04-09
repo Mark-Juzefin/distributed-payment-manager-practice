@@ -3,7 +3,7 @@ export
 
 MIGRATION_DIR=services/paymanager/migrations
 
-.PHONY: run run-dev run-kafka run-http run-inbox run-paymanager run-ingest start_containers stop_containers stop_containers_remove lint test integration-test e2e-test generate migrate seed-db print-db-size clean-db benchmark build-pg-image test-webhook loadtest loadtest-steady patroni-status
+.PHONY: run run-dev run-kafka run-http run-inbox run-paymanager run-ingest run-silvergate start_containers stop_containers stop_containers_remove lint test integration-test e2e-test generate migrate seed-db print-db-size clean-db benchmark build-pg-image test-webhook loadtest loadtest-steady patroni-status
 
 run:
 	docker compose --profile prod up --build
@@ -32,6 +32,9 @@ run-paymanager: start_containers
 
 run-ingest:
 	go run ./services/ingest/cmd
+
+run-silvergate: start_containers
+	set -a && source env/common.env && source env/endpoints.host.env && source env/silvergate.env && set +a && PORT=$${SILVERGATE_PORT} go run ./services/silvergate/cmd
 
 start_containers:
 	docker-compose --profile infra up --build -d --wait

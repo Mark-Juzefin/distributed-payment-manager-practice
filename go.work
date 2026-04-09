@@ -6,6 +6,7 @@ use (
 	./pkg
 	./services/analytics
 	./services/paymanager
+	./services/silvergate
 	./services/cdc
 	./services/ingest
 )

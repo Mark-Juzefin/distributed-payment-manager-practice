@@ -173,6 +173,27 @@ services:
       - ./e2e/mappings:/home/wiremock/mappings
     entrypoint: ["/docker-entrypoint.sh", "--global-response-templating", "--disable-gzip", "--verbose"]
 
+  silvergate-db:
+    image: postgres:17-alpine
+    container_name: silvergate-db
+    profiles:
+      - infra
+    networks:
+      - backend
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: secret
+      POSTGRES_DB: silvergate
+    ports:
+      - '5450:5432'
+    volumes:
+      - silvergate-db-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d silvergate"]
+      interval: 3s
+      timeout: 3s
+      retries: 10
+
   opensearch-node1:
     image: opensearchproject/opensearch:3
     container_name: opensearch-node1
@@ -432,6 +453,7 @@ services:
         condition: service_started
 
 volumes:
+  silvergate-db-data:
   patroni1-data:
   patroni2-data:
   patroni3-data:

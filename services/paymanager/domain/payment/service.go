@@ -153,6 +153,40 @@ func (s *PaymentService) VoidPayment(ctx context.Context, paymentID string) (*Pa
 	return p, nil
 }
 
+func (s *PaymentService) RefundPayment(ctx context.Context, paymentID string, req RefundRequest) (*Payment, error) {
+	p, err := s.paymentRepo.GetPaymentByID(ctx, paymentID)
+	if err != nil {
+		return nil, err
+	}
+
+	if p.Status != StatusCaptured && p.Status != StatusPartiallyRefunded {
+		return nil, ErrInvalidStatus
+	}
+
+	remaining := p.Amount - p.RefundedAmount
+	if req.Amount > remaining {
+		return nil, ErrRefundExceedsAmount
+	}
+
+	// Send refund to Silvergate (async — returns 202)
+	_, err = s.provider.RefundPayment(ctx, gateway.RefundRequest{
+		TransactionID:  p.ProviderTxID,
+		Amount:         req.Amount,
+		IdempotencyKey: fmt.Sprintf("refund_%s_%d", paymentID, req.Amount),
+	})
+	if err != nil {
+		return nil, fmt.Errorf("refund at provider: %w", err)
+	}
+
+	slog.InfoContext(ctx, "refund initiated",
+		"payment_id", p.ID,
+		"amount", req.Amount,
+		"provider_tx_id", p.ProviderTxID,
+	)
+
+	return p, nil
+}
+
 func (s *PaymentService) ProcessCaptureWebhook(ctx context.Context, webhook CaptureWebhook) error {
 	return s.transactor.InTransaction(ctx, func(tx postgres.Executor) error {
 		txRepo := s.txPaymentRepo(tx)
@@ -163,6 +197,40 @@ func (s *PaymentService) ProcessCaptureWebhook(ctx context.Context, webhook Capt
 			return fmt.Errorf("lookup payment by provider_tx_id %s: %w", webhook.TransactionID, err)
 		}
 
+		// Handle refund webhooks — update refunded_amount
+		if webhook.Event == "transaction.refunded" {
+			p.RefundedAmount += webhook.Amount
+			var newStatus Status
+			if p.RefundedAmount >= p.Amount {
+				newStatus = StatusRefunded
+			} else {
+				newStatus = StatusPartiallyRefunded
+			}
+			if err := txRepo.UpdatePaymentRefund(ctx, p.ID, newStatus, p.RefundedAmount); err != nil {
+				return fmt.Errorf("update payment refund: %w", err)
+			}
+
+			idempotencyKey := fmt.Sprintf("webhook_%s_%s_%s", webhook.TransactionID, webhook.Event, webhook.RefundID)
+			_, err = txEvents.CreateEvent(ctx, events.NewEvent{
+				AggregateType:  "payment",
+				AggregateID:    p.ID,
+				EventType:      webhook.Event,
+				IdempotencyKey: idempotencyKey,
+				Payload:        json.RawMessage(`{}`),
+				CreatedAt:      time.Now(),
+			})
+			if err != nil {
+				return fmt.Errorf("write event: %w", err)
+			}
+
+			slog.InfoContext(ctx, "payment refund webhook processed",
+				"payment_id", p.ID,
+				"status", newStatus,
+				"refunded_amount", p.RefundedAmount,
+			)
+			return nil
+		}
+
 		var newStatus Status
 		switch webhook.Status {
 		case "captured":
@@ -171,6 +239,11 @@ func (s *PaymentService) ProcessCaptureWebhook(ctx context.Context, webhook Capt
 			newStatus = StatusCaptureFailed
 		case "voided":
 			newStatus = StatusVoided
+		case "refund_failed":
+			// Log but don't change payment status
+			slog.WarnContext(ctx, "refund failed at provider",
+				"payment_id", p.ID, "transaction_id", webhook.TransactionID)
+			return nil
 		default:
 			return fmt.Errorf("unknown webhook status: %s", webhook.Status)
 		}

@@ -70,6 +70,21 @@ func (mr *MockProviderMockRecorder) CapturePayment(ctx, req any) *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CapturePayment", reflect.TypeOf((*MockProvider)(nil).CapturePayment), ctx, req)
 }
 
+// RefundPayment mocks base method.
+func (m *MockProvider) RefundPayment(ctx context.Context, req RefundRequest) (RefundResult, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "RefundPayment", ctx, req)
+	ret0, _ := ret[0].(RefundResult)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// RefundPayment indicates an expected call of RefundPayment.
+func (mr *MockProviderMockRecorder) RefundPayment(ctx, req any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "RefundPayment", reflect.TypeOf((*MockProvider)(nil).RefundPayment), ctx, req)
+}
+
 // SubmitRepresentment mocks base method.
 func (m *MockProvider) SubmitRepresentment(ctx context.Context, req RepresentmentRequest) (RepresentmentResult, error) {
 	m.ctrl.T.Helper()

@@ -10,6 +10,7 @@ type Provider interface {
 	CapturePayment(ctx context.Context, req CaptureRequest) (CaptureResult, error)
 	AuthorizePayment(ctx context.Context, req AuthRequest) (AuthResult, error)
 	VoidPayment(ctx context.Context, req VoidRequest) (VoidResult, error)
+	RefundPayment(ctx context.Context, req RefundRequest) (RefundResult, error)
 }
 
 type RepresentmentRequest struct {
@@ -74,6 +75,19 @@ type VoidRequest struct {
 
 type VoidResult struct {
 	TransactionID string
+	Status        string
+}
+
+type RefundRequest struct {
+	TransactionID  string
+	Amount         int64
+	IdempotencyKey string
+}
+
+type RefundResult struct {
+	RefundID      string
+	TransactionID string
+	Amount        int64
 	Status        string
 }
 

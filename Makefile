@@ -29,7 +29,7 @@ run-inbox: start_containers
 # Light mode: HTTP mode with minimal infra (just PostgreSQL, no Kafka/OpenSearch/Patroni)
 run-minimal: start_containers_minimal
 	@echo "Running in MINIMAL mode (HTTP, standalone PostgreSQL)"
-	go run github.com/mattn/goreman@latest -f Procfile.http start
+	go run github.com/mattn/goreman@latest -f Procfile.minimal start
 
 start_containers_minimal:
 	docker compose -f docker-compose.minimal.yaml up -d --wait

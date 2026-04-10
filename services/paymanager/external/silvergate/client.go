@@ -260,3 +260,55 @@ func (c *Client) VoidPayment(ctx context.Context, req gateway.VoidRequest) (gate
 		Status:        out.Status,
 	}, nil
 }
+
+func (c *Client) RefundPayment(ctx context.Context, req gateway.RefundRequest) (gateway.RefundResult, error) {
+	body := struct {
+		TransactionID  string `json:"transaction_id"`
+		Amount         int64  `json:"amount"`
+		IdempotencyKey string `json:"idempotency_key"`
+	}{
+		TransactionID:  req.TransactionID,
+		Amount:         req.Amount,
+		IdempotencyKey: req.IdempotencyKey,
+	}
+
+	j, err := json.Marshal(body)
+	if err != nil {
+		return gateway.RefundResult{}, fmt.Errorf("marshal refund request: %w", err)
+	}
+
+	httpReq, err := http.NewRequestWithContext(ctx, http.MethodPost, c.BaseURL+"/api/v1/refund", bytes.NewReader(j))
+	if err != nil {
+		return gateway.RefundResult{}, fmt.Errorf("create refund request: %w", err)
+	}
+	httpReq.Header.Set("Content-Type", "application/json")
+
+	resp, err := c.HTTP.Do(httpReq)
+	if err != nil {
+		return gateway.RefundResult{}, fmt.Errorf("http refund request: %w", err)
+	}
+	defer resp.Body.Close()
+
+	raw, _ := io.ReadAll(resp.Body)
+
+	if resp.StatusCode/100 != 2 {
+		return gateway.RefundResult{}, fmt.Errorf("refund provider %s: %s", resp.Status, string(raw))
+	}
+
+	var out struct {
+		RefundID      string `json:"refund_id"`
+		TransactionID string `json:"transaction_id"`
+		Amount        int64  `json:"amount"`
+		Status        string `json:"status"`
+	}
+	if err := json.Unmarshal(raw, &out); err != nil {
+		return gateway.RefundResult{}, fmt.Errorf("unmarshal refund response: %w", err)
+	}
+
+	return gateway.RefundResult{
+		RefundID:      out.RefundID,
+		TransactionID: out.TransactionID,
+		Amount:        out.Amount,
+		Status:        out.Status,
+	}, nil
+}

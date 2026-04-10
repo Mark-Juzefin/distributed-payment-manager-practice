@@ -77,10 +77,50 @@ GET {{base}}/api/v1/payments/{{delayed_payment_id}}
 %}
 
 ### -----------------------------------------------
+### Refund flow (on instant-captured payment)
+### -----------------------------------------------
+
+### 7. Partial refund ($20 of $50)
+POST {{base}}/api/v1/payments/{{payment_id}}/refund
+Content-Type: application/json
+
+{
+  "amount": 2000
+}
+
+> {%
+    client.log("Refund status: " + response.status);
+%}
+
+### 8. Check payment (should be partially_refunded after webhook)
+GET {{base}}/api/v1/payments/{{payment_id}}
+
+> {%
+    client.log("Status: " + response.body.status);
+    client.log("Refunded: " + response.body.refunded_amount);
+%}
+
+### 9. Second partial refund ($30 — remaining balance)
+POST {{base}}/api/v1/payments/{{payment_id}}/refund
+Content-Type: application/json
+
+{
+  "amount": 3000
+}
+
+### 10. Check payment (should be refunded after webhook)
+GET {{base}}/api/v1/payments/{{payment_id}}
+
+> {%
+    client.log("Status: " + response.body.status);
+    client.log("Refunded: " + response.body.refunded_amount);
+%}
+
+### -----------------------------------------------
 ### Edge cases
 ### -----------------------------------------------
 
-### 7. Void already captured payment (expect 409)
+### 11. Void already captured payment (expect 409)
 POST {{base}}/api/v1/payments/{{payment_id}}/void
 
 > {%

@@ -9,17 +9,21 @@ import (
 type Status string
 
 const (
-	StatusAuthorized     Status = "authorized"
-	StatusDeclined       Status = "declined"
-	StatusCapturePending Status = "capture_pending"
-	StatusCaptured       Status = "captured"
-	StatusCaptureFailed  Status = "capture_failed"
-	StatusVoided         Status = "voided"
+	StatusAuthorized        Status = "authorized"
+	StatusDeclined          Status = "declined"
+	StatusCapturePending    Status = "capture_pending"
+	StatusCaptured          Status = "captured"
+	StatusCaptureFailed     Status = "capture_failed"
+	StatusVoided            Status = "voided"
+	StatusPartiallyRefunded Status = "partially_refunded"
+	StatusRefunded          Status = "refunded"
 )
 
 var validTransitions = map[Status][]Status{
-	StatusAuthorized:     {StatusCapturePending, StatusVoided},
-	StatusCapturePending: {StatusCaptured, StatusCaptureFailed},
+	StatusAuthorized:        {StatusCapturePending, StatusVoided},
+	StatusCapturePending:    {StatusCaptured, StatusCaptureFailed},
+	StatusCaptured:          {StatusPartiallyRefunded, StatusRefunded},
+	StatusPartiallyRefunded: {StatusPartiallyRefunded, StatusRefunded},
 }
 
 func (s Status) CanTransitionTo(target Status) bool {
@@ -36,17 +40,18 @@ func (s Status) CanTransitionTo(target Status) bool {
 }
 
 type Payment struct {
-	ID            string     `json:"id"`
-	Amount        int64      `json:"amount"`
-	Currency      string     `json:"currency"`
-	CardToken     string     `json:"card_token"`
-	Status        Status     `json:"status"`
-	DeclineReason string     `json:"decline_reason,omitempty"`
-	ProviderTxID  string     `json:"provider_tx_id,omitempty"`
-	MerchantID    string     `json:"merchant_id"`
-	CaptureAt     *time.Time `json:"capture_at,omitempty"`
-	CreatedAt     time.Time  `json:"created_at"`
-	UpdatedAt     time.Time  `json:"updated_at"`
+	ID             string     `json:"id"`
+	Amount         int64      `json:"amount"`
+	Currency       string     `json:"currency"`
+	CardToken      string     `json:"card_token"`
+	Status         Status     `json:"status"`
+	DeclineReason  string     `json:"decline_reason,omitempty"`
+	ProviderTxID   string     `json:"provider_tx_id,omitempty"`
+	MerchantID     string     `json:"merchant_id"`
+	RefundedAmount int64      `json:"refunded_amount"`
+	CaptureAt      *time.Time `json:"capture_at,omitempty"`
+	CreatedAt      time.Time  `json:"created_at"`
+	UpdatedAt      time.Time  `json:"updated_at"`
 }
 
 func NewAuthorized(amount int64, currency, cardToken, providerTxID, merchantID string) Payment {
@@ -83,12 +88,17 @@ func NewDeclined(amount int64, currency, cardToken, providerTxID, merchantID, re
 type CaptureWebhook struct {
 	Event         string `json:"event"`
 	TransactionID string `json:"transaction_id"`
+	RefundID      string `json:"refund_id,omitempty"`
 	OrderID       string `json:"order_id"`
 	MerchantID    string `json:"merchant_id"`
 	Status        string `json:"status"`
 	Amount        int64  `json:"amount"`
 	Currency      string `json:"currency"`
 	Timestamp     string `json:"timestamp"`
+}
+
+type RefundRequest struct {
+	Amount int64 `json:"amount" binding:"required,min=1"`
 }
 
 type CreatePaymentRequest struct {

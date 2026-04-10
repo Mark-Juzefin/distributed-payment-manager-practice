@@ -79,3 +79,38 @@ func (h *PaymentHandler) Void(c *gin.Context) {
 
 	c.JSON(http.StatusOK, p)
 }
+
+func (h *PaymentHandler) Refund(c *gin.Context) {
+	id := c.Param("id")
+	if id == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "missing payment id"})
+		return
+	}
+
+	var req payment.RefundRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	p, err := h.service.RefundPayment(c.Request.Context(), id, req)
+	if err != nil {
+		if errors.Is(err, payment.ErrNotFound) {
+			c.JSON(http.StatusNotFound, gin.H{"error": "payment not found"})
+			return
+		}
+		if errors.Is(err, payment.ErrInvalidStatus) {
+			c.JSON(http.StatusConflict, gin.H{"error": "payment cannot be refunded in current state"})
+			return
+		}
+		if errors.Is(err, payment.ErrRefundExceedsAmount) {
+			c.JSON(http.StatusUnprocessableEntity, gin.H{"error": "refund amount exceeds remaining balance"})
+			return
+		}
+		slog.Error("payment refund failed", "payment_id", id, "error", err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "refund failed"})
+		return
+	}
+
+	c.JSON(http.StatusAccepted, p)
+}

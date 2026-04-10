@@ -33,7 +33,23 @@ Disputes exist but are out of scope until auth/settle flow is solid.
 - [x] **Subtask 3:** Paymanager integration — new payment entities, auth/capture requests to Silvergate, webhook handling
 - [x] **Subtask 4:** Void — capture_delay + void endpoint (Silvergate + Paymanager)
 - [x] **Subtask 5:** Refund in Silvergate
-- [ ] **Subtask 6:** Refund integration in Paymanager
+- [x] **Subtask 6:** Refund integration in Paymanager
+- [ ] **Subtask 7:** Fix concurrent refund race condition (lost update)
+
+  **Bug:** 3 concurrent refunds on a $50 payment (amounts $30 + $40 + $45) all pass validation
+  because each reads `refunded_amount = 0` simultaneously. Result: `refunded_amount = 7000 > 5000`.
+
+  ```bash
+  ID=<payment_id>
+  curl -s -X POST localhost:3000/api/v1/payments/$ID/refund -d '{"amount":3000}' &
+  curl -s -X POST localhost:3000/api/v1/payments/$ID/refund -d '{"amount":4000}' &
+  curl -s -X POST localhost:3000/api/v1/payments/$ID/refund -d '{"amount":4500}' &
+  wait
+  # → refunded_amount: 7000 on a 5000 payment (overdraft)
+  ```
+
+  Root cause: **lost update** — read-modify-write without locking.
+  Fix options: DB CHECK constraint, SELECT FOR UPDATE, optimistic locking, serializable isolation.
 
 ## Architecture Notes
 

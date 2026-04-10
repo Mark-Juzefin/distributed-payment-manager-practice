@@ -38,9 +38,9 @@ type repo struct {
 func (r *repo) CreatePayment(ctx context.Context, p payment.Payment) error {
 	query, args, err := r.builder.Insert("payments").
 		Columns("id", "amount", "currency", "card_token", "status", "decline_reason",
-			"provider_tx_id", "merchant_id", "created_at", "updated_at").
+			"provider_tx_id", "merchant_id", "capture_at", "created_at", "updated_at").
 		Values(p.ID, p.Amount, p.Currency, p.CardToken, p.Status, nilIfEmpty(p.DeclineReason),
-			nilIfEmpty(p.ProviderTxID), p.MerchantID, p.CreatedAt, p.UpdatedAt).
+			nilIfEmpty(p.ProviderTxID), p.MerchantID, p.CaptureAt, p.CreatedAt, p.UpdatedAt).
 		ToSql()
 	if err != nil {
 		return fmt.Errorf("build insert: %w", err)
@@ -59,7 +59,7 @@ func (r *repo) CreatePayment(ctx context.Context, p payment.Payment) error {
 func (r *repo) GetPaymentByID(ctx context.Context, id string) (*payment.Payment, error) {
 	query, args, err := r.builder.
 		Select("id", "amount", "currency", "card_token", "status", "decline_reason",
-			"provider_tx_id", "merchant_id", "created_at", "updated_at").
+			"provider_tx_id", "merchant_id", "capture_at", "created_at", "updated_at").
 		From("payments").
 		Where(squirrel.Eq{"id": id}).
 		ToSql()
@@ -73,7 +73,7 @@ func (r *repo) GetPaymentByID(ctx context.Context, id string) (*payment.Payment,
 func (r *repo) GetPaymentByProviderTxID(ctx context.Context, txID string) (*payment.Payment, error) {
 	query, args, err := r.builder.
 		Select("id", "amount", "currency", "card_token", "status", "decline_reason",
-			"provider_tx_id", "merchant_id", "created_at", "updated_at").
+			"provider_tx_id", "merchant_id", "capture_at", "created_at", "updated_at").
 		From("payments").
 		Where(squirrel.Eq{"provider_tx_id": txID}).
 		ToSql()
@@ -123,7 +123,7 @@ func (r *repo) scanPayment(ctx context.Context, query string, args ...any) (*pay
 	var p payment.Payment
 	var declineReason, providerTxID *string
 	err = rows.Scan(&p.ID, &p.Amount, &p.Currency, &p.CardToken, &p.Status,
-		&declineReason, &providerTxID, &p.MerchantID, &p.CreatedAt, &p.UpdatedAt)
+		&declineReason, &providerTxID, &p.MerchantID, &p.CaptureAt, &p.CreatedAt, &p.UpdatedAt)
 	if err != nil {
 		return nil, fmt.Errorf("scan payment: %w", err)
 	}

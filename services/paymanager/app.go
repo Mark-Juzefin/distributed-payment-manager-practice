@@ -75,6 +75,7 @@ func Run(cfg config.Config) {
 		cfg.SilvergateSubmitRepresentmentPath,
 		cfg.SilvergateCapturePath,
 		cfg.SilvergateAuthPath,
+		cfg.SilvergateVoidPath,
 		&http.Client{Timeout: cfg.HTTPSilvergateClientTimeout},
 	)
 

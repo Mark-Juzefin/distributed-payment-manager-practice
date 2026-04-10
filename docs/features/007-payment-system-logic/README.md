@@ -22,16 +22,18 @@ Disputes exist but are out of scope until auth/settle flow is solid.
 - **Subtask 1 plan:** TBD — rename api → paymanager
 - **Subtask 2 plan:** [plan-subtask-2.md](plan-subtask-2.md) — Silvergate service: auth & capture
 - **Subtask 3 plan:** [plan-subtask-3.md](plan-subtask-3.md) — integrate Silvergate into Paymanager
-- **Subtask 4 plan:** TBD — void & refund in Silvergate
-- **Subtask 5 plan:** TBD — void & refund integration in Paymanager
+- **Subtask 4 plan:** [plan-subtask-4.md](plan-subtask-4.md) — void with capture_delay
+- **Subtask 5 plan:** TBD — refund in Silvergate
+- **Subtask 6 plan:** TBD — refund integration in Paymanager
 
 ## Tasks
 
 - [x] **Subtask 1:** Rename `services/api` → `services/paymanager` (go.mod, imports, docker-compose, Makefile, configs, tests)
 - [x] **Subtask 2:** Silvergate service — auth & capture flow, mocked bank, webhook callbacks
-- [ ] **Subtask 3:** Paymanager integration — new payment entities, auth/capture requests to Silvergate, webhook handling
-- [ ] **Subtask 4:** Void & refund in Silvergate
-- [ ] **Subtask 5:** Void & refund integration in Paymanager
+- [x] **Subtask 3:** Paymanager integration — new payment entities, auth/capture requests to Silvergate, webhook handling
+- [ ] **Subtask 4:** Void — capture_delay + void endpoint (Silvergate + Paymanager)
+- [ ] **Subtask 5:** Refund in Silvergate
+- [ ] **Subtask 6:** Refund integration in Paymanager
 
 ## Architecture Notes
 

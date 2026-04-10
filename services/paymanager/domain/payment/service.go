@@ -42,11 +42,21 @@ func NewPaymentService(
 }
 
 func (s *PaymentService) CreatePayment(ctx context.Context, req CreatePaymentRequest) (*Payment, error) {
+	// Parse capture delay
+	var captureDelay time.Duration
+	if req.CaptureDelay != "" {
+		var err error
+		captureDelay, err = time.ParseDuration(req.CaptureDelay)
+		if err != nil {
+			return nil, fmt.Errorf("invalid capture_delay: %w", err)
+		}
+	}
+
 	// 1. Authorize with Silvergate (sync)
-	orderId := uuid.New()
+	orderID := uuid.New()
 	authResult, err := s.provider.AuthorizePayment(ctx, gateway.AuthRequest{
 		MerchantID: s.merchantID,
-		OrderID:    orderId.String(),
+		OrderID:    orderID.String(),
 		Amount:     req.Amount,
 		Currency:   req.Currency,
 		CardToken:  req.CardToken,
@@ -55,7 +65,7 @@ func (s *PaymentService) CreatePayment(ctx context.Context, req CreatePaymentReq
 		return nil, fmt.Errorf("authorize payment: %w", err)
 	}
 
-	// 2. Create payment entity based on auth result
+	// 2. Create payment entity
 	var p Payment
 	if authResult.Status == gateway.AuthStatusAuthorized {
 		p = NewAuthorized(req.Amount, req.Currency, req.CardToken, authResult.TransactionID, s.merchantID)
@@ -63,32 +73,42 @@ func (s *PaymentService) CreatePayment(ctx context.Context, req CreatePaymentReq
 		p = NewDeclined(req.Amount, req.Currency, req.CardToken, authResult.TransactionID, s.merchantID, authResult.DeclineReason)
 	}
 
-	// 3. Save to DB in transaction
+	// Set capture_at if delayed
+	if p.Status == StatusAuthorized && captureDelay > 0 {
+		captureAt := time.Now().UTC().Add(captureDelay)
+		p.CaptureAt = &captureAt
+	}
+
+	// 3. Save to DB
 	err = s.transactor.InTransaction(ctx, func(tx postgres.Executor) error {
 		txRepo := s.txPaymentRepo(tx)
-		if err := txRepo.CreatePayment(ctx, p); err != nil {
-			return fmt.Errorf("save payment: %w", err)
-		}
-		return nil
+		return txRepo.CreatePayment(ctx, p)
 	})
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("save payment: %w", err)
 	}
 
 	slog.InfoContext(ctx, "payment created",
 		"payment_id", p.ID,
 		"status", p.Status,
 		"provider_tx_id", p.ProviderTxID,
+		"capture_delay", captureDelay,
 	)
 
-	// 4. If authorized, mark capture_pending and fire background capture
+	// 4. If authorized — capture immediately or with delay
 	if p.Status == StatusAuthorized {
-		p.Status = StatusCapturePending
-		p.UpdatedAt = time.Now().UTC()
-		if err := s.paymentRepo.UpdatePaymentStatus(ctx, p.ID, StatusCapturePending, ""); err != nil {
-			slog.ErrorContext(ctx, "failed to mark capture_pending", "payment_id", p.ID, "error", err)
+		if captureDelay == 0 {
+			// Instant capture
+			p.Status = StatusCapturePending
+			p.UpdatedAt = time.Now().UTC()
+			if err := s.paymentRepo.UpdatePaymentStatus(ctx, p.ID, StatusCapturePending, ""); err != nil {
+				slog.ErrorContext(ctx, "failed to mark capture_pending", "payment_id", p.ID, "error", err)
+			} else {
+				go s.captureInBackground(p.ID, p.ProviderTxID, p.Amount)
+			}
 		} else {
-			go s.captureInBackground(p.ID, p.ProviderTxID, p.Amount)
+			// Delayed capture — goroutine waits then captures if still authorized
+			go s.captureWithDelay(p.ID, p.ProviderTxID, p.Amount, captureDelay)
 		}
 	}
 
@@ -97,6 +117,40 @@ func (s *PaymentService) CreatePayment(ctx context.Context, req CreatePaymentReq
 
 func (s *PaymentService) GetPaymentByID(ctx context.Context, id string) (*Payment, error) {
 	return s.paymentRepo.GetPaymentByID(ctx, id)
+}
+
+func (s *PaymentService) VoidPayment(ctx context.Context, paymentID string) (*Payment, error) {
+	p, err := s.paymentRepo.GetPaymentByID(ctx, paymentID)
+	if err != nil {
+		return nil, err
+	}
+
+	if !p.Status.CanTransitionTo(StatusVoided) {
+		return nil, ErrInvalidStatus
+	}
+
+	// Void at Silvergate (sync)
+	_, err = s.provider.VoidPayment(ctx, gateway.VoidRequest{
+		TransactionID: p.ProviderTxID,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("void at provider: %w", err)
+	}
+
+	// Update status
+	if err := s.paymentRepo.UpdatePaymentStatus(ctx, p.ID, StatusVoided, ""); err != nil {
+		return nil, fmt.Errorf("update payment status: %w", err)
+	}
+
+	p.Status = StatusVoided
+	p.UpdatedAt = time.Now().UTC()
+
+	slog.InfoContext(ctx, "payment voided",
+		"payment_id", p.ID,
+		"provider_tx_id", p.ProviderTxID,
+	)
+
+	return p, nil
 }
 
 func (s *PaymentService) ProcessCaptureWebhook(ctx context.Context, webhook CaptureWebhook) error {
@@ -115,6 +169,8 @@ func (s *PaymentService) ProcessCaptureWebhook(ctx context.Context, webhook Capt
 			newStatus = StatusCaptured
 		case "capture_failed":
 			newStatus = StatusCaptureFailed
+		case "voided":
+			newStatus = StatusVoided
 		default:
 			return fmt.Errorf("unknown webhook status: %s", webhook.Status)
 		}
@@ -129,8 +185,7 @@ func (s *PaymentService) ProcessCaptureWebhook(ctx context.Context, webhook Capt
 			return fmt.Errorf("update payment status: %w", err)
 		}
 
-		// Write idempotent event
-		idempotencyKey := fmt.Sprintf("capture_webhook_%s_%s", webhook.TransactionID, webhook.Event)
+		idempotencyKey := fmt.Sprintf("webhook_%s_%s", webhook.TransactionID, webhook.Event)
 		_, err = txEvents.CreateEvent(ctx, events.NewEvent{
 			AggregateType:  "payment",
 			AggregateID:    p.ID,
@@ -168,4 +223,31 @@ func (s *PaymentService) captureInBackground(paymentID, providerTxID string, amo
 			"error", err,
 		)
 	}
+}
+
+func (s *PaymentService) captureWithDelay(paymentID, providerTxID string, amount int64, delay time.Duration) {
+	time.Sleep(delay)
+
+	ctx := context.Background()
+
+	// Re-read payment — might have been voided while we slept
+	p, err := s.paymentRepo.GetPaymentByID(ctx, paymentID)
+	if err != nil {
+		slog.Error("delayed capture: failed to read payment", "payment_id", paymentID, "error", err)
+		return
+	}
+
+	if p.Status != StatusAuthorized {
+		slog.Info("delayed capture: payment no longer authorized, skipping",
+			"payment_id", paymentID, "status", p.Status)
+		return
+	}
+
+	// Mark capture_pending and fire capture
+	if err := s.paymentRepo.UpdatePaymentStatus(ctx, p.ID, StatusCapturePending, ""); err != nil {
+		slog.Error("delayed capture: failed to mark capture_pending", "payment_id", paymentID, "error", err)
+		return
+	}
+
+	s.captureInBackground(paymentID, providerTxID, amount)
 }

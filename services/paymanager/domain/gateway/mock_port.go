@@ -84,3 +84,18 @@ func (mr *MockProviderMockRecorder) SubmitRepresentment(ctx, req any) *gomock.Ca
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SubmitRepresentment", reflect.TypeOf((*MockProvider)(nil).SubmitRepresentment), ctx, req)
 }
+
+// VoidPayment mocks base method.
+func (m *MockProvider) VoidPayment(ctx context.Context, req VoidRequest) (VoidResult, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "VoidPayment", ctx, req)
+	ret0, _ := ret[0].(VoidResult)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// VoidPayment indicates an expected call of VoidPayment.
+func (mr *MockProviderMockRecorder) VoidPayment(ctx, req any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "VoidPayment", reflect.TypeOf((*MockProvider)(nil).VoidPayment), ctx, req)
+}

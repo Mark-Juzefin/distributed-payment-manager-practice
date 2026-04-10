@@ -16,10 +16,11 @@ type Client struct {
 	SubmitRepresentmentUrl string
 	CaptureUrl             string
 	AuthUrl                string
+	VoidUrl                string
 	HTTP                   *http.Client
 }
 
-func New(baseURL string, submitRepresentmentPath, capturePath, authPath string, httpClient *http.Client) *Client {
+func New(baseURL string, submitRepresentmentPath, capturePath, authPath, voidPath string, httpClient *http.Client) *Client {
 	if httpClient == nil {
 		httpClient = &http.Client{Timeout: 10 * time.Second}
 	}
@@ -28,6 +29,7 @@ func New(baseURL string, submitRepresentmentPath, capturePath, authPath string, 
 		SubmitRepresentmentUrl: baseURL + submitRepresentmentPath,
 		CaptureUrl:             baseURL + capturePath,
 		AuthUrl:                baseURL + authPath,
+		VoidUrl:                baseURL + voidPath,
 		HTTP:                   httpClient,
 	}
 }
@@ -214,5 +216,47 @@ func (c *Client) AuthorizePayment(ctx context.Context, req gateway.AuthRequest) 
 		TransactionID: out.TransactionID,
 		Status:        status,
 		DeclineReason: out.DeclineReason,
+	}, nil
+}
+
+func (c *Client) VoidPayment(ctx context.Context, req gateway.VoidRequest) (gateway.VoidResult, error) {
+	body := struct {
+		TransactionID string `json:"transaction_id"`
+	}{TransactionID: req.TransactionID}
+
+	j, err := json.Marshal(body)
+	if err != nil {
+		return gateway.VoidResult{}, fmt.Errorf("marshal void request: %w", err)
+	}
+
+	httpReq, err := http.NewRequestWithContext(ctx, http.MethodPost, c.VoidUrl, bytes.NewReader(j))
+	if err != nil {
+		return gateway.VoidResult{}, fmt.Errorf("create void request: %w", err)
+	}
+	httpReq.Header.Set("Content-Type", "application/json")
+
+	resp, err := c.HTTP.Do(httpReq)
+	if err != nil {
+		return gateway.VoidResult{}, fmt.Errorf("http void request: %w", err)
+	}
+	defer resp.Body.Close()
+
+	raw, _ := io.ReadAll(resp.Body)
+
+	if resp.StatusCode/100 != 2 {
+		return gateway.VoidResult{}, fmt.Errorf("void provider %s: %s", resp.Status, string(raw))
+	}
+
+	var out struct {
+		TransactionID string `json:"transaction_id"`
+		Status        string `json:"status"`
+	}
+	if err := json.Unmarshal(raw, &out); err != nil {
+		return gateway.VoidResult{}, fmt.Errorf("unmarshal void response: %w", err)
+	}
+
+	return gateway.VoidResult{
+		TransactionID: out.TransactionID,
+		Status:        out.Status,
 	}, nil
 }

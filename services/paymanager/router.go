@@ -41,6 +41,7 @@ func (r *Router) SetUp(engine *gin.Engine) {
 	// Payments
 	engine.POST("/api/v1/payments", r.payment.Create)
 	engine.GET("/api/v1/payments/:id", r.payment.Get)
+	engine.POST("/api/v1/payments/:id/void", r.payment.Void)
 }
 
 func NewRouter(

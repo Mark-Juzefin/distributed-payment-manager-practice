@@ -9,6 +9,7 @@ type Provider interface {
 	SubmitRepresentment(ctx context.Context, req RepresentmentRequest) (RepresentmentResult, error)
 	CapturePayment(ctx context.Context, req CaptureRequest) (CaptureResult, error)
 	AuthorizePayment(ctx context.Context, req AuthRequest) (AuthResult, error)
+	VoidPayment(ctx context.Context, req VoidRequest) (VoidResult, error)
 }
 
 type RepresentmentRequest struct {
@@ -66,6 +67,15 @@ const (
 	AuthStatusAuthorized AuthStatus = "authorized"
 	AuthStatusDeclined   AuthStatus = "declined"
 )
+
+type VoidRequest struct {
+	TransactionID string
+}
+
+type VoidResult struct {
+	TransactionID string
+	Status        string
+}
 
 type CaptureStatus string
 

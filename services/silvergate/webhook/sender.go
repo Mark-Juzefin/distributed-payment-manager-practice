@@ -40,9 +40,16 @@ func NewSender(callbackURL string, log *slog.Logger) *Sender {
 }
 
 func (s *Sender) SendCaptureResult(ctx context.Context, tx *transaction.Transaction) error {
-	eventName := "transaction.captured"
-	if tx.Status == transaction.StatusCaptureFailed {
+	var eventName string
+	switch tx.Status {
+	case transaction.StatusCaptured:
+		eventName = "transaction.captured"
+	case transaction.StatusCaptureFailed:
 		eventName = "transaction.capture_failed"
+	case transaction.StatusVoided:
+		eventName = "transaction.voided"
+	default:
+		eventName = "transaction." + string(tx.Status)
 	}
 
 	evt := Event{

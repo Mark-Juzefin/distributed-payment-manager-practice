@@ -7,10 +7,10 @@
 GET {{base}}/health/ready
 
 ### -----------------------------------------------
-### Create & Check Payment
+### Instant capture (default)
 ### -----------------------------------------------
 
-### 1. Create payment (triggers auth + capture via Silvergate)
+### 1. Create payment — instant capture (no delay)
 POST {{base}}/api/v1/payments
 Content-Type: application/json
 
@@ -24,10 +24,9 @@ Content-Type: application/json
     client.global.set("payment_id", response.body.id);
     client.log("Payment ID: " + response.body.id);
     client.log("Status: " + response.body.status);
-    client.log("Provider TX: " + response.body.provider_tx_id);
 %}
 
-### 2. Get payment status (run after ~1s to see captured)
+### 2. Get payment (run after ~1s to see captured)
 GET {{base}}/api/v1/payments/{{payment_id}}
 
 > {%
@@ -35,25 +34,60 @@ GET {{base}}/api/v1/payments/{{payment_id}}
 %}
 
 ### -----------------------------------------------
-### More payments
+### Delayed capture + void flow
 ### -----------------------------------------------
 
-### 3. Another payment — higher amount
+### 3. Create payment with 5 minute capture delay
 POST {{base}}/api/v1/payments
 Content-Type: application/json
 
 {
-  "amount": 99900,
+  "amount": 15000,
   "currency": "EUR",
-  "card_token": "tok_mc_1234"
+  "card_token": "tok_mc_1234",
+  "capture_delay": "5m"
 }
 
 > {%
-    client.global.set("payment_id_2", response.body.id);
+    client.global.set("delayed_payment_id", response.body.id);
+    client.log("Payment ID: " + response.body.id);
+    client.log("Status: " + response.body.status);
+    client.log("Capture At: " + response.body.capture_at);
+%}
+
+### 4. Check status — should be "authorized" (not captured yet)
+GET {{base}}/api/v1/payments/{{delayed_payment_id}}
+
+> {%
     client.log("Status: " + response.body.status);
 %}
 
-### 4. Invalid request (expect 400)
+### 5. Void the payment (cancel before capture)
+POST {{base}}/api/v1/payments/{{delayed_payment_id}}/void
+
+> {%
+    client.log("Void result: " + response.body.status);
+%}
+
+### 6. Verify voided status
+GET {{base}}/api/v1/payments/{{delayed_payment_id}}
+
+> {%
+    client.log("Final status: " + response.body.status);
+%}
+
+### -----------------------------------------------
+### Edge cases
+### -----------------------------------------------
+
+### 7. Void already captured payment (expect 409)
+POST {{base}}/api/v1/payments/{{payment_id}}/void
+
+> {%
+    client.log("Expected conflict: " + response.status);
+%}
+
+### 8. Invalid request (expect 400)
 POST {{base}}/api/v1/payments
 Content-Type: application/json
 
@@ -63,5 +97,5 @@ Content-Type: application/json
   "card_token": ""
 }
 
-### 5. Non-existent payment (expect 404)
+### 9. Non-existent payment (expect 404)
 GET {{base}}/api/v1/payments/00000000-0000-0000-0000-000000000000

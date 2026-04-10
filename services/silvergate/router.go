@@ -6,11 +6,12 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-func setupRouter(engine *gin.Engine, authH *handlers.AuthHandler, captureH *handlers.CaptureHandler) {
+func setupRouter(engine *gin.Engine, authH *handlers.AuthHandler, captureH *handlers.CaptureHandler, voidH *handlers.VoidHandler) {
 	api := engine.Group("/api/v1")
 	{
 		api.POST("/auth", authH.Handle)
 		api.POST("/capture", captureH.Handle)
+		api.POST("/void", voidH.Handle)
 	}
 
 	engine.GET("/health/live", func(c *gin.Context) {

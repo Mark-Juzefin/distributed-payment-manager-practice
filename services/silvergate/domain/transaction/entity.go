@@ -15,6 +15,7 @@ const (
 	StatusCapturePending Status = "capture_pending"
 	StatusCaptured       Status = "captured"
 	StatusCaptureFailed  Status = "capture_failed"
+	StatusVoided         Status = "voided"
 )
 
 type Transaction struct {
@@ -90,8 +91,17 @@ func (t *Transaction) MarkCaptureFailed() error {
 	return nil
 }
 
+func (t *Transaction) MarkVoided() error {
+	if t.Status != StatusAuthorized {
+		return ErrInvalidTransition
+	}
+	t.Status = StatusVoided
+	t.UpdatedAt = time.Now().UTC()
+	return nil
+}
+
 var validTransitions = map[Status][]Status{
-	StatusAuthorized:     {StatusCapturePending},
+	StatusAuthorized:     {StatusCapturePending, StatusVoided},
 	StatusCapturePending: {StatusCaptured, StatusCaptureFailed},
 }
 

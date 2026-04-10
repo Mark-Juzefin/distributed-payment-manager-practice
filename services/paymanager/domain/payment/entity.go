@@ -14,10 +14,11 @@ const (
 	StatusCapturePending Status = "capture_pending"
 	StatusCaptured       Status = "captured"
 	StatusCaptureFailed  Status = "capture_failed"
+	StatusVoided         Status = "voided"
 )
 
 var validTransitions = map[Status][]Status{
-	StatusAuthorized:     {StatusCapturePending},
+	StatusAuthorized:     {StatusCapturePending, StatusVoided},
 	StatusCapturePending: {StatusCaptured, StatusCaptureFailed},
 }
 
@@ -35,16 +36,17 @@ func (s Status) CanTransitionTo(target Status) bool {
 }
 
 type Payment struct {
-	ID            string    `json:"id"`
-	Amount        int64     `json:"amount"`
-	Currency      string    `json:"currency"`
-	CardToken     string    `json:"card_token"`
-	Status        Status    `json:"status"`
-	DeclineReason string    `json:"decline_reason,omitempty"`
-	ProviderTxID  string    `json:"provider_tx_id,omitempty"`
-	MerchantID    string    `json:"merchant_id"`
-	CreatedAt     time.Time `json:"created_at"`
-	UpdatedAt     time.Time `json:"updated_at"`
+	ID            string     `json:"id"`
+	Amount        int64      `json:"amount"`
+	Currency      string     `json:"currency"`
+	CardToken     string     `json:"card_token"`
+	Status        Status     `json:"status"`
+	DeclineReason string     `json:"decline_reason,omitempty"`
+	ProviderTxID  string     `json:"provider_tx_id,omitempty"`
+	MerchantID    string     `json:"merchant_id"`
+	CaptureAt     *time.Time `json:"capture_at,omitempty"`
+	CreatedAt     time.Time  `json:"created_at"`
+	UpdatedAt     time.Time  `json:"updated_at"`
 }
 
 func NewAuthorized(amount int64, currency, cardToken, providerTxID, merchantID string) Payment {
@@ -90,7 +92,8 @@ type CaptureWebhook struct {
 }
 
 type CreatePaymentRequest struct {
-	Amount    int64  `json:"amount" binding:"required,min=1"`
-	Currency  string `json:"currency" binding:"required,len=3"`
-	CardToken string `json:"card_token" binding:"required"`
+	Amount       int64  `json:"amount" binding:"required,min=1"`
+	Currency     string `json:"currency" binding:"required,len=3"`
+	CardToken    string `json:"card_token" binding:"required"`
+	CaptureDelay string `json:"capture_delay"` // e.g. "5m", "30s"; empty or "0s" = instant
 }

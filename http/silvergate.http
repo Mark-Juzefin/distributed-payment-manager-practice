@@ -63,7 +63,19 @@ Content-Type: application/json
     client.log("Auth status: " + response.body.status);
 %}
 
-### 4. Duplicate idempotency key (expect 409 conflict)
+### 4. Void authorized transaction (auth2 must be authorized)
+POST {{base}}/api/v1/void
+Content-Type: application/json
+
+{
+  "transaction_id": "{{tx_id_2}}"
+}
+
+> {%
+    client.log("Void status: " + response.body.status);
+%}
+
+### 5. Duplicate idempotency key (expect 409 conflict)
 POST {{base}}/api/v1/capture
 Content-Type: application/json
 

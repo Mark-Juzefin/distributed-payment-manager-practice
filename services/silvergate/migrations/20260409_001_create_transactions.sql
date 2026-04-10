@@ -8,7 +8,7 @@ CREATE TABLE transactions (
     amount          BIGINT NOT NULL,
     currency        TEXT NOT NULL CHECK (length(currency) = 3),
     card_token      TEXT NOT NULL,
-    status          TEXT NOT NULL CHECK (status IN ('authorized', 'declined', 'capture_pending', 'captured', 'capture_failed')),
+    status          TEXT NOT NULL CHECK (status IN ('authorized', 'declined', 'capture_pending', 'captured', 'capture_failed', 'voided')),
     decline_reason  TEXT,
     idempotency_key TEXT,
     created_at      TIMESTAMPTZ NOT NULL DEFAULT now(),

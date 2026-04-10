@@ -18,6 +18,7 @@ type Config struct {
 	SilvergateSubmitRepresentmentPath string        `env:"SILVERGATE_SUBMIT_REPRESENTMENT_PATH" required:"true"`
 	SilvergateCapturePath             string        `env:"SILVERGATE_CAPTURE_PATH" required:"true"`
 	SilvergateAuthPath                string        `env:"SILVERGATE_AUTH_PATH" envDefault:"/api/v1/auth"`
+	SilvergateVoidPath                string        `env:"SILVERGATE_VOID_PATH" envDefault:"/api/v1/void"`
 	HTTPSilvergateClientTimeout       time.Duration `env:"HTTP_SILVERGATE_CLIENT_TIMEOUT" envDefault:"20s"`
 
 	MerchantID string `env:"MERCHANT_ID" envDefault:"merchant_1"`

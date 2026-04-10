@@ -1,15 +1,15 @@
 services:
   # New microservices architecture
-  api-service:
-    image: payment-api
-    container_name: payment-api
+  paymanager-service:
+    image: payment-paymanager
+    container_name: payment-paymanager
     profiles:
       - prod
     networks:
       - backend
     build:
       context: .
-      dockerfile: Dockerfile.api
+      dockerfile: Dockerfile.paymanager
     depends_on:
       haproxy:
         condition: service_started
@@ -20,7 +20,7 @@ services:
     env_file:
       - env/common.env
       - env/endpoints.docker.env
-      - env/api.env
+      - env/paymanager.env
     environment:
       - PORT=${API_PORT}
       - WEBHOOK_MODE=kafka
@@ -141,6 +141,8 @@ services:
       kafka-topics --bootstrap-server kafka:29092 --create --if-not-exists --topic webhooks.disputes --partitions 3 --replication-factor 1
       kafka-topics --bootstrap-server kafka:29092 --create --if-not-exists --topic webhooks.orders.dlq --partitions 1 --replication-factor 1
       kafka-topics --bootstrap-server kafka:29092 --create --if-not-exists --topic webhooks.disputes.dlq --partitions 1 --replication-factor 1
+      kafka-topics --bootstrap-server kafka:29092 --create --if-not-exists --topic webhooks.payments --partitions 3 --replication-factor 1
+      kafka-topics --bootstrap-server kafka:29092 --create --if-not-exists --topic webhooks.payments.dlq --partitions 1 --replication-factor 1
       kafka-topics --bootstrap-server kafka:29092 --create --if-not-exists --topic domain.events --partitions 3 --replication-factor 1
 
       echo 'Topics created:'
@@ -172,6 +174,27 @@ services:
     volumes:
       - ./e2e/mappings:/home/wiremock/mappings
     entrypoint: ["/docker-entrypoint.sh", "--global-response-templating", "--disable-gzip", "--verbose"]
+
+  silvergate-db:
+    image: postgres:17-alpine
+    container_name: silvergate-db
+    profiles:
+      - infra
+    networks:
+      - backend
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: secret
+      POSTGRES_DB: silvergate
+    ports:
+      - '5450:5432'
+    volumes:
+      - silvergate-db-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d silvergate"]
+      interval: 3s
+      timeout: 3s
+      retries: 10
 
   opensearch-node1:
     image: opensearchproject/opensearch:3
@@ -432,6 +455,7 @@ services:
         condition: service_started
 
 volumes:
+  silvergate-db-data:
   patroni1-data:
   patroni2-data:
   patroni3-data:

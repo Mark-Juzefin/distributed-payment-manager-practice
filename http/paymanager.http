@@ -1,0 +1,141 @@
+### Paymanager — Payment Flow
+### Requires: Silvergate running on :3002, Paymanager on :3000, Ingest on :3001
+
+@base = http://localhost:3000
+
+### Health check
+GET {{base}}/health/ready
+
+### -----------------------------------------------
+### Instant capture (default)
+### -----------------------------------------------
+
+### 1. Create payment — instant capture (no delay)
+POST {{base}}/api/v1/payments
+Content-Type: application/json
+
+{
+  "amount": 5000,
+  "currency": "USD",
+  "card_token": "tok_visa_4242"
+}
+
+> {%
+    client.global.set("payment_id", response.body.id);
+    client.log("Payment ID: " + response.body.id);
+    client.log("Status: " + response.body.status);
+%}
+
+### 2. Get payment (run after ~1s to see captured)
+GET {{base}}/api/v1/payments/{{payment_id}}
+
+> {%
+    client.log("Status: " + response.body.status);
+%}
+
+### -----------------------------------------------
+### Delayed capture + void flow
+### -----------------------------------------------
+
+### 3. Create payment with 5 minute capture delay
+POST {{base}}/api/v1/payments
+Content-Type: application/json
+
+{
+  "amount": 15000,
+  "currency": "EUR",
+  "card_token": "tok_mc_1234",
+  "capture_delay": "5m"
+}
+
+> {%
+    client.global.set("delayed_payment_id", response.body.id);
+    client.log("Payment ID: " + response.body.id);
+    client.log("Status: " + response.body.status);
+    client.log("Capture At: " + response.body.capture_at);
+%}
+
+### 4. Check status — should be "authorized" (not captured yet)
+GET {{base}}/api/v1/payments/{{delayed_payment_id}}
+
+> {%
+    client.log("Status: " + response.body.status);
+%}
+
+### 5. Void the payment (cancel before capture)
+POST {{base}}/api/v1/payments/{{delayed_payment_id}}/void
+
+> {%
+    client.log("Void result: " + response.body.status);
+%}
+
+### 6. Verify voided status
+GET {{base}}/api/v1/payments/{{delayed_payment_id}}
+
+> {%
+    client.log("Final status: " + response.body.status);
+%}
+
+### -----------------------------------------------
+### Refund flow (on instant-captured payment)
+### -----------------------------------------------
+
+### 7. Partial refund ($20 of $50)
+POST {{base}}/api/v1/payments/{{payment_id}}/refund
+Content-Type: application/json
+
+{
+  "amount": 2000
+}
+
+> {%
+    client.log("Refund status: " + response.status);
+%}
+
+### 8. Check payment (should be partially_refunded after webhook)
+GET {{base}}/api/v1/payments/{{payment_id}}
+
+> {%
+    client.log("Status: " + response.body.status);
+    client.log("Refunded: " + response.body.refunded_amount);
+%}
+
+### 9. Second partial refund ($30 — remaining balance)
+POST {{base}}/api/v1/payments/{{payment_id}}/refund
+Content-Type: application/json
+
+{
+  "amount": 3000
+}
+
+### 10. Check payment (should be refunded after webhook)
+GET {{base}}/api/v1/payments/{{payment_id}}
+
+> {%
+    client.log("Status: " + response.body.status);
+    client.log("Refunded: " + response.body.refunded_amount);
+%}
+
+### -----------------------------------------------
+### Edge cases
+### -----------------------------------------------
+
+### 11. Void already captured payment (expect 409)
+POST {{base}}/api/v1/payments/{{payment_id}}/void
+
+> {%
+    client.log("Expected conflict: " + response.status);
+%}
+
+### 8. Invalid request (expect 400)
+POST {{base}}/api/v1/payments
+Content-Type: application/json
+
+{
+  "amount": -100,
+  "currency": "XXXX",
+  "card_token": ""
+}
+
+### 9. Non-existent payment (expect 404)
+GET {{base}}/api/v1/payments/00000000-0000-0000-0000-000000000000

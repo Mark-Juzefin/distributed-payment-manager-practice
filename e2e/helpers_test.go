@@ -3,8 +3,8 @@
 package integration_test
 
 import (
-	"TestTaskJustPay/services/api/domain/dispute"
-	"TestTaskJustPay/services/api/domain/order"
+	"TestTaskJustPay/services/paymanager/domain/dispute"
+	"TestTaskJustPay/services/paymanager/domain/order"
 	"bytes"
 	"context"
 	_ "embed"

@@ -63,9 +63,10 @@ func Run(cfg config.Config) {
 
 		orderPublisher := kafka.NewPublisher(cfg.KafkaBrokers, cfg.KafkaOrdersTopic)
 		disputePublisher := kafka.NewPublisher(cfg.KafkaBrokers, cfg.KafkaDisputesTopic)
-		closers = append(closers, orderPublisher, disputePublisher)
+		paymentPublisher := kafka.NewPublisher(cfg.KafkaBrokers, cfg.KafkaPaymentsTopic)
+		closers = append(closers, orderPublisher, disputePublisher, paymentPublisher)
 
-		processor = webhook.NewAsyncProcessor(orderPublisher, disputePublisher)
+		processor = webhook.NewAsyncProcessor(orderPublisher, disputePublisher, paymentPublisher)
 		healthCheckers = append(healthCheckers, health.NewKafkaChecker(cfg.KafkaBrokers))
 
 	case "http":
@@ -149,12 +150,13 @@ func Run(cfg config.Config) {
 	// Handlers (processor only, clean)
 	orderHandler := handlers.NewOrderHandler(processor)
 	chargebackHandler := handlers.NewChargebackHandler(processor)
+	paymentHandler := handlers.NewPaymentHandler(processor)
 
 	// Health checks registry
 	healthRegistry := health.NewRegistry(healthCheckers...)
 
 	// Webhook-only routes
-	router := NewRouter(orderHandler, chargebackHandler, healthRegistry)
+	router := NewRouter(orderHandler, chargebackHandler, paymentHandler, healthRegistry)
 	router.SetUp(engine)
 
 	// Start HTTP server

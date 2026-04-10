@@ -25,7 +25,7 @@ Go, PostgreSQL, pg_partman, Docker, MongoDB, OpenSearch, Kafka, testcontainers-g
 
 # Status
 
-Building **PostgreSQL HA** — Patroni + etcd cluster (3 identical PG nodes with automated failover), HAProxy for rw/ro traffic splitting via Patroni REST API health checks, app-level read/write routing at repository level. Monitoring with postgres-exporter and Grafana dashboard for replication lag and HAProxy metrics.
+Experimenting with **Payment System Logic** — provider routing, multi-provider support, and payment flow orchestration. Previous focus (PostgreSQL HA with Patroni + etcd) is paused with core functionality complete.
 
 # Roadmap
 
@@ -72,10 +72,87 @@ flowchart LR
 
 | Service | Path | Description |
 |---------|------|-------------|
-| **API** :3000 | `services/api/cmd` | Core business logic, DB owner, Kafka consumers, manual ops |
+| **Paymanager** :3000 | `services/paymanager/cmd` | Core business logic, DB owner, Kafka consumers, manual ops |
 | **Ingest** :3001 | `services/ingest/cmd` | HTTP → Kafka gateway for webhooks, no DB |
 | **CDC Worker** | `services/cdc/cmd` | PG WAL → Kafka `domain.events` via logical replication |
 | **Analytics** | `services/analytics/cmd` | Kafka → OpenSearch `domain-events` projection |
+
+# Request Flow
+
+The system supports multiple deployment modes. The core business logic is identical — only the webhook delivery mechanism changes.
+
+## HTTP Mode (lightweight)
+
+Best for local development of business logic. No Kafka, no OpenSearch, no Patroni cluster — just two PostgreSQL containers.
+
+```
+make run-minimal
+```
+
+```
+Client                  Paymanager :3000          Silvergate :3002         Ingest :3001
+  │                          │                          │                      │
+  │  POST /api/v1/payments   │                          │                      │
+  ├─────────────────────────►│  POST /api/v1/auth       │                      │
+  │                          ├─────────────────────────►│                      │
+  │                          │◄── auth token ───────────│                      │
+  │                          │  POST /api/v1/capture    │                      │
+  │                          ├─────────────────────────►│                      │
+  │                          │◄── transaction_id ───────│                      │
+  │◄── payment (authorized) ─│                          │                      │
+  │                          │                          │                      │
+  │                          │            webhook callback (capture result)    │
+  │                          │                          ├─────────────────────►│
+  │                          │◄──── HTTP sync forward ──────────────────────── │
+  │                          │  ProcessCaptureWebhook   │                      │
+  │                          │  (update payment status) │                      │
+```
+
+1. **Client → Paymanager** — create payment, void, read status
+2. **Paymanager → Silvergate** — authorize + capture at PSP
+3. **Silvergate → Ingest** — async webhook callback with capture result
+4. **Ingest → Paymanager** — direct HTTP forward (`WEBHOOK_MODE=http`)
+5. **Paymanager** — updates payment status in PostgreSQL
+
+## Kafka Mode (full infrastructure)
+
+Production-like setup with async processing, HA Postgres, monitoring, and analytics pipeline.
+
+```
+make run-dev
+```
+
+```
+Client                  Paymanager :3000          Silvergate :3002         Ingest :3001
+  │                          │                          │                      │
+  │  POST /api/v1/payments   │                          │                      │
+  ├─────────────────────────►│  POST /api/v1/auth       │                      │
+  │                          ├─────────────────────────►│                      │
+  │                          │◄── auth token ───────────│                      │
+  │                          │  POST /api/v1/capture    │                      │
+  │                          ├─────────────────────────►│                      │
+  │                          │◄── transaction_id ───────│                      │
+  │◄── payment (authorized) ─│                          │                      │
+  │                          │                          │                      │
+  │                          │            webhook callback (capture result)    │
+  │                          │                          ├─────────────────────►│
+  │                          │                          │         Ingest → Kafka (produce)
+  │                          │                          │                      │
+  │                          │◄── Kafka (consume) ──────────────────────────── │
+  │                          │  ProcessCaptureWebhook   │                      │
+  │                          │  (update payment status) │                      │
+  │                          │                          │                      │
+  │                          │── WAL ──► CDC ──► Kafka domain.events          │
+  │                          │                          │    ──► Analytics ──► OpenSearch
+```
+
+Steps 1-3 are identical. The difference is webhook delivery:
+
+4. **Ingest → Kafka** — produce message to `webhooks.payments` topic
+5. **Kafka → Paymanager** — consumer picks up the message asynchronously
+6. **CDC → Kafka → Analytics → OpenSearch** — event sourcing pipeline for analytics
+
+Additionally, Kafka mode runs the full Patroni HA cluster (3 PG nodes + etcd + HAProxy) and monitoring stack (Prometheus + Grafana).
 
 # Domain Entities
 

@@ -82,3 +82,17 @@ func (mr *MockClientMockRecorder) SendOrderUpdate(ctx, req any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SendOrderUpdate", reflect.TypeOf((*MockClient)(nil).SendOrderUpdate), ctx, req)
 }
+
+// SendPaymentWebhook mocks base method.
+func (m *MockClient) SendPaymentWebhook(ctx context.Context, req dto.PaymentWebhookRequest) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "SendPaymentWebhook", ctx, req)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// SendPaymentWebhook indicates an expected call of SendPaymentWebhook.
+func (mr *MockClientMockRecorder) SendPaymentWebhook(ctx, req any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SendPaymentWebhook", reflect.TypeOf((*MockClient)(nil).SendPaymentWebhook), ctx, req)
+}

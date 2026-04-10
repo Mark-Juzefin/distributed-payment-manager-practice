@@ -20,6 +20,7 @@ import (
 type Client interface {
 	SendOrderUpdate(ctx context.Context, req dto.OrderUpdateRequest) error
 	SendDisputeUpdate(ctx context.Context, req dto.DisputeUpdateRequest) error
+	SendPaymentWebhook(ctx context.Context, req dto.PaymentWebhookRequest) error
 	Close() error
 }
 
@@ -65,6 +66,13 @@ func (c *HTTPClient) SendOrderUpdate(ctx context.Context, req dto.OrderUpdateReq
 func (c *HTTPClient) SendDisputeUpdate(ctx context.Context, req dto.DisputeUpdateRequest) error {
 	return DoWithRetry(ctx, c.retryCfg, func() error {
 		return c.sendRequest(ctx, "/internal/updates/disputes", req)
+	})
+}
+
+// SendPaymentWebhook sends a payment webhook to the Paymanager service.
+func (c *HTTPClient) SendPaymentWebhook(ctx context.Context, req dto.PaymentWebhookRequest) error {
+	return DoWithRetry(ctx, c.retryCfg, func() error {
+		return c.sendRequest(ctx, "/internal/updates/payments", req)
 	})
 }
 

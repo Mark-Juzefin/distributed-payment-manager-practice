@@ -10,12 +10,14 @@ import (
 type Status string
 
 const (
-	StatusAuthorized     Status = "authorized"
-	StatusDeclined       Status = "declined"
-	StatusCapturePending Status = "capture_pending"
-	StatusCaptured       Status = "captured"
-	StatusCaptureFailed  Status = "capture_failed"
-	StatusVoided         Status = "voided"
+	StatusAuthorized        Status = "authorized"
+	StatusDeclined          Status = "declined"
+	StatusCapturePending    Status = "capture_pending"
+	StatusCaptured          Status = "captured"
+	StatusCaptureFailed     Status = "capture_failed"
+	StatusVoided            Status = "voided"
+	StatusPartiallyRefunded Status = "partially_refunded"
+	StatusRefunded          Status = "refunded"
 )
 
 type Transaction struct {
@@ -28,6 +30,7 @@ type Transaction struct {
 	Status         Status
 	DeclineReason  string
 	IdempotencyKey string
+	RefundedAmount int64
 	CreatedAt      time.Time
 	UpdatedAt      time.Time
 }
@@ -101,8 +104,10 @@ func (t *Transaction) MarkVoided() error {
 }
 
 var validTransitions = map[Status][]Status{
-	StatusAuthorized:     {StatusCapturePending, StatusVoided},
-	StatusCapturePending: {StatusCaptured, StatusCaptureFailed},
+	StatusAuthorized:        {StatusCapturePending, StatusVoided},
+	StatusCapturePending:    {StatusCaptured, StatusCaptureFailed},
+	StatusCaptured:          {StatusPartiallyRefunded, StatusRefunded},
+	StatusPartiallyRefunded: {StatusPartiallyRefunded, StatusRefunded},
 }
 
 func (s Status) CanTransitionTo(target Status) bool {

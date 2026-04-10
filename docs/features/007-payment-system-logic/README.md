@@ -23,7 +23,7 @@ Disputes exist but are out of scope until auth/settle flow is solid.
 - **Subtask 2 plan:** [plan-subtask-2.md](plan-subtask-2.md) — Silvergate service: auth & capture
 - **Subtask 3 plan:** [plan-subtask-3.md](plan-subtask-3.md) — integrate Silvergate into Paymanager
 - **Subtask 4 plan:** [plan-subtask-4.md](plan-subtask-4.md) — void with capture_delay
-- **Subtask 5 plan:** TBD — refund in Silvergate
+- **Subtask 5 plan:** [plan-subtask-5.md](plan-subtask-5.md) — refund in Silvergate
 - **Subtask 6 plan:** TBD — refund integration in Paymanager
 
 ## Tasks
@@ -31,8 +31,8 @@ Disputes exist but are out of scope until auth/settle flow is solid.
 - [x] **Subtask 1:** Rename `services/api` → `services/paymanager` (go.mod, imports, docker-compose, Makefile, configs, tests)
 - [x] **Subtask 2:** Silvergate service — auth & capture flow, mocked bank, webhook callbacks
 - [x] **Subtask 3:** Paymanager integration — new payment entities, auth/capture requests to Silvergate, webhook handling
-- [ ] **Subtask 4:** Void — capture_delay + void endpoint (Silvergate + Paymanager)
-- [ ] **Subtask 5:** Refund in Silvergate
+- [x] **Subtask 4:** Void — capture_delay + void endpoint (Silvergate + Paymanager)
+- [x] **Subtask 5:** Refund in Silvergate
 - [ ] **Subtask 6:** Refund integration in Paymanager
 
 ## Architecture Notes
@@ -54,6 +54,54 @@ Disputes exist but are out of scope until auth/settle flow is solid.
 
 ## Testing Strategy
 (To be filled per subtask)
+
+## Expansion Ideas: PostgreSQL Transactions Deep Dive
+
+Silvergate is an ideal playground for studying PostgreSQL transactions. Currently operations are simple (single row writes). Adding financial balances makes every operation a multi-row atomic change — the core of transaction complexity.
+
+### 1. Balances
+
+Add `balances` table (card balance, merchant balance). Every payment operation becomes two atomic writes:
+
+```
+Auth:    card.available -= amount, card.held += amount
+Capture: card.held -= amount, merchant.available += amount
+Void:    card.held -= amount, card.available += amount
+Refund:  merchant.available -= amount, card.available += amount
+```
+
+This introduces:
+- **Atomicity** — if balance update fails, transaction record must not change
+- **Isolation** — two concurrent auths on the same card must not overdraft
+- **Lost update problem** — `SELECT balance → check → UPDATE` without proper locking
+- **SELECT FOR UPDATE** vs optimistic locking
+
+### 2. Double-entry ledger
+
+Every money movement = two entries (debit + credit). Sum of all entries always = 0. Fintech standard. Great for:
+- Transactional consistency
+- CHECK constraints that sum = 0
+- Deadlocks on concurrent writes to the same account
+
+### 3. Concurrent payments on one card
+
+Two auths at the same time → both see sufficient balance → both deduct → overdraft. Classic race condition for studying isolation levels:
+- **Read Committed** — sees committed data, but phantom reads
+- **Repeatable Read** — serialization errors on conflicts
+- **Serializable** — full isolation, maximum retries
+
+### 4. Idempotency with concurrent requests
+
+Two identical capture requests arrive simultaneously. INSERT ON CONFLICT vs SELECT FOR UPDATE + check.
+
+### Suggested implementation order
+
+1. Balances (card + merchant accounts) — the field for transaction experiments
+2. Concurrent load test — k6/loadtest hitting auth/capture in parallel
+3. Isolation level experiments — demonstrate race conditions and how to fix them
+4. Deadlock scenarios — provoke and analyze
+
+Could become a separate roadmap feature after Payment System Logic.
 
 ## Notes
 - Created: 2026-04-09

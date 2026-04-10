@@ -40,6 +40,16 @@ func (m *MockAcquirer) Void(_ context.Context, _ string) (VoidResult, error) {
 	return VoidResult{Success: true}, nil
 }
 
+func (m *MockAcquirer) Refund(_ context.Context, _ string, _ int64) (RefundResult, error) {
+	if m.SettleDelay > 0 {
+		time.Sleep(m.SettleDelay)
+	}
+	if rand.Float64() < m.SettleSuccessRate {
+		return RefundResult{Success: true}, nil
+	}
+	return RefundResult{Success: false, Reason: "refund_rejected"}, nil
+}
+
 func (m *MockAcquirer) Settle(_ context.Context, _ string, _ int64) (SettleResult, error) {
 	if m.SettleDelay > 0 {
 		time.Sleep(m.SettleDelay)

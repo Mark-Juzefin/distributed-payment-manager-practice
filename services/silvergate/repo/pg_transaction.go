@@ -58,7 +58,7 @@ func (r *PgTransactionRepo) GetByID(ctx context.Context, id uuid.UUID) (*transac
 		Select(
 			"id", "merchant_id", "order_ref", "amount", "currency",
 			"card_token", "status", "decline_reason", "idempotency_key",
-			"created_at", "updated_at",
+			"refunded_amount", "created_at", "updated_at",
 		).
 		From("transactions").
 		Where(sq.Eq{"id": id}).
@@ -74,7 +74,7 @@ func (r *PgTransactionRepo) GetByID(ctx context.Context, id uuid.UUID) (*transac
 	err = row.Scan(
 		&tx.ID, &tx.MerchantID, &tx.OrderRef, &tx.Amount, &tx.Currency,
 		&tx.CardToken, &tx.Status, &declineReason, &idempotencyKey,
-		&tx.CreatedAt, &tx.UpdatedAt,
+		&tx.RefundedAmount, &tx.CreatedAt, &tx.UpdatedAt,
 	)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
@@ -116,6 +116,65 @@ func (r *PgTransactionRepo) UpdateStatus(ctx context.Context, tx *transaction.Tr
 
 	if result.RowsAffected() == 0 {
 		return transaction.ErrNotFound
+	}
+	return nil
+}
+
+func (r *PgTransactionRepo) UpdateRefund(ctx context.Context, tx *transaction.Transaction) error {
+	query, args, err := psql.
+		Update("transactions").
+		Set("status", tx.Status).
+		Set("refunded_amount", tx.RefundedAmount).
+		Set("updated_at", tx.UpdatedAt).
+		Where(sq.Eq{"id": tx.ID}).
+		ToSql()
+	if err != nil {
+		return fmt.Errorf("build update refund: %w", err)
+	}
+
+	_, err = r.pool.Exec(ctx, query, args...)
+	if err != nil {
+		return fmt.Errorf("exec update refund: %w", err)
+	}
+	return nil
+}
+
+func (r *PgTransactionRepo) CreateRefund(ctx context.Context, refund *transaction.Refund) error {
+	query, args, err := psql.
+		Insert("refunds").
+		Columns("id", "transaction_id", "amount", "status", "idempotency_key", "created_at", "updated_at").
+		Values(refund.ID, refund.TransactionID, refund.Amount, refund.Status,
+			nilIfEmpty(refund.IdempotencyKey), refund.CreatedAt, refund.UpdatedAt).
+		ToSql()
+	if err != nil {
+		return fmt.Errorf("build insert refund: %w", err)
+	}
+
+	_, err = r.pool.Exec(ctx, query, args...)
+	if err != nil {
+		var pgErr *pgconn.PgError
+		if errors.As(err, &pgErr) && pgErr.Code == "23505" {
+			return transaction.ErrDuplicateIdempotency
+		}
+		return fmt.Errorf("exec insert refund: %w", err)
+	}
+	return nil
+}
+
+func (r *PgTransactionRepo) UpdateRefundStatus(ctx context.Context, refund *transaction.Refund) error {
+	query, args, err := psql.
+		Update("refunds").
+		Set("status", refund.Status).
+		Set("updated_at", refund.UpdatedAt).
+		Where(sq.Eq{"id": refund.ID}).
+		ToSql()
+	if err != nil {
+		return fmt.Errorf("build update refund status: %w", err)
+	}
+
+	_, err = r.pool.Exec(ctx, query, args...)
+	if err != nil {
+		return fmt.Errorf("exec update refund status: %w", err)
 	}
 	return nil
 }

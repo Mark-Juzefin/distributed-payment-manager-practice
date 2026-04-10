@@ -15,6 +15,7 @@ import (
 type Event struct {
 	Event         string `json:"event"`
 	TransactionID string `json:"transaction_id"`
+	RefundID      string `json:"refund_id,omitempty"`
 	OrderID       string `json:"order_id"`
 	MerchantID    string `json:"merchant_id"`
 	Status        string `json:"status"`
@@ -52,7 +53,7 @@ func (s *Sender) SendCaptureResult(ctx context.Context, tx *transaction.Transact
 		eventName = "transaction." + string(tx.Status)
 	}
 
-	evt := Event{
+	return s.sendEvent(ctx, Event{
 		Event:         eventName,
 		TransactionID: tx.ID.String(),
 		OrderID:       tx.OrderRef,
@@ -61,8 +62,31 @@ func (s *Sender) SendCaptureResult(ctx context.Context, tx *transaction.Transact
 		Amount:        tx.Amount,
 		Currency:      tx.Currency,
 		Timestamp:     time.Now().UTC().Format(time.RFC3339),
+	})
+}
+
+func (s *Sender) SendRefundResult(ctx context.Context, tx *transaction.Transaction, refund *transaction.Refund) error {
+	eventName := "transaction.refunded"
+	if refund.Status == transaction.RefundStatusFailed {
+		eventName = "transaction.refund_failed"
 	}
 
+	evt := Event{
+		Event:         eventName,
+		TransactionID: tx.ID.String(),
+		RefundID:      refund.ID.String(),
+		OrderID:       tx.OrderRef,
+		MerchantID:    tx.MerchantID,
+		Status:        string(refund.Status),
+		Amount:        refund.Amount,
+		Currency:      tx.Currency,
+		Timestamp:     time.Now().UTC().Format(time.RFC3339),
+	}
+
+	return s.sendEvent(ctx, evt)
+}
+
+func (s *Sender) sendEvent(ctx context.Context, evt Event) error {
 	body, err := json.Marshal(evt)
 	if err != nil {
 		return fmt.Errorf("marshal webhook: %w", err)
@@ -85,8 +109,8 @@ func (s *Sender) SendCaptureResult(ctx context.Context, tx *transaction.Transact
 	}
 
 	s.log.Info("webhook sent",
-		"event", eventName,
-		"transaction_id", tx.ID,
+		"event", evt.Event,
+		"transaction_id", evt.TransactionID,
 		"callback_url", s.callbackURL,
 	)
 

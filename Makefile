@@ -3,7 +3,7 @@ export
 
 MIGRATION_DIR=services/paymanager/migrations
 
-.PHONY: run run-dev run-kafka run-http run-inbox run-paymanager run-ingest run-silvergate start_containers stop_containers stop_containers_remove lint test integration-test e2e-test generate migrate seed-db print-db-size clean-db benchmark build-pg-image test-webhook loadtest loadtest-steady patroni-status
+.PHONY: run run-dev run-kafka run-http run-inbox run-minimal run-paymanager run-ingest run-silvergate start_containers start_containers_minimal stop_containers stop_containers_remove stop_containers_minimal lint test integration-test e2e-test generate migrate seed-db print-db-size clean-db benchmark build-pg-image test-webhook loadtest loadtest-steady patroni-status
 
 run:
 	docker compose --profile prod up --build
@@ -25,6 +25,17 @@ run-http: start_containers
 run-inbox: start_containers
 	@echo "Running in INBOX mode (API + Ingest with PostgreSQL inbox)"
 	go run github.com/mattn/goreman@latest -f Procfile.inbox start
+
+# Light mode: HTTP mode with minimal infra (just PostgreSQL, no Kafka/OpenSearch/Patroni)
+run-minimal: start_containers_minimal
+	@echo "Running in MINIMAL mode (HTTP, standalone PostgreSQL)"
+	go run github.com/mattn/goreman@latest -f Procfile.http start
+
+start_containers_minimal:
+	docker compose -f docker-compose.minimal.yaml up -d --wait
+
+stop_containers_minimal:
+	docker compose -f docker-compose.minimal.yaml down --remove-orphans
 
 # Standalone targets
 run-paymanager: start_containers

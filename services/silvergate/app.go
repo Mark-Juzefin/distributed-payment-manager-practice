@@ -62,10 +62,11 @@ func NewApp(cfg config.Config) (*App, error) {
 	authHandler := handlers.NewAuthHandler(svc)
 	captureHandler := handlers.NewCaptureHandler(svc)
 	voidHandler := handlers.NewVoidHandler(svc)
+	refundHandler := handlers.NewRefundHandler(svc)
 
 	engine := gin.New()
 	engine.Use(gin.Recovery())
-	setupRouter(engine, authHandler, captureHandler, voidHandler)
+	setupRouter(engine, authHandler, captureHandler, voidHandler, refundHandler)
 
 	server := &http.Server{
 		Addr:    fmt.Sprintf(":%d", cfg.Port),

@@ -63,7 +63,36 @@ Content-Type: application/json
     client.log("Auth status: " + response.body.status);
 %}
 
-### 4. Void authorized transaction (auth2 must be authorized)
+### 4. Partial refund (after capture settles, wait ~1s)
+POST {{base}}/api/v1/refund
+Content-Type: application/json
+
+{
+  "transaction_id": "{{tx_id}}",
+  "amount": 2000,
+  "idempotency_key": "ref_001"
+}
+
+> {%
+    client.log("Refund status: " + response.body.status);
+    client.log("Refund ID: " + response.body.refund_id);
+%}
+
+### 5. Second partial refund
+POST {{base}}/api/v1/refund
+Content-Type: application/json
+
+{
+  "transaction_id": "{{tx_id}}",
+  "amount": 3000,
+  "idempotency_key": "ref_002"
+}
+
+> {%
+    client.log("Refund status: " + response.body.status);
+%}
+
+### 6. Void authorized transaction (auth2 must be authorized)
 POST {{base}}/api/v1/void
 Content-Type: application/json
 

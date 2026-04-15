@@ -4,9 +4,13 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"time"
 
+	"TestTaskJustPay/pkg/postgres"
 	"TestTaskJustPay/services/silvergate/acquirer"
+
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5"
 )
 
 type WebhookSender interface {
@@ -15,18 +19,29 @@ type WebhookSender interface {
 }
 
 type Service struct {
-	repo     Repo
-	acq      acquirer.Acquirer
-	webhooks WebhookSender
-	log      *slog.Logger
+	repo       Repo
+	acq        acquirer.Acquirer
+	webhooks   WebhookSender
+	log        *slog.Logger
+	transactor postgres.Transactor
+	txRepo     func(postgres.Executor) Repo
 }
 
-func NewService(repo Repo, acq acquirer.Acquirer, webhooks WebhookSender, log *slog.Logger) *Service {
+func NewService(
+	repo Repo,
+	acq acquirer.Acquirer,
+	webhooks WebhookSender,
+	log *slog.Logger,
+	transactor postgres.Transactor,
+	txRepo func(postgres.Executor) Repo,
+) *Service {
 	return &Service{
-		repo:     repo,
-		acq:      acq,
-		webhooks: webhooks,
-		log:      log,
+		repo:       repo,
+		acq:        acq,
+		webhooks:   webhooks,
+		log:        log,
+		transactor: transactor,
+		txRepo:     txRepo,
 	}
 }
 
@@ -128,26 +143,48 @@ type RefundResponse struct {
 }
 
 func (s *Service) Refund(ctx context.Context, req RefundRequest) (RefundResponse, error) {
-	tx, err := s.repo.GetByID(ctx, req.TransactionID)
+	var tx *Transaction
+	var refund *Refund
+
+	err := s.transactor.InTransaction(ctx, pgx.RepeatableRead, func(dbTx postgres.Executor) error {
+		txRepo := s.txRepo(dbTx)
+
+		var err error
+		tx, err = txRepo.GetByID(ctx, req.TransactionID)
+		if err != nil {
+			return fmt.Errorf("get transaction: %w", err)
+		}
+
+		if tx.Status != StatusCaptured && tx.Status != StatusPartiallyRefunded {
+			return ErrNotRefundable
+		}
+
+		remaining := tx.Amount - tx.RefundedAmount
+		if req.Amount > remaining {
+			return ErrRefundExceedsAmount
+		}
+
+		// Reserve refund amount within the same transaction
+		tx.RefundedAmount += req.Amount
+		if tx.RefundedAmount >= tx.Amount {
+			tx.Status = StatusRefunded
+		} else {
+			tx.Status = StatusPartiallyRefunded
+		}
+		tx.UpdatedAt = refundNow()
+		if err := txRepo.UpdateRefund(ctx, tx); err != nil {
+			return fmt.Errorf("reserve refund amount: %w", err)
+		}
+
+		refund = NewRefundPending(tx.ID, req.Amount, req.IdempotencyKey)
+		if err := txRepo.CreateRefund(ctx, refund); err != nil {
+			return fmt.Errorf("create refund: %w", err)
+		}
+
+		return nil
+	})
 	if err != nil {
-		return RefundResponse{}, fmt.Errorf("get transaction: %w", err)
-	}
-
-	// Validate refundable state
-	if tx.Status != StatusCaptured && tx.Status != StatusPartiallyRefunded {
-		return RefundResponse{}, ErrNotRefundable
-	}
-
-	// Validate amount
-	remaining := tx.Amount - tx.RefundedAmount
-	if req.Amount > remaining {
-		return RefundResponse{}, ErrRefundExceedsAmount
-	}
-
-	// Create refund record
-	refund := NewRefundPending(tx.ID, req.Amount, req.IdempotencyKey)
-	if err := s.repo.CreateRefund(ctx, refund); err != nil {
-		return RefundResponse{}, fmt.Errorf("create refund: %w", err)
+		return RefundResponse{}, err
 	}
 
 	s.log.Info("refund initiated",
@@ -156,7 +193,6 @@ func (s *Service) Refund(ctx context.Context, req RefundRequest) (RefundResponse
 		"amount", req.Amount,
 	)
 
-	// Process refund async
 	go s.refundAsync(tx, refund)
 
 	return RefundResponse{
@@ -167,6 +203,8 @@ func (s *Service) Refund(ctx context.Context, req RefundRequest) (RefundResponse
 	}, nil
 }
 
+func refundNow() time.Time { return time.Now().UTC() }
+
 func (s *Service) refundAsync(tx *Transaction, refund *Refund) {
 	ctx := context.Background()
 
@@ -176,13 +214,6 @@ func (s *Service) refundAsync(tx *Transaction, refund *Refund) {
 		refund.MarkFailed()
 	} else if result.Success {
 		refund.MarkRefunded()
-		tx.RefundedAmount += refund.Amount
-		tx.UpdatedAt = refund.UpdatedAt
-		if tx.RefundedAmount >= tx.Amount {
-			tx.Status = StatusRefunded
-		} else {
-			tx.Status = StatusPartiallyRefunded
-		}
 	} else {
 		s.log.Warn("refund rejected", "refund_id", refund.ID, "reason", result.Reason)
 		refund.MarkFailed()
@@ -193,10 +224,10 @@ func (s *Service) refundAsync(tx *Transaction, refund *Refund) {
 		return
 	}
 
-	if refund.Status == RefundStatusDone {
-		if err := s.repo.UpdateRefund(ctx, tx); err != nil {
-			s.log.Error("failed to update transaction refund", "transaction_id", tx.ID, "error", err)
-			return
+	// Acquirer rejected — release the reserved amount
+	if refund.Status == RefundStatusFailed {
+		if err := s.repo.ReleaseRefundAmount(ctx, tx.ID, refund.Amount); err != nil {
+			s.log.Error("failed to release refund amount", "refund_id", refund.ID, "error", err)
 		}
 	}
 

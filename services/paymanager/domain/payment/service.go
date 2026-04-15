@@ -12,6 +12,7 @@ import (
 	"TestTaskJustPay/services/paymanager/domain/gateway"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5"
 )
 
 type PaymentService struct {
@@ -80,7 +81,7 @@ func (s *PaymentService) CreatePayment(ctx context.Context, req CreatePaymentReq
 	}
 
 	// 3. Save to DB
-	err = s.transactor.InTransaction(ctx, func(tx postgres.Executor) error {
+	err = s.transactor.InTransaction(ctx, pgx.Serializable, func(tx postgres.Executor) error {
 		txRepo := s.txPaymentRepo(tx)
 		return txRepo.CreatePayment(ctx, p)
 	})
@@ -188,7 +189,7 @@ func (s *PaymentService) RefundPayment(ctx context.Context, paymentID string, re
 }
 
 func (s *PaymentService) ProcessCaptureWebhook(ctx context.Context, webhook CaptureWebhook) error {
-	return s.transactor.InTransaction(ctx, func(tx postgres.Executor) error {
+	return s.transactor.InTransaction(ctx, pgx.Serializable, func(tx postgres.Executor) error {
 		txRepo := s.txPaymentRepo(tx)
 		txEvents := s.txEventStore(tx)
 

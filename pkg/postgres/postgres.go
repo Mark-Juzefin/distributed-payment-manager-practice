@@ -78,18 +78,19 @@ func (p *Postgres) Close() {
 // Executor interface abstracts pgxpool.Pool and pgx.Tx for database operations
 type Executor interface {
 	Query(ctx context.Context, sql string, args ...any) (pgx.Rows, error)
+	QueryRow(ctx context.Context, sql string, args ...any) pgx.Row
 	Exec(ctx context.Context, sql string, args ...any) (pgconn.CommandTag, error)
 }
 
 // Transactor provides transaction management.
 // *Postgres satisfies this interface automatically.
 type Transactor interface {
-	InTransaction(ctx context.Context, fn func(tx Executor) error) error
+	InTransaction(ctx context.Context, isoLevel pgx.TxIsoLevel, fn func(tx Executor) error) error
 }
 
-func (p *Postgres) InTransaction(ctx context.Context, fn func(tx Executor) error) (err error) {
+func (p *Postgres) InTransaction(ctx context.Context, isoLevel pgx.TxIsoLevel, fn func(tx Executor) error) (err error) {
 	tx, err := p.Pool.BeginTx(ctx, pgx.TxOptions{
-		IsoLevel: pgx.Serializable,
+		IsoLevel: isoLevel,
 	})
 	if err != nil {
 		return fmt.Errorf("start transaction: %w", err)

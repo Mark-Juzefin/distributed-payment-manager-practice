@@ -34,22 +34,40 @@ Disputes exist but are out of scope until auth/settle flow is solid.
 - [x] **Subtask 4:** Void — capture_delay + void endpoint (Silvergate + Paymanager)
 - [x] **Subtask 5:** Refund in Silvergate
 - [x] **Subtask 6:** Refund integration in Paymanager
-- [ ] **Subtask 7:** Fix concurrent refund race condition (lost update)
+- [x] **Subtask 7:** Fix concurrent refund race condition (lost update)
 
   **Bug:** 3 concurrent refunds on a $50 payment (amounts $30 + $40 + $45) all pass validation
   because each reads `refunded_amount = 0` simultaneously. Result: `refunded_amount = 7000 > 5000`.
 
+  **Fix:** RepeatableRead transaction wraps read + validate + reserve (`refunded_amount += amount`) + create refund.
+  PostgreSQL's first-writer-wins rule aborts concurrent UPDATEs on the same row.
+
+  **Verification (2026-04-15):**
   ```bash
-  ID=<payment_id>
+  # Create payment $50
+  POST http://localhost:3000/api/v1/payments
+  # body: {"amount":5000,"currency":"USD","card_token":"tok_visa_4242"}
+  # → id: 611f60ba, status: capture_pending → captured (via webhook)
+
+  # 3 concurrent refunds
+  ID=611f60ba-69f0-44a1-acec-f034415725eb
   curl -s -X POST localhost:3000/api/v1/payments/$ID/refund -d '{"amount":3000}' &
   curl -s -X POST localhost:3000/api/v1/payments/$ID/refund -d '{"amount":4000}' &
   curl -s -X POST localhost:3000/api/v1/payments/$ID/refund -d '{"amount":4500}' &
   wait
-  # → refunded_amount: 7000 on a 5000 payment (overdraft)
+
+  # Results:
+  # $30 → 202 Accepted, refund processed, webhook sent
+  # $40 → 500 (RepeatableRead serialization error — concurrent UPDATE on same row)
+  # $45 → 422 "refund amount exceeds remaining balance" ($45 > $20 remaining)
+  #
+  # Final state: refunded_amount=3000, status=partially_refunded ✓
   ```
 
-  Root cause: **lost update** — read-modify-write without locking.
-  Fix options: DB CHECK constraint, SELECT FOR UPDATE, optimistic locking, serializable isolation.
+  **Integration test:** `services/silvergate/domain/transaction/service_integration_test.go`
+  ```bash
+  go test -tags=integration -v -run TestConcurrentRefund_Overdraft ./services/silvergate/domain/transaction/
+  ```
 
 ## Architecture Notes
 

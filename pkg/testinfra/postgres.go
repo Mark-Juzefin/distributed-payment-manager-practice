@@ -27,12 +27,18 @@ type PostgresConfig struct {
 	DBName       string
 	MigrationFS  embed.FS
 	NetworkAlias string // Docker network alias (default: "postgres")
+	Image        string // Docker image (default: "pg17-partman:local")
 }
 
 // NewPostgresWithConfig starts a PostgreSQL container with the given configuration.
 func NewPostgresWithConfig(ctx context.Context, cfg PostgresConfig, netCfg ...*NetworkConfig) (*PostgresContainer, error) {
+	image := cfg.Image
+	if image == "" {
+		image = "pg17-partman:local"
+	}
+
 	req := testcontainers.ContainerRequest{
-		Image: "pg17-partman:local",
+		Image: image,
 		Env: map[string]string{
 			"POSTGRES_USER":     "postgres",
 			"POSTGRES_PASSWORD": "secret",

@@ -13,4 +13,5 @@ type Repo interface {
 	UpdateRefund(ctx context.Context, tx *Transaction) error
 	CreateRefund(ctx context.Context, refund *Refund) error
 	UpdateRefundStatus(ctx context.Context, refund *Refund) error
+	ReleaseRefundAmount(ctx context.Context, txID uuid.UUID, amount int64) error
 }

@@ -5,23 +5,23 @@ import (
 	"errors"
 	"fmt"
 
+	"TestTaskJustPay/pkg/postgres"
 	"TestTaskJustPay/services/silvergate/domain/transaction"
 
 	sq "github.com/Masterminds/squirrel"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
-	"github.com/jackc/pgx/v5/pgxpool"
 )
 
 var psql = sq.StatementBuilder.PlaceholderFormat(sq.Dollar)
 
 type PgTransactionRepo struct {
-	pool *pgxpool.Pool
+	db postgres.Executor
 }
 
-func NewPgTransactionRepo(pool *pgxpool.Pool) *PgTransactionRepo {
-	return &PgTransactionRepo{pool: pool}
+func NewPgTransactionRepo(db postgres.Executor) *PgTransactionRepo {
+	return &PgTransactionRepo{db: db}
 }
 
 func (r *PgTransactionRepo) Create(ctx context.Context, tx *transaction.Transaction) error {
@@ -42,7 +42,7 @@ func (r *PgTransactionRepo) Create(ctx context.Context, tx *transaction.Transact
 		return fmt.Errorf("build insert: %w", err)
 	}
 
-	_, err = r.pool.Exec(ctx, query, args...)
+	_, err = r.db.Exec(ctx, query, args...)
 	if err != nil {
 		var pgErr *pgconn.PgError
 		if errors.As(err, &pgErr) && pgErr.Code == "23505" {
@@ -67,7 +67,7 @@ func (r *PgTransactionRepo) GetByID(ctx context.Context, id uuid.UUID) (*transac
 		return nil, fmt.Errorf("build select: %w", err)
 	}
 
-	row := r.pool.QueryRow(ctx, query, args...)
+	row := r.db.QueryRow(ctx, query, args...)
 
 	var tx transaction.Transaction
 	var declineReason, idempotencyKey *string
@@ -105,7 +105,7 @@ func (r *PgTransactionRepo) UpdateStatus(ctx context.Context, tx *transaction.Tr
 		return fmt.Errorf("build update: %w", err)
 	}
 
-	result, err := r.pool.Exec(ctx, query, args...)
+	result, err := r.db.Exec(ctx, query, args...)
 	if err != nil {
 		var pgErr *pgconn.PgError
 		if errors.As(err, &pgErr) && pgErr.Code == "23505" {
@@ -132,7 +132,7 @@ func (r *PgTransactionRepo) UpdateRefund(ctx context.Context, tx *transaction.Tr
 		return fmt.Errorf("build update refund: %w", err)
 	}
 
-	_, err = r.pool.Exec(ctx, query, args...)
+	_, err = r.db.Exec(ctx, query, args...)
 	if err != nil {
 		return fmt.Errorf("exec update refund: %w", err)
 	}
@@ -150,7 +150,7 @@ func (r *PgTransactionRepo) CreateRefund(ctx context.Context, refund *transactio
 		return fmt.Errorf("build insert refund: %w", err)
 	}
 
-	_, err = r.pool.Exec(ctx, query, args...)
+	_, err = r.db.Exec(ctx, query, args...)
 	if err != nil {
 		var pgErr *pgconn.PgError
 		if errors.As(err, &pgErr) && pgErr.Code == "23505" {
@@ -172,9 +172,18 @@ func (r *PgTransactionRepo) UpdateRefundStatus(ctx context.Context, refund *tran
 		return fmt.Errorf("build update refund status: %w", err)
 	}
 
-	_, err = r.pool.Exec(ctx, query, args...)
+	_, err = r.db.Exec(ctx, query, args...)
 	if err != nil {
 		return fmt.Errorf("exec update refund status: %w", err)
+	}
+	return nil
+}
+
+func (r *PgTransactionRepo) ReleaseRefundAmount(ctx context.Context, txID uuid.UUID, amount int64) error {
+	query := "UPDATE transactions SET refunded_amount = refunded_amount - $1, updated_at = now() WHERE id = $2"
+	_, err := r.db.Exec(ctx, query, amount, txID)
+	if err != nil {
+		return fmt.Errorf("release refund amount: %w", err)
 	}
 	return nil
 }

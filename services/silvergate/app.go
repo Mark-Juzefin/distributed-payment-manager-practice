@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"TestTaskJustPay/pkg/migrations"
+	"TestTaskJustPay/pkg/postgres"
 	"TestTaskJustPay/services/silvergate/acquirer"
 	"TestTaskJustPay/services/silvergate/config"
 	"TestTaskJustPay/services/silvergate/domain/transaction"
@@ -20,7 +21,6 @@ import (
 	"TestTaskJustPay/services/silvergate/webhook"
 
 	"github.com/gin-gonic/gin"
-	"github.com/jackc/pgx/v5/pgxpool"
 )
 
 //go:embed migrations/*.sql
@@ -33,7 +33,7 @@ type App struct {
 	cfg    config.Config
 	log    *slog.Logger
 	server *http.Server
-	pool   *pgxpool.Pool
+	pg     *postgres.Postgres
 }
 
 func NewApp(cfg config.Config) (*App, error) {
@@ -45,19 +45,18 @@ func NewApp(cfg config.Config) (*App, error) {
 		return nil, fmt.Errorf("apply migrations: %w", err)
 	}
 
-	pool, err := pgxpool.New(context.Background(), cfg.PgURL)
+	pg, err := postgres.New(cfg.PgURL, postgres.MaxPoolSize(10))
 	if err != nil {
 		return nil, fmt.Errorf("connect to postgres: %w", err)
 	}
 
-	if err := pool.Ping(context.Background()); err != nil {
-		return nil, fmt.Errorf("ping postgres: %w", err)
-	}
-
-	txRepo := repo.NewPgTransactionRepo(pool)
+	txRepo := repo.NewPgTransactionRepo(pg.Pool)
 	acq := acquirer.NewMockAcquirer(cfg.AcquirerAuthApproveRate, cfg.AcquirerSettleSuccessRate, cfg.AcquirerSettleDelay)
 	webhookSender := webhook.NewSender(cfg.WebhookCallbackURL, log)
-	svc := transaction.NewService(txRepo, acq, webhookSender, log)
+	txRepoFactory := func(tx postgres.Executor) transaction.Repo {
+		return repo.NewPgTransactionRepo(tx)
+	}
+	svc := transaction.NewService(txRepo, acq, webhookSender, log, pg, txRepoFactory)
 
 	authHandler := handlers.NewAuthHandler(svc)
 	captureHandler := handlers.NewCaptureHandler(svc)
@@ -77,7 +76,7 @@ func NewApp(cfg config.Config) (*App, error) {
 		cfg:    cfg,
 		log:    log,
 		server: server,
-		pool:   pool,
+		pg:     pg,
 	}, nil
 }
 
@@ -101,7 +100,7 @@ func (a *App) Run() error {
 	if err := a.server.Shutdown(ctx); err != nil {
 		return fmt.Errorf("server shutdown: %w", err)
 	}
-	a.pool.Close()
+	a.pg.Close()
 
 	return nil
 }

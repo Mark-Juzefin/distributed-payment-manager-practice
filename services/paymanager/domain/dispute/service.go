@@ -81,7 +81,7 @@ func (s *DisputeService) GetEvidence(ctx context.Context, disputeID string) (*Ev
 
 func (s *DisputeService) ProcessChargeback(ctx context.Context, webhook ChargebackWebhook) error {
 	var actualDisputeData Dispute
-	err := s.transactor.InTransaction(ctx, pgx.Serializable, func(tx postgres.Executor) error {
+	err := s.transactor.InTransaction(ctx, pgx.RepeatableRead, func(tx postgres.Executor) error {
 		txRepo := s.txDisputeRepo(tx)
 		txEvents := s.txEventStore(tx)
 
@@ -155,7 +155,7 @@ func (s *DisputeService) ProcessChargeback(ctx context.Context, webhook Chargeba
 func (s *DisputeService) UpsertEvidence(ctx context.Context, disputeID string, upsert EvidenceUpsert) (*Evidence, error) {
 	var result *Evidence
 
-	err := s.transactor.InTransaction(ctx, pgx.Serializable, func(tx postgres.Executor) error {
+	err := s.transactor.InTransaction(ctx, pgx.RepeatableRead, func(tx postgres.Executor) error {
 		txRepo := s.txDisputeRepo(tx)
 		txEvents := s.txEventStore(tx)
 
@@ -215,7 +215,7 @@ func (s *DisputeService) UpsertEvidence(ctx context.Context, disputeID string, u
 
 func (s *DisputeService) Submit(ctx context.Context, disputeID string) error {
 	var result *gateway.RepresentmentResult
-	err := s.transactor.InTransaction(ctx, pgx.Serializable, func(tx postgres.Executor) error {
+	err := s.transactor.InTransaction(ctx, pgx.RepeatableRead, func(tx postgres.Executor) error {
 		txRepo := s.txDisputeRepo(tx)
 		txEvents := s.txEventStore(tx)
 

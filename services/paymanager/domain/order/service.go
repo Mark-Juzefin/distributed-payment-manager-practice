@@ -71,7 +71,7 @@ func (s *OrderService) GetOrders(ctx context.Context, query OrdersQuery) ([]Orde
 }
 
 func (s *OrderService) ProcessOrderUpdate(ctx context.Context, update OrderUpdate) error {
-	err := s.transactor.InTransaction(ctx, pgx.Serializable, func(tx postgres.Executor) error {
+	err := s.transactor.InTransaction(ctx, pgx.RepeatableRead, func(tx postgres.Executor) error {
 		txRepo := s.txOrderRepo(tx)
 		txEvents := s.txEventStore(tx)
 
@@ -132,7 +132,7 @@ func (s *OrderService) UpdateOrderHold(ctx context.Context, orderID string, requ
 	}
 
 	var response *HoldResponse
-	err := s.transactor.InTransaction(ctx, pgx.Serializable, func(tx postgres.Executor) error {
+	err := s.transactor.InTransaction(ctx, pgx.RepeatableRead, func(tx postgres.Executor) error {
 		txRepo := s.txOrderRepo(tx)
 		txEvents := s.txEventStore(tx)
 
@@ -207,7 +207,7 @@ func (s *OrderService) UpdateOrderHold(ctx context.Context, orderID string, requ
 
 func (s *OrderService) CapturePayment(ctx context.Context, orderID string, request CaptureRequest) (*CaptureResponse, error) {
 	var response *CaptureResponse
-	err := s.transactor.InTransaction(ctx, pgx.Serializable, func(tx postgres.Executor) error {
+	err := s.transactor.InTransaction(ctx, pgx.RepeatableRead, func(tx postgres.Executor) error {
 		txRepo := s.txOrderRepo(tx)
 		txEvents := s.txEventStore(tx)
 

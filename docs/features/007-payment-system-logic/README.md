@@ -55,13 +55,6 @@ Banks (mocked) ← Silvergate (PSP) ← Paymanager (merchant) ← Ingest (webhoo
 
 > Multi-row transactions deep dive (balances, double-entry ledger, concurrent auths, load tests) continues in [Feature 010: Silvergate Transactions Deep Dive](../010-silvergate-transactions-deep-dive/).
 
-## Plans
-
-- [Subtask 2](plan-subtask-2.md) — Silvergate: auth & capture
-- [Subtask 3](plan-subtask-3.md) — Paymanager integration
-- [Subtask 4](plan-subtask-4.md) — Void with capture_delay
-- [Subtask 5](plan-subtask-5.md) — Refund in Silvergate
-
 ## Notes
 - Created: 2026-04-09
 - Phase 1-2 completed: 2026-04-17

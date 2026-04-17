@@ -8,4 +8,5 @@ var (
 	ErrDuplicateIdempotency = errors.New("duplicate idempotency key")
 	ErrRefundExceedsAmount  = errors.New("refund amount exceeds remaining balance")
 	ErrNotRefundable        = errors.New("transaction is not in a refundable state")
+	ErrStatusChanged        = errors.New("transaction status was changed by another operation")
 )

@@ -120,6 +120,28 @@ func (r *PgTransactionRepo) UpdateStatus(ctx context.Context, tx *transaction.Tr
 	return nil
 }
 
+func (r *PgTransactionRepo) CompareAndUpdateStatus(ctx context.Context, id uuid.UUID, expected, next transaction.Status) error {
+	query, args, err := psql.
+		Update("transactions").
+		Set("status", next).
+		Set("updated_at", sq.Expr("now()")).
+		Where(sq.Eq{"id": id, "status": expected}).
+		ToSql()
+	if err != nil {
+		return fmt.Errorf("build compare-and-update: %w", err)
+	}
+
+	result, err := r.db.Exec(ctx, query, args...)
+	if err != nil {
+		return fmt.Errorf("exec compare-and-update: %w", err)
+	}
+
+	if result.RowsAffected() == 0 {
+		return transaction.ErrStatusChanged
+	}
+	return nil
+}
+
 func (r *PgTransactionRepo) UpdateRefund(ctx context.Context, tx *transaction.Transaction) error {
 	query, args, err := psql.
 		Update("transactions").

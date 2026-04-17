@@ -40,18 +40,49 @@ func TestMain(m *testing.M) {
 	os.Exit(code)
 }
 
-// stubWebhooks tracks async refund completions via channel.
+// stubWebhooks tracks async completions via channels.
 type stubWebhooks struct {
-	refundDone chan struct{}
+	captureDone chan struct{}
+	refundDone  chan struct{}
 }
 
-func (w *stubWebhooks) SendCaptureResult(context.Context, *transaction.Transaction) error {
+func newStubWebhooks() *stubWebhooks {
+	return &stubWebhooks{
+		captureDone: make(chan struct{}, 10),
+		refundDone:  make(chan struct{}, 10),
+	}
+}
+
+func (w *stubWebhooks) SendCaptureResult(_ context.Context, _ *transaction.Transaction) error {
+	w.captureDone <- struct{}{}
 	return nil
 }
 
 func (w *stubWebhooks) SendRefundResult(_ context.Context, _ *transaction.Transaction, _ *transaction.Refund) error {
 	w.refundDone <- struct{}{}
 	return nil
+}
+
+func (w *stubWebhooks) waitCaptures(n int, t *testing.T) {
+	t.Helper()
+	for range n {
+		select {
+		case <-w.captureDone:
+		case <-time.After(5 * time.Second):
+			t.Fatal("timeout waiting for capture webhook")
+		}
+	}
+}
+
+func (w *stubWebhooks) waitRefunds(n int, t *testing.T) {
+	t.Helper()
+	for range n {
+		select {
+		case <-w.refundDone:
+		case <-time.After(5 * time.Second):
+			t.Fatal("timeout waiting for refund webhook")
+		}
+	}
 }
 
 // TestConcurrentRefund_Overdraft reproduces the lost-update race condition
@@ -65,7 +96,7 @@ func TestConcurrentRefund_Overdraft(t *testing.T) {
 
 	repo := txrepo.NewPgTransactionRepo(pg.Pool)
 	acq := acquirer.NewMockAcquirer(1.0, 1.0, 50*time.Millisecond)
-	wh := &stubWebhooks{refundDone: make(chan struct{}, 10)}
+	wh := newStubWebhooks()
 	txRepoFactory := func(tx postgres.Executor) transaction.Repo {
 		return txrepo.NewPgTransactionRepo(tx)
 	}
@@ -132,13 +163,7 @@ func TestConcurrentRefund_Overdraft(t *testing.T) {
 	t.Logf("validation: %d/%d refunds accepted", accepted, len(amounts))
 
 	// Wait for async processing of accepted refunds
-	for range accepted {
-		select {
-		case <-wh.refundDone:
-		case <-time.After(5 * time.Second):
-			t.Fatal("timeout waiting for refund async completion")
-		}
-	}
+	wh.waitRefunds(accepted, t)
 
 	// Query actual total refunded from refund records (source of truth)
 	var totalRefunded int64
@@ -157,4 +182,125 @@ func TestConcurrentRefund_Overdraft(t *testing.T) {
 	// BUG: sum of successful refund records exceeds payment amount
 	assert.LessOrEqual(t, totalRefunded, tx.Amount,
 		"total refunded (%d) must not exceed payment (%d)", totalRefunded, tx.Amount)
+}
+
+// TestConcurrentCapture_DuplicateSettle reproduces a lost-update race in
+// Service.Capture. Two concurrent captures on the same authorized transaction
+// both read status=authorized, both mark capture_pending, both launch settleAsync.
+//
+// Expected: exactly 1 capture succeeds.
+// Actual (bug): both succeed, two settleAsync goroutines run.
+func TestConcurrentCapture_DuplicateSettle(t *testing.T) {
+	ctx := context.Background()
+
+	repo := txrepo.NewPgTransactionRepo(pg.Pool)
+	acq := acquirer.NewMockAcquirer(1.0, 1.0, 50*time.Millisecond)
+	wh := newStubWebhooks()
+	txRepoFactory := func(tx postgres.Executor) transaction.Repo {
+		return txrepo.NewPgTransactionRepo(tx)
+	}
+	svc := transaction.NewService(repo, acq, wh, slog.Default(), pg, txRepoFactory)
+
+	// Auth a $100 transaction
+	auth, err := svc.Authorize(ctx, transaction.AuthRequest{
+		MerchantID: "merchant_cap_race",
+		OrderID:    fmt.Sprintf("cap_race_%d", time.Now().UnixNano()),
+		Amount:     10000,
+		Currency:   "USD",
+		CardToken:  "tok_cap_race",
+	})
+	require.NoError(t, err)
+	require.Equal(t, transaction.StatusAuthorized, auth.Status)
+
+	// 3 concurrent captures on the same authorized transaction
+	const n = 3
+	errs := make([]error, n)
+	var wg sync.WaitGroup
+	wg.Add(n)
+	for i := range n {
+		go func(idx int) {
+			defer wg.Done()
+			_, errs[idx] = svc.Capture(ctx, transaction.CaptureRequest{
+				TransactionID:  auth.TransactionID,
+				Amount:         10000,
+				IdempotencyKey: fmt.Sprintf("cap_%d_%d", idx, time.Now().UnixNano()),
+			})
+		}(i)
+	}
+	wg.Wait()
+
+	var accepted int
+	for _, e := range errs {
+		if e == nil {
+			accepted++
+		}
+	}
+	t.Logf("capture validation: %d/%d accepted", accepted, n)
+
+	// Wait for webhooks from accepted captures
+	wh.waitCaptures(accepted, t)
+
+	// Exactly 1 capture should succeed
+	assert.Equal(t, 1, accepted,
+		"exactly one concurrent capture should succeed, got %d", accepted)
+}
+
+// TestSettleAsync_BlindUpdate proves that settleAsync overwrites status changes
+// made by other operations while the acquirer call is in progress.
+//
+// Scenario:
+//  1. Capture → status = capture_pending, settleAsync starts (acquirer blocks 200ms)
+//  2. While blocked — we UPDATE status to 'voided' directly in DB (simulating a concurrent op)
+//  3. settleAsync returns — blind UPDATE overwrites 'voided' with 'captured'
+//
+// Expected: status stays 'voided' (settleAsync should detect the change).
+// Actual (bug): status becomes 'captured' — blind update ignores concurrent change.
+func TestSettleAsync_BlindUpdate(t *testing.T) {
+	ctx := context.Background()
+
+	repo := txrepo.NewPgTransactionRepo(pg.Pool)
+	// 200ms settle delay — gives us a window to modify DB while settleAsync waits
+	acq := acquirer.NewMockAcquirer(1.0, 1.0, 200*time.Millisecond)
+	wh := newStubWebhooks()
+	txRepoFactory := func(tx postgres.Executor) transaction.Repo {
+		return txrepo.NewPgTransactionRepo(tx)
+	}
+	svc := transaction.NewService(repo, acq, wh, slog.Default(), pg, txRepoFactory)
+
+	// Auth
+	auth, err := svc.Authorize(ctx, transaction.AuthRequest{
+		MerchantID: "merchant_settle_race",
+		OrderID:    fmt.Sprintf("settle_race_%d", time.Now().UnixNano()),
+		Amount:     5000,
+		Currency:   "USD",
+		CardToken:  "tok_settle_race",
+	})
+	require.NoError(t, err)
+
+	// Capture — starts settleAsync which blocks on acquirer for 200ms
+	_, err = svc.Capture(ctx, transaction.CaptureRequest{
+		TransactionID:  auth.TransactionID,
+		Amount:         5000,
+		IdempotencyKey: fmt.Sprintf("cap_settle_%d", time.Now().UnixNano()),
+	})
+	require.NoError(t, err)
+
+	// Simulate a concurrent operation changing status while settleAsync is blocked
+	_, err = pg.Pool.Exec(ctx,
+		"UPDATE transactions SET status = 'voided' WHERE id = $1",
+		auth.TransactionID)
+	require.NoError(t, err)
+
+	// Wait for settleAsync to finish (200ms acquirer + some buffer)
+	time.Sleep(400 * time.Millisecond)
+
+	// Check final status
+	tx, err := repo.GetByID(ctx, auth.TransactionID)
+	require.NoError(t, err)
+
+	t.Logf("final status: %s (expected: voided)", tx.Status)
+
+	// BUG: settleAsync does blind UPDATE, overwrites 'voided' with 'captured'
+	assert.Equal(t, transaction.StatusVoided, tx.Status,
+		"settleAsync should not overwrite status changed by another operation")
 }

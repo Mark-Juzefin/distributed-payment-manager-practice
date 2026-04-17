@@ -47,6 +47,7 @@
   - [ ] Benchmarks & comparison: loadtest both approaches, latency/throughput metrics
 
 - **Step 5: PostgreSQL HA & DR** ← *paused* — [details](features/005-postgres-ha/)
+
   - [x] Streaming replication: primary + async standby via Docker Compose
   - [x] Read replica routing: HAProxy rw/ro split, app-level routing at repository level
   - [x] Failover/switchover: Patroni + etcd automated failover, HAProxy REST API health checks
@@ -54,34 +55,38 @@
   - [ ] Backup/restore: pg_basebackup for PITR, restore verification
   - [ ] Replication lag consistency test: demonstrate read-after-write issues
 
-- **Step 6: Sharding Experiments** ← *next*
+- **Step 6: Payment Domain** ← *active*
+
+  Building bottom-up: Silvergate (PSP) first, then transaction safety practice, then Paymanager redesign, then subscriptions. Temporary scaffolding in Paymanager is expected while Silvergate matures.
+
+  - [x] **Feature 007:** Payment System Logic — [details](features/007-payment-system-logic/)
+    Silvergate PSP service (auth/capture/void/refund), mocked bank, webhook callbacks.
+    Temporary Paymanager integration for testing. PostgreSQL transaction safety practice (single-row locking).
+  - **Feature 008:** Products & Checkout ← *next* — [details](features/008-products-and-checkout/)
+    Redesign Paymanager as business orchestrator: product catalog, checkout, cancel.
+    Clean up legacy order/dispute domains, make capture/void/refund internal.
+  - **Feature 009:** Subscription Engine — [details](features/009-subscription-engine/)
+    Temporal workflows for recurring billing, dunning, lifecycle state machine.
+  - **Feature 010:** Silvergate Transactions Deep Dive — [details](features/010-silvergate-transactions-deep-dive/)
+    Multi-row transactions: balances, double-entry ledger, concurrent load, deadlocks, isolation level trade-offs.
+
+- **Step 7: Sharding Experiments**
   - Infra approach: Citus, Patroni Operator on K8s, or app-level with duplicated docker-compose — decide before implementation
   - [ ] Split orders/disputes across multiple Postgres shards by hash(user_id)
   - [ ] Routing strategies, rebalancing, cross-shard queries, failure modes
 
-- **Step 7: Simple Deployment Profile + VPS Hosting**
+- **Step 8: Simple Deployment Profile + VPS Hosting**
   - [ ] Single-node deployment without Kafka dependency (sync mode as default)
   - [ ] HTMX admin dashboard for viewing orders, disputes, events
   - [ ] VPS deployment: systemd services, nginx reverse proxy, basic security hardening
   - [ ] Local dev tooling: research alternatives to goreman (Overmind, process-compose, etc.)
 
-- **Step 8: Infrastructure (Kubernetes, API Gateway, Service Mesh)**
+- **Step 9: Infrastructure (Kubernetes, API Gateway, Service Mesh)**
   - [ ] Kubernetes: deploy services, HPA, liveness/readiness, ConfigMaps/Secrets
   - [ ] API Gateway: ingress (NGINX/Traefik/Kong), routing, rate limiting, authn/z
   - [ ] Service mesh: circuit breakers, retries/timeouts (Envoy/Istio-lite)
   - [ ] Postgres access: PgBouncer per service, connection limits
   - [ ] CI/CD: build pipelines, image tagging, per-env configs
-
-- **Step 9: Subscription Engine with Temporal** — [details](features/006-subscription-engine/)
-  - [ ] Temporal dev server setup, new `cmd/subscriptions` service skeleton
-  - [ ] Subscription CRUD API, PostgreSQL schema, domain model (lifecycle state machine)
-  - [ ] Solidgate payment provider mock (Wiremock), tokenized recurring charges
-  - [ ] BillingCycleWorkflow — invoice creation, payment charge, webhook reconciliation
-  - [ ] SubscriptionWorkflow — lifecycle orchestration, billing loop, signals (cancel/pause/resume)
-  - [ ] Dunning & retry logic — exponential retry on decline, past_due state
-  - [ ] Payment method update, invoice history API
-  - [ ] Integration tests with Temporal test framework, E2E with Wiremock
-  - [ ] Observability — Temporal metrics, Grafana dashboard
 
 - **Step 10: Security Foundations**
   - [ ] TLS: TLS termination on reverse proxy (nginx/traefik), HTTPS for external endpoints

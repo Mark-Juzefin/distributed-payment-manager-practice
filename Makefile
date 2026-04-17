@@ -1,9 +1,9 @@
 -include env/common.env
 export
 
-MIGRATION_DIR=services/api/migrations
+MIGRATION_DIR=services/paymanager/migrations
 
-.PHONY: run run-dev run-kafka run-http run-inbox run-api run-ingest start_containers stop_containers stop_containers_remove lint test integration-test e2e-test generate migrate seed-db print-db-size clean-db benchmark build-pg-image test-webhook loadtest loadtest-steady patroni-status
+.PHONY: run run-dev run-kafka run-http run-inbox run-minimal run-paymanager run-ingest run-silvergate start_containers start_containers_minimal stop_containers stop_containers_remove stop_containers_minimal lint test integration-test e2e-test generate migrate seed-db print-db-size clean-db benchmark build-pg-image test-webhook loadtest loadtest-steady patroni-status
 
 run:
 	docker compose --profile prod up --build
@@ -26,12 +26,26 @@ run-inbox: start_containers
 	@echo "Running in INBOX mode (API + Ingest with PostgreSQL inbox)"
 	go run github.com/mattn/goreman@latest -f Procfile.inbox start
 
+# Light mode: HTTP mode with minimal infra (just PostgreSQL, no Kafka/OpenSearch/Patroni)
+run-minimal: start_containers_minimal
+	@echo "Running in MINIMAL mode (HTTP, standalone PostgreSQL)"
+	go run github.com/mattn/goreman@latest -f Procfile.minimal start
+
+start_containers_minimal:
+	docker compose -f docker-compose.minimal.yaml up -d --wait
+
+stop_containers_minimal:
+	docker compose -f docker-compose.minimal.yaml down --remove-orphans
+
 # Standalone targets
-run-api: start_containers
-	go run ./services/api/cmd
+run-paymanager: start_containers
+	go run ./services/paymanager/cmd
 
 run-ingest:
 	go run ./services/ingest/cmd
+
+run-silvergate: start_containers
+	set -a && source env/common.env && source env/endpoints.host.env && source env/silvergate.env && set +a && PORT=$${SILVERGATE_PORT} go run ./services/silvergate/cmd
 
 start_containers:
 	docker-compose --profile infra up --build -d --wait
@@ -54,9 +68,9 @@ test:
 	go test -race ./...
 
 INTEGRATION_DIRS = \
-	./services/api/repo/dispute_eventsink \
-	./services/api/repo/order_eventsink \
-	./services/api/repo/events \
+	./services/paymanager/repo/dispute_eventsink \
+	./services/paymanager/repo/order_eventsink \
+	./services/paymanager/repo/events \
 	./services/ingest/repo/inbox
 
 integration-test:
@@ -75,7 +89,7 @@ e2e-test:
 
 
 generate:
-	cd services/api && go generate ./...
+	cd services/paymanager && go generate ./...
 	cd services/ingest && go generate ./...
 
 migrate:

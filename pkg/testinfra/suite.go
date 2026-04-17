@@ -11,18 +11,21 @@ import (
 )
 
 type TestSuite struct {
-	Postgres *PostgresContainer
-	Kafka    *KafkaContainer
-	Wiremock *WiremockContainer
-	API      *APIContainer
-	Ingest   *IngestContainer
-	Network  *NetworkConfig
+	Postgres     *PostgresContainer
+	SilvergatePG *PostgresContainer
+	Kafka        *KafkaContainer
+	Wiremock     *WiremockContainer
+	Silvergate   *SilvergateContainer
+	API          *APIContainer
+	Ingest       *IngestContainer
+	Network      *NetworkConfig
 }
 
 type SuiteOptions struct {
-	WithKafka    bool
-	WithWiremock bool
-	MappingsPath string // for Wiremock
+	WithKafka      bool
+	WithWiremock   bool
+	WithSilvergate bool
+	MappingsPath   string // for Wiremock
 
 	// E2E options: when WithE2E is true, API and Ingest containers are started
 	WithE2E     bool
@@ -30,6 +33,9 @@ type SuiteOptions struct {
 
 	// MigrationFS is the embedded filesystem containing SQL migrations for the test database.
 	MigrationFS embed.FS
+
+	// SilvergateMigrationFS is the embedded filesystem for Silvergate's database migrations.
+	SilvergateMigrationFS embed.FS
 }
 
 // NewTestSuite creates all infrastructure for tests.
@@ -51,7 +57,7 @@ func NewTestSuite(ctx context.Context, opts SuiteOptions) (*TestSuite, error) {
 
 	// Phase 1: Start infrastructure containers in parallel
 	var wg sync.WaitGroup
-	errCh := make(chan error, 3)
+	errCh := make(chan error, 4)
 
 	// PostgreSQL (always needed)
 	wg.Add(1)
@@ -67,6 +73,24 @@ func NewTestSuite(ctx context.Context, opts SuiteOptions) (*TestSuite, error) {
 		}
 		suite.Postgres = pg
 	}()
+
+	// Silvergate PostgreSQL (optional, separate DB)
+	if opts.WithSilvergate {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			sgPG, err := NewPostgresWithConfig(ctx, PostgresConfig{
+				DBName:       "silvergate_test",
+				MigrationFS:  opts.SilvergateMigrationFS,
+				NetworkAlias: "silvergate-db",
+			}, netCfg)
+			if err != nil {
+				errCh <- fmt.Errorf("silvergate postgres: %w", err)
+				return
+			}
+			suite.SilvergatePG = sgPG
+		}()
+	}
 
 	// Kafka (optional)
 	if opts.WithKafka {
@@ -125,9 +149,28 @@ func (s *TestSuite) startServiceContainers(ctx context.Context, opts SuiteOption
 	// Build internal DSN for Docker network
 	pgDSN := "postgres://postgres:secret@postgres:5432/payments_test?sslmode=disable"
 
-	// Determine Silvergate URL (Docker-internal or empty)
+	// Start Silvergate service container if Silvergate DB is available
+	if s.SilvergatePG != nil {
+		sgDSN := "postgres://postgres:secret@silvergate-db:5432/silvergate_test?sslmode=disable"
+		// Silvergate sends webhooks to Ingest (which will be started below at "ingest:3001")
+		sgCfg := SilvergateContainerConfig{
+			PgDSN:              sgDSN,
+			WebhookCallbackURL: "http://ingest:3001/webhooks/silvergate",
+			ProjectRoot:        opts.ProjectRoot,
+			Network:            s.Network,
+		}
+		sgContainer, err := NewSilvergateContainer(ctx, sgCfg)
+		if err != nil {
+			return fmt.Errorf("silvergate container: %w", err)
+		}
+		s.Silvergate = sgContainer
+	}
+
+	// Determine Silvergate URL (Docker-internal)
 	silvergateURL := ""
-	if s.Wiremock != nil {
+	if s.Silvergate != nil {
+		silvergateURL = "http://silvergate:3002"
+	} else if s.Wiremock != nil {
 		silvergateURL = "http://wiremock:8080"
 	}
 
@@ -183,6 +226,12 @@ func (s *TestSuite) Cleanup(ctx context.Context) {
 	}
 	if s.API != nil {
 		s.API.Cleanup(ctx)
+	}
+	if s.Silvergate != nil {
+		s.Silvergate.Cleanup(ctx)
+	}
+	if s.SilvergatePG != nil {
+		s.SilvergatePG.Cleanup(ctx)
 	}
 	if s.Wiremock != nil {
 		s.Wiremock.Cleanup(ctx)

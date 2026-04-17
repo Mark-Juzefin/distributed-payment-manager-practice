@@ -22,24 +22,30 @@ type KafkaContainer struct {
 	Brokers       []string
 	OrdersTopic   string
 	DisputesTopic string
+	PaymentsTopic string
 	OrdersGroup   string
 	DisputesGroup string
+	PaymentsGroup string
 }
 
 // TopicNames returns a struct with topic and consumer group names (useful for building env vars).
 type TopicNames struct {
 	OrdersTopic   string
 	DisputesTopic string
+	PaymentsTopic string
 	OrdersGroup   string
 	DisputesGroup string
+	PaymentsGroup string
 }
 
 func (c *KafkaContainer) TopicConfig() TopicNames {
 	return TopicNames{
 		OrdersTopic:   c.OrdersTopic,
 		DisputesTopic: c.DisputesTopic,
+		PaymentsTopic: c.PaymentsTopic,
 		OrdersGroup:   c.OrdersGroup,
 		DisputesGroup: c.DisputesGroup,
+		PaymentsGroup: c.PaymentsGroup,
 	}
 }
 
@@ -73,15 +79,14 @@ func NewKafka(ctx context.Context, netCfg ...*NetworkConfig) (*KafkaContainer, e
 	suffix := uuid.New().String()[:8]
 	ordersTopic := fmt.Sprintf("test-orders-%s", suffix)
 	disputesTopic := fmt.Sprintf("test-disputes-%s", suffix)
+	paymentsTopic := fmt.Sprintf("test-payments-%s", suffix)
 
 	// Create topics explicitly (so consumers can subscribe before first message)
-	if err := createTopic(ctx, container, ordersTopic, 3); err != nil {
-		_ = container.Terminate(ctx)
-		return nil, fmt.Errorf("failed to create orders topic: %w", err)
-	}
-	if err := createTopic(ctx, container, disputesTopic, 3); err != nil {
-		_ = container.Terminate(ctx)
-		return nil, fmt.Errorf("failed to create disputes topic: %w", err)
+	for _, t := range []string{ordersTopic, disputesTopic, paymentsTopic} {
+		if err := createTopic(ctx, container, t, 3); err != nil {
+			_ = container.Terminate(ctx)
+			return nil, fmt.Errorf("failed to create topic %s: %w", t, err)
+		}
 	}
 
 	return &KafkaContainer{
@@ -89,8 +94,10 @@ func NewKafka(ctx context.Context, netCfg ...*NetworkConfig) (*KafkaContainer, e
 		Brokers:       brokers,
 		OrdersTopic:   ordersTopic,
 		DisputesTopic: disputesTopic,
+		PaymentsTopic: paymentsTopic,
 		OrdersGroup:   fmt.Sprintf("test-group-orders-%s", suffix),
 		DisputesGroup: fmt.Sprintf("test-group-disputes-%s", suffix),
+		PaymentsGroup: fmt.Sprintf("test-group-payments-%s", suffix),
 	}, nil
 }
 

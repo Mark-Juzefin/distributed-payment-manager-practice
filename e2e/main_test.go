@@ -4,7 +4,8 @@ package integration_test
 
 import (
 	"TestTaskJustPay/pkg/testinfra"
-	api "TestTaskJustPay/services/api"
+	api "TestTaskJustPay/services/paymanager"
+	sg "TestTaskJustPay/services/silvergate"
 	"context"
 	"fmt"
 	"os"
@@ -19,12 +20,14 @@ func TestMain(m *testing.M) {
 
 	var err error
 	suite, err = testinfra.NewTestSuite(ctx, testinfra.SuiteOptions{
-		WithKafka:    true,
-		WithWiremock: true,
-		MappingsPath: "mappings",
-		WithE2E:      true,
-		ProjectRoot:  "..",
-		MigrationFS:  api.MIGRATION_FS,
+		WithKafka:             true,
+		WithWiremock:          true,
+		WithSilvergate:        true,
+		MappingsPath:          "mappings",
+		WithE2E:               true,
+		ProjectRoot:           "..",
+		MigrationFS:           api.MIGRATION_FS,
+		SilvergateMigrationFS: sg.MigrationFS(),
 	})
 	if err != nil {
 		panic(fmt.Sprintf("Failed to start test suite: %v", err))

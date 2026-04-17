@@ -1,0 +1,51 @@
+# Lightweight infrastructure for local development
+# No Kafka, no OpenSearch, no Patroni cluster, no monitoring
+# Just PostgreSQL + Silvergate DB — enough for HTTP mode
+
+services:
+  postgres:
+    build:
+      dockerfile: ./PG-partman.Dockerfile
+    container_name: postgres-light
+    networks:
+      - paymanager-network
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: secret
+    ports:
+      - '5440:5432'
+    volumes:
+      - postgres-light-data:/var/lib/postgresql/data
+      - ./scripts/init-light-db.sql:/docker-entrypoint-initdb.d/init.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 3s
+      timeout: 3s
+      retries: 10
+
+  silvergate-db:
+    image: postgres:17-alpine
+    container_name: silvergate-db-light
+    networks:
+      - paymanager-network
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: secret
+      POSTGRES_DB: silvergate
+    ports:
+      - '5450:5432'
+    volumes:
+      - silvergate-light-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d silvergate"]
+      interval: 3s
+      timeout: 3s
+      retries: 10
+
+volumes:
+  postgres-light-data:
+  silvergate-light-data:
+
+
+networks:
+  paymanager-network:

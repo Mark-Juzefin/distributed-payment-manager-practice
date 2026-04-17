@@ -1,0 +1,33 @@
+FROM golang:1.26-alpine AS builder
+
+WORKDIR /app
+
+# Copy workspace and ALL module files for dependency caching
+COPY go.work ./
+COPY pkg/go.mod pkg/go.sum ./pkg/
+COPY services/silvergate/go.mod services/silvergate/go.sum ./services/silvergate/
+# Stub other modules referenced in go.work so workspace resolves
+COPY services/paymanager/go.mod services/paymanager/go.sum ./services/paymanager/
+COPY services/ingest/go.mod services/ingest/go.sum ./services/ingest/
+COPY services/cdc/go.mod services/cdc/go.sum ./services/cdc/
+COPY services/analytics/go.mod services/analytics/go.sum ./services/analytics/
+COPY e2e/go.mod e2e/go.sum ./e2e/
+COPY loadtest/go.mod loadtest/go.sum ./loadtest/
+RUN cd services/silvergate && go mod download
+
+# Copy only the source code needed
+COPY pkg/ ./pkg/
+COPY services/silvergate/ ./services/silvergate/
+
+# Build the silvergate binary
+WORKDIR /app/services/silvergate
+RUN CGO_ENABLED=0 GOOS=linux go build -o /silvergate ./cmd
+
+# Final stage
+FROM alpine:latest
+
+RUN apk --no-cache add ca-certificates
+
+COPY --from=builder /silvergate /silvergate
+
+ENTRYPOINT ["/silvergate"]

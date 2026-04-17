@@ -42,6 +42,7 @@ func NewIngestContainer(ctx context.Context, cfg IngestContainerConfig) (*Ingest
 		env["KAFKA_BROKERS"] = cfg.KafkaBrokers
 		env["KAFKA_ORDERS_TOPIC"] = cfg.KafkaTopics.OrdersTopic
 		env["KAFKA_DISPUTES_TOPIC"] = cfg.KafkaTopics.DisputesTopic
+		env["KAFKA_PAYMENTS_TOPIC"] = cfg.KafkaTopics.PaymentsTopic
 	case "http":
 		env["API_BASE_URL"] = cfg.APIBaseURL
 		env["API_TIMEOUT"] = "10s"

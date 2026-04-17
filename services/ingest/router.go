@@ -12,6 +12,7 @@ import (
 type Router struct {
 	order          *handlers.OrderHandler
 	chargeback     *handlers.ChargebackHandler
+	payment        *handlers.PaymentHandler
 	healthRegistry *health.Registry
 }
 
@@ -25,12 +26,14 @@ func (r *Router) SetUp(engine *gin.Engine) {
 	// Webhook endpoints only
 	engine.POST("/webhooks/payments/orders", r.order.Webhook)
 	engine.POST("/webhooks/payments/chargebacks", r.chargeback.Webhook)
+	engine.POST("/webhooks/silvergate", r.payment.Webhook)
 }
 
-func NewRouter(order *handlers.OrderHandler, chargeback *handlers.ChargebackHandler, healthRegistry *health.Registry) *Router {
+func NewRouter(order *handlers.OrderHandler, chargeback *handlers.ChargebackHandler, payment *handlers.PaymentHandler, healthRegistry *health.Registry) *Router {
 	return &Router{
 		order:          order,
 		chargeback:     chargeback,
+		payment:        payment,
 		healthRegistry: healthRegistry,
 	}
 }

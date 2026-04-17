@@ -19,7 +19,7 @@ This is a **learning sandbox** for practicing highload/distributed systems conce
 ## Current Focus
 
 **Active step:** [Payment Domain](docs/roadmap.md) (Step 6)
-**Active feature:** [Payment System Logic](docs/features/007-payment-system-logic/) (Feature 007)
+**Active feature:** [Products & Checkout](docs/features/008-products-and-checkout/) (Feature 008)
 
 Full roadmap: [docs/roadmap.md](docs/roadmap.md)
 

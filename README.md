@@ -25,7 +25,7 @@ Go, PostgreSQL, pg_partman, Docker, MongoDB, OpenSearch, Kafka, testcontainers-g
 
 # Status
 
-Experimenting with **Payment System Logic** — provider routing, multi-provider support, and payment flow orchestration. Previous focus (PostgreSQL HA with Patroni + etcd) is paused with core functionality complete.
+Currently evolving the **Payment Domain** — bottom-up approach. Just finished Feature 007 (Silvergate PSP + PostgreSQL transaction safety). Next: Feature 008 (Products & Checkout) — redesigning Paymanager from building-blocks proxy into business orchestrator with product-driven capture strategy, then Subscription Engine (Temporal) and multi-row transaction deep dive.
 
 # Roadmap
 

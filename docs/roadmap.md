@@ -59,14 +59,16 @@
 
   Building bottom-up: Silvergate (PSP) first, then transaction safety practice, then Paymanager redesign, then subscriptions. Temporary scaffolding in Paymanager is expected while Silvergate matures.
 
-  - **Feature 007:** Payment System Logic ← *active* — [details](features/007-payment-system-logic/)
+  - [x] **Feature 007:** Payment System Logic — [details](features/007-payment-system-logic/)
     Silvergate PSP service (auth/capture/void/refund), mocked bank, webhook callbacks.
-    Temporary Paymanager integration for testing. PostgreSQL transaction safety practice.
-  - **Feature 009:** Products & Checkout — [details](features/009-products-and-checkout/)
+    Temporary Paymanager integration for testing. PostgreSQL transaction safety practice (single-row locking).
+  - **Feature 008:** Products & Checkout ← *next* — [details](features/008-products-and-checkout/)
     Redesign Paymanager as business orchestrator: product catalog, checkout, cancel.
     Clean up legacy order/dispute domains, make capture/void/refund internal.
-  - **Feature 008:** Subscription Engine — [details](features/008-subscription-engine/)
+  - **Feature 009:** Subscription Engine — [details](features/009-subscription-engine/)
     Temporal workflows for recurring billing, dunning, lifecycle state machine.
+  - **Feature 010:** Silvergate Transactions Deep Dive — [details](features/010-silvergate-transactions-deep-dive/)
+    Multi-row transactions: balances, double-entry ledger, concurrent load, deadlocks, isolation level trade-offs.
 
 - **Step 7: Sharding Experiments**
   - Infra approach: Citus, Patroni Operator on K8s, or app-level with duplicated docker-compose — decide before implementation

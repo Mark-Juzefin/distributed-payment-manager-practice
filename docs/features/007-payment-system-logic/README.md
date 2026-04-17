@@ -4,18 +4,18 @@
 
 ## Overview
 
-Build a realistic payment processing pipeline inspired by Solidgate's auth & settle model.
+Build a realistic payment processing pipeline inspired by Solidgate's auth & settle model. **Focus: Silvergate PSP and PostgreSQL transaction safety.**
 
 **Architecture direction:**
 ```
 Banks (mocked) ← Silvergate (PSP) ← Paymanager (merchant) ← Ingest (webhook gateway)
 ```
 
-- **Paymanager** (`services/paymanager`, renamed from `services/api`) — merchant side. Initiates payments, handles webhooks from PSP, manages orders/disputes.
-- **Silvergate** (`services/silvergate`, new) — payment gateway/PSP. Accepts auth/capture/void/refund from merchants, communicates with bank (mocked internally), sends webhooks back.
+- **Silvergate** (`services/silvergate`) — payment gateway/PSP. The primary focus of this feature. Auth/capture/void/refund, mocked bank, webhook callbacks. Transaction safety practice happens here.
+- **Paymanager** (`services/paymanager`) — temporary integration scaffolding to test Silvergate end-to-end. Current payment/order domains overlap and proxy Silvergate building blocks directly. This is intentional — Paymanager will be redesigned in Feature 009 after Silvergate is solid.
 - **Ingest** — stays as webhook ingestion gateway for highload simulation.
 
-Disputes exist but are out of scope until auth/settle flow is solid.
+**Bottom-up approach:** Get Silvergate right first (domain model, transaction safety, concurrency), then build proper business logic on top in Paymanager (Feature 009).
 
 ## Implementation Plan
 
@@ -28,46 +28,29 @@ Disputes exist but are out of scope until auth/settle flow is solid.
 
 ## Tasks
 
-- [x] **Subtask 1:** Rename `services/api` → `services/paymanager` (go.mod, imports, docker-compose, Makefile, configs, tests)
+### Phase 1: Silvergate PSP — core flow (done)
+
+- [x] **Subtask 1:** Rename `services/api` → `services/paymanager`
 - [x] **Subtask 2:** Silvergate service — auth & capture flow, mocked bank, webhook callbacks
-- [x] **Subtask 3:** Paymanager integration — new payment entities, auth/capture requests to Silvergate, webhook handling
+- [x] **Subtask 3:** Paymanager temp integration — payment entities, auth/capture to Silvergate, webhook handling
 - [x] **Subtask 4:** Void — capture_delay + void endpoint (Silvergate + Paymanager)
 - [x] **Subtask 5:** Refund in Silvergate
-- [x] **Subtask 6:** Refund integration in Paymanager
-- [x] **Subtask 7:** Fix concurrent refund race condition (lost update)
+- [x] **Subtask 6:** Refund integration in Paymanager (temporary scaffolding)
 
-  **Bug:** 3 concurrent refunds on a $50 payment (amounts $30 + $40 + $45) all pass validation
-  because each reads `refunded_amount = 0` simultaneously. Result: `refunded_amount = 7000 > 5000`.
+### Phase 2: Transaction safety in Silvergate (active)
 
-  **Fix:** RepeatableRead transaction wraps read + validate + reserve (`refunded_amount += amount`) + create refund.
-  PostgreSQL's first-writer-wins rule aborts concurrent UPDATEs on the same row.
+- [x] **Subtask 7:** Concurrent refund race condition — RepeatableRead transaction
 
-  **Verification (2026-04-15):**
-  ```bash
-  # Create payment $50
-  POST http://localhost:3000/api/v1/payments
-  # body: {"amount":5000,"currency":"USD","card_token":"tok_visa_4242"}
-  # → id: 611f60ba, status: capture_pending → captured (via webhook)
-
-  # 3 concurrent refunds
-  ID=611f60ba-69f0-44a1-acec-f034415725eb
-  curl -s -X POST localhost:3000/api/v1/payments/$ID/refund -d '{"amount":3000}' &
-  curl -s -X POST localhost:3000/api/v1/payments/$ID/refund -d '{"amount":4000}' &
-  curl -s -X POST localhost:3000/api/v1/payments/$ID/refund -d '{"amount":4500}' &
-  wait
-
-  # Results:
-  # $30 → 202 Accepted, refund processed, webhook sent
-  # $40 → 500 (RepeatableRead serialization error — concurrent UPDATE on same row)
-  # $45 → 422 "refund amount exceeds remaining balance" ($45 > $20 remaining)
-  #
-  # Final state: refunded_amount=3000, status=partially_refunded ✓
-  ```
-
+  **Bug:** 3 concurrent refunds on a $50 payment all pass validation (each reads `refunded_amount = 0`).
+  **Fix:** RepeatableRead wraps read + validate + reserve. PostgreSQL's first-writer-wins aborts concurrent UPDATEs.
   **Integration test:** `services/silvergate/domain/transaction/service_integration_test.go`
-  ```bash
-  go test -tags=integration -v -run TestConcurrentRefund_Overdraft ./services/silvergate/domain/transaction/
-  ```
+
+- [x] **Subtask 8:** Capture — RepeatableRead transaction (same pattern as Subtask 7)
+- [x] **Subtask 9:** settleAsync — optimistic locking via `WHERE status = 'capture_pending'` + RowsAffected
+- [ ] **Subtask 10:** Void vs Capture race — SELECT FOR UPDATE to protect concurrent state transitions
+- [ ] **Subtask 11:** CHECK constraint `refunded_amount >= 0` on transactions table
+- [ ] **Subtask 12:** ReleaseRefundAmount — atomic amount + status update in one transaction
+- [ ] **Subtask 13:** refundAsync — retry on failed ReleaseRefundAmount (compensating transaction)
 
 ## Architecture Notes
 
@@ -82,12 +65,11 @@ Disputes exist but are out of scope until auth/settle flow is solid.
 - Own PostgreSQL schema for transactions
 - Webhook sender to notify merchant about async results
 
-**Domain model changes in Paymanager:**
-- New payment/transaction entities (separate from existing orders initially)
-- Existing order/dispute domain stays untouched for now
-
-## Testing Strategy
-(To be filled per subtask)
+**Paymanager (temporary, will be redesigned in Feature 009):**
+- `domain/payment/` — proxies Silvergate building blocks (auth, capture, void, refund) as API endpoints
+- `domain/order/` — legacy webhook-based order tracking, has duplicate capture logic
+- `domain/dispute/` — legacy chargeback handling, tied to old order model
+- These overlap and will be unified in Feature 009
 
 ## Expansion Ideas: PostgreSQL Transactions Deep Dive
 

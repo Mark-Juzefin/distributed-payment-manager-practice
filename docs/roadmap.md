@@ -55,7 +55,18 @@
   - [ ] Backup/restore: pg_basebackup for PITR, restore verification
   - [ ] Replication lag consistency test: demonstrate read-after-write issues
 
-- **Step 6: Payment System Logic** ← *active* — [details](features/007-payment-system-logic/)
+- **Step 6: Payment Domain** ← *active*
+
+  Building bottom-up: Silvergate (PSP) first, then transaction safety practice, then Paymanager redesign, then subscriptions. Temporary scaffolding in Paymanager is expected while Silvergate matures.
+
+  - **Feature 007:** Payment System Logic ← *active* — [details](features/007-payment-system-logic/)
+    Silvergate PSP service (auth/capture/void/refund), mocked bank, webhook callbacks.
+    Temporary Paymanager integration for testing. PostgreSQL transaction safety practice.
+  - **Feature 009:** Products & Checkout — [details](features/009-products-and-checkout/)
+    Redesign Paymanager as business orchestrator: product catalog, checkout, cancel.
+    Clean up legacy order/dispute domains, make capture/void/refund internal.
+  - **Feature 008:** Subscription Engine — [details](features/008-subscription-engine/)
+    Temporal workflows for recurring billing, dunning, lifecycle state machine.
 
 - **Step 7: Sharding Experiments**
   - Infra approach: Citus, Patroni Operator on K8s, or app-level with duplicated docker-compose — decide before implementation
@@ -75,18 +86,7 @@
   - [ ] Postgres access: PgBouncer per service, connection limits
   - [ ] CI/CD: build pipelines, image tagging, per-env configs
 
-- **Step 10: Subscription Engine with Temporal** — [details](features/006-subscription-engine/)
-  - [ ] Temporal dev server setup, new `cmd/subscriptions` service skeleton
-  - [ ] Subscription CRUD API, PostgreSQL schema, domain model (lifecycle state machine)
-  - [ ] Solidgate payment provider mock (Wiremock), tokenized recurring charges
-  - [ ] BillingCycleWorkflow — invoice creation, payment charge, webhook reconciliation
-  - [ ] SubscriptionWorkflow — lifecycle orchestration, billing loop, signals (cancel/pause/resume)
-  - [ ] Dunning & retry logic — exponential retry on decline, past_due state
-  - [ ] Payment method update, invoice history API
-  - [ ] Integration tests with Temporal test framework, E2E with Wiremock
-  - [ ] Observability — Temporal metrics, Grafana dashboard
-
-- **Step 11: Security Foundations**
+- **Step 10: Security Foundations**
   - [ ] TLS: TLS termination on reverse proxy (nginx/traefik), HTTPS for external endpoints
   - [ ] Secrets management: separate config vs secrets, sops/age or docker secrets
   - [ ] Least privilege: separate Postgres roles (migrations user, app RW, readonly)

@@ -2,7 +2,8 @@
 -- +goose StatementBegin
 
 -- Track refunded amount on transactions
-ALTER TABLE transactions ADD COLUMN IF NOT EXISTS refunded_amount BIGINT NOT NULL DEFAULT 0;
+ALTER TABLE transactions ADD COLUMN IF NOT EXISTS refunded_amount BIGINT NOT NULL DEFAULT 0
+    CONSTRAINT chk_refunded_amount_non_negative CHECK (refunded_amount >= 0);
 
 -- Update status constraint to include refund states
 ALTER TABLE transactions DROP CONSTRAINT IF EXISTS transactions_status_check;

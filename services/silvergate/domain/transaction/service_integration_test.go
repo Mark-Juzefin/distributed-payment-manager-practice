@@ -361,3 +361,26 @@ func TestVoidVsCapture_Race(t *testing.T) {
 	assert.True(t, voidOK != captureOK,
 		"exactly one should succeed: void=%v, capture=%v", voidOK, captureOK)
 }
+
+// TestRefundedAmount_CannotGoNegative verifies that the DB rejects
+// refunded_amount going below zero. Without a CHECK constraint,
+// ReleaseRefundAmount can produce negative values on buggy input.
+func TestRefundedAmount_CannotGoNegative(t *testing.T) {
+	ctx := context.Background()
+
+	repo := txrepo.NewPgTransactionRepo(pg.Pool)
+
+	// Create a captured transaction with refunded_amount = 1000
+	tx := transaction.NewAuthorized("merchant_chk", fmt.Sprintf("chk_%d", time.Now().UnixNano()), 5000, "USD", "tok_chk")
+	require.NoError(t, repo.Create(ctx, tx))
+
+	_, err := pg.Pool.Exec(ctx,
+		"UPDATE transactions SET status = 'captured', refunded_amount = 1000 WHERE id = $1", tx.ID)
+	require.NoError(t, err)
+
+	// Try to release 2000 — should fail because 1000 - 2000 = -1000
+	err = repo.ReleaseRefundAmount(ctx, tx.ID, 2000)
+
+	assert.Error(t, err, "releasing more than refunded_amount should be rejected by CHECK constraint")
+	t.Logf("release error: %v", err)
+}

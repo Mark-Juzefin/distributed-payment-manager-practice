@@ -304,3 +304,60 @@ func TestSettleAsync_BlindUpdate(t *testing.T) {
 	assert.Equal(t, transaction.StatusVoided, tx.Status,
 		"settleAsync should not overwrite status changed by another operation")
 }
+
+// TestVoidVsCapture_Race proves that without SELECT FOR UPDATE, a concurrent
+// Capture can slip through while Void is calling the acquirer.
+//
+// Scenario:
+//  1. Void and Capture start concurrently on the same authorized transaction
+//  2. Without FOR UPDATE, both read status=authorized and proceed
+//  3. Both succeed — void calls acquirer AND capture calls acquirer
+//
+// Expected: exactly one succeeds, the other is rejected.
+func TestVoidVsCapture_Race(t *testing.T) {
+	ctx := context.Background()
+
+	repo := txrepo.NewPgTransactionRepo(pg.Pool)
+	// Slow void (200ms), fast settle (50ms) — Void holds lock while calling acquirer
+	acq := acquirer.NewMockAcquirer(1.0, 1.0, 50*time.Millisecond)
+	wh := newStubWebhooks()
+	txRepoFactory := func(tx postgres.Executor) transaction.Repo {
+		return txrepo.NewPgTransactionRepo(tx)
+	}
+	svc := transaction.NewService(repo, acq, wh, slog.Default(), pg, txRepoFactory)
+
+	auth, err := svc.Authorize(ctx, transaction.AuthRequest{
+		MerchantID: "merchant_void_cap",
+		OrderID:    fmt.Sprintf("void_cap_%d", time.Now().UnixNano()),
+		Amount:     5000,
+		Currency:   "USD",
+		CardToken:  "tok_void_cap",
+	})
+	require.NoError(t, err)
+
+	// Fire Void and Capture concurrently
+	var voidErr, captureErr error
+	var wg sync.WaitGroup
+	wg.Add(2)
+	go func() {
+		defer wg.Done()
+		_, voidErr = svc.Void(ctx, auth.TransactionID)
+	}()
+	go func() {
+		defer wg.Done()
+		_, captureErr = svc.Capture(ctx, transaction.CaptureRequest{
+			TransactionID:  auth.TransactionID,
+			Amount:         5000,
+			IdempotencyKey: fmt.Sprintf("cap_void_%d", time.Now().UnixNano()),
+		})
+	}()
+	wg.Wait()
+
+	t.Logf("void err: %v, capture err: %v", voidErr, captureErr)
+
+	// Exactly one should succeed
+	voidOK := voidErr == nil
+	captureOK := captureErr == nil
+	assert.True(t, voidOK != captureOK,
+		"exactly one should succeed: void=%v, capture=%v", voidOK, captureOK)
+}

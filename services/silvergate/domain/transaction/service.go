@@ -254,31 +254,42 @@ type VoidResponse struct {
 }
 
 func (s *Service) Void(ctx context.Context, txID uuid.UUID) (VoidResponse, error) {
-	tx, err := s.repo.GetByID(ctx, txID)
-	if err != nil {
-		return VoidResponse{}, fmt.Errorf("get transaction: %w", err)
-	}
+	var tx *Transaction
 
-	if err := tx.MarkVoided(); err != nil {
+	err := s.transactor.InTransaction(ctx, pgx.ReadCommitted, func(dbTx postgres.Executor) error {
+		txRepo := s.txRepo(dbTx)
+
+		var err error
+		tx, err = txRepo.GetByIDForUpdate(ctx, txID)
+		if err != nil {
+			return fmt.Errorf("get transaction: %w", err)
+		}
+
+		if err := tx.MarkVoided(); err != nil {
+			return err
+		}
+
+		// Void with bank (sync) — row is locked, no concurrent capture can proceed
+		result, err := s.acq.Void(ctx, tx.ID.String())
+		if err != nil {
+			return fmt.Errorf("acquirer void: %w", err)
+		}
+		if !result.Success {
+			return fmt.Errorf("void rejected: %s", result.Reason)
+		}
+
+		if err := txRepo.UpdateStatus(ctx, tx); err != nil {
+			return fmt.Errorf("update transaction: %w", err)
+		}
+
+		return nil
+	})
+	if err != nil {
 		return VoidResponse{}, err
-	}
-
-	// Void with bank (sync — void is fast)
-	result, err := s.acq.Void(ctx, tx.ID.String())
-	if err != nil {
-		return VoidResponse{}, fmt.Errorf("acquirer void: %w", err)
-	}
-	if !result.Success {
-		return VoidResponse{}, fmt.Errorf("void rejected: %s", result.Reason)
-	}
-
-	if err := s.repo.UpdateStatus(ctx, tx); err != nil {
-		return VoidResponse{}, fmt.Errorf("update transaction: %w", err)
 	}
 
 	s.log.Info("transaction voided", "transaction_id", tx.ID)
 
-	// Send webhook async
 	go func() {
 		if err := s.webhooks.SendCaptureResult(context.Background(), tx); err != nil {
 			s.log.Error("failed to send void webhook", "transaction_id", tx.ID, "error", err)

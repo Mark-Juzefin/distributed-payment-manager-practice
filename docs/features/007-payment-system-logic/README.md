@@ -47,7 +47,7 @@ Banks (mocked) ← Silvergate (PSP) ← Paymanager (merchant) ← Ingest (webhoo
 
 - [x] **Subtask 8:** Capture — RepeatableRead transaction (same pattern as Subtask 7)
 - [x] **Subtask 9:** settleAsync — optimistic locking via `WHERE status = 'capture_pending'` + RowsAffected
-- [ ] **Subtask 10:** Void vs Capture race — SELECT FOR UPDATE to protect concurrent state transitions
+- [x] **Subtask 10:** Void vs Capture race — SELECT FOR UPDATE to protect concurrent state transitions
 - [ ] **Subtask 11:** CHECK constraint `refunded_amount >= 0` on transactions table
 - [ ] **Subtask 12:** ReleaseRefundAmount — atomic amount + status update in one transaction
 - [ ] **Subtask 13:** refundAsync — retry on failed ReleaseRefundAmount (compensating transaction)

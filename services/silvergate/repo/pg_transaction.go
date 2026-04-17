@@ -93,6 +93,47 @@ func (r *PgTransactionRepo) GetByID(ctx context.Context, id uuid.UUID) (*transac
 	return &tx, nil
 }
 
+func (r *PgTransactionRepo) GetByIDForUpdate(ctx context.Context, id uuid.UUID) (*transaction.Transaction, error) {
+	query, args, err := psql.
+		Select(
+			"id", "merchant_id", "order_ref", "amount", "currency",
+			"card_token", "status", "decline_reason", "idempotency_key",
+			"refunded_amount", "created_at", "updated_at",
+		).
+		From("transactions").
+		Where(sq.Eq{"id": id}).
+		Suffix("FOR UPDATE").
+		ToSql()
+	if err != nil {
+		return nil, fmt.Errorf("build select for update: %w", err)
+	}
+
+	row := r.db.QueryRow(ctx, query, args...)
+
+	var tx transaction.Transaction
+	var declineReason, idempotencyKey *string
+	err = row.Scan(
+		&tx.ID, &tx.MerchantID, &tx.OrderRef, &tx.Amount, &tx.Currency,
+		&tx.CardToken, &tx.Status, &declineReason, &idempotencyKey,
+		&tx.RefundedAmount, &tx.CreatedAt, &tx.UpdatedAt,
+	)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return nil, transaction.ErrNotFound
+		}
+		return nil, fmt.Errorf("scan transaction: %w", err)
+	}
+
+	if declineReason != nil {
+		tx.DeclineReason = *declineReason
+	}
+	if idempotencyKey != nil {
+		tx.IdempotencyKey = *idempotencyKey
+	}
+
+	return &tx, nil
+}
+
 func (r *PgTransactionRepo) UpdateStatus(ctx context.Context, tx *transaction.Transaction) error {
 	query, args, err := psql.
 		Update("transactions").

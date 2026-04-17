@@ -9,6 +9,7 @@ import (
 type Repo interface {
 	Create(ctx context.Context, tx *Transaction) error
 	GetByID(ctx context.Context, id uuid.UUID) (*Transaction, error)
+	GetByIDForUpdate(ctx context.Context, id uuid.UUID) (*Transaction, error)
 	UpdateStatus(ctx context.Context, tx *Transaction) error
 	CompareAndUpdateStatus(ctx context.Context, id uuid.UUID, expected, next Status) error
 	UpdateRefund(ctx context.Context, tx *Transaction) error

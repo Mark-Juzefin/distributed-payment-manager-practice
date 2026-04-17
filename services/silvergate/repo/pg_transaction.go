@@ -243,7 +243,11 @@ func (r *PgTransactionRepo) UpdateRefundStatus(ctx context.Context, refund *tran
 }
 
 func (r *PgTransactionRepo) ReleaseRefundAmount(ctx context.Context, txID uuid.UUID, amount int64) error {
-	query := "UPDATE transactions SET refunded_amount = refunded_amount - $1, updated_at = now() WHERE id = $2"
+	query := `UPDATE transactions
+		SET refunded_amount = refunded_amount - $1,
+		    status = CASE WHEN refunded_amount - $1 <= 0 THEN 'captured' ELSE 'partially_refunded' END,
+		    updated_at = now()
+		WHERE id = $2`
 	_, err := r.db.Exec(ctx, query, amount, txID)
 	if err != nil {
 		return fmt.Errorf("release refund amount: %w", err)

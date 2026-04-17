@@ -384,3 +384,58 @@ func TestRefundedAmount_CannotGoNegative(t *testing.T) {
 	assert.Error(t, err, "releasing more than refunded_amount should be rejected by CHECK constraint")
 	t.Logf("release error: %v", err)
 }
+
+// TestReleaseRefundAmount_UpdatesStatus verifies that releasing refund amount
+// also updates the transaction status atomically. Without this, a failed refund
+// release can leave status=partially_refunded with refunded_amount=0.
+func TestReleaseRefundAmount_UpdatesStatus(t *testing.T) {
+	ctx := context.Background()
+
+	repo := txrepo.NewPgTransactionRepo(pg.Pool)
+	acq := acquirer.NewMockAcquirer(1.0, 0.0, 50*time.Millisecond) // 0% refund success
+	wh := newStubWebhooks()
+	txRepoFactory := func(tx postgres.Executor) transaction.Repo {
+		return txrepo.NewPgTransactionRepo(tx)
+	}
+	svc := transaction.NewService(repo, acq, wh, slog.Default(), pg, txRepoFactory)
+
+	// Auth + Capture
+	auth, err := svc.Authorize(ctx, transaction.AuthRequest{
+		MerchantID: "merchant_release",
+		OrderID:    fmt.Sprintf("release_%d", time.Now().UnixNano()),
+		Amount:     5000,
+		Currency:   "USD",
+		CardToken:  "tok_release",
+	})
+	require.NoError(t, err)
+
+	_, err = svc.Capture(ctx, transaction.CaptureRequest{
+		TransactionID:  auth.TransactionID,
+		Amount:         5000,
+		IdempotencyKey: fmt.Sprintf("cap_rel_%d", time.Now().UnixNano()),
+	})
+	require.NoError(t, err)
+	wh.waitCaptures(1, t)
+
+	// Refund $30 — will be reserved in tx, but acquirer will reject (0% success)
+	_, err = svc.Refund(ctx, transaction.RefundRequest{
+		TransactionID:  auth.TransactionID,
+		Amount:         3000,
+		IdempotencyKey: fmt.Sprintf("ref_rel_%d", time.Now().UnixNano()),
+	})
+	require.NoError(t, err)
+
+	// Wait for async refund processing (acquirer rejects → release)
+	wh.waitRefunds(1, t)
+
+	// After release: refunded_amount should be 0 AND status should be 'captured'
+	tx, err := repo.GetByID(ctx, auth.TransactionID)
+	require.NoError(t, err)
+
+	t.Logf("after release: refunded_amount=%d, status=%s", tx.RefundedAmount, tx.Status)
+
+	assert.Equal(t, int64(0), tx.RefundedAmount,
+		"refunded_amount should be 0 after failed refund release")
+	assert.Equal(t, transaction.StatusCaptured, tx.Status,
+		"status should revert to 'captured' when all refunds released")
+}

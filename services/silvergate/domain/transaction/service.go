@@ -236,10 +236,21 @@ func (s *Service) refundAsync(tx *Transaction, refund *Refund) {
 		return
 	}
 
-	// Acquirer rejected — release the reserved amount
+	// Acquirer rejected — release the reserved amount with retry
 	if refund.Status == RefundStatusFailed {
-		if err := s.repo.ReleaseRefundAmount(ctx, tx.ID, refund.Amount); err != nil {
-			s.log.Error("failed to release refund amount", "refund_id", refund.ID, "error", err)
+		const maxRetries = 3
+		for attempt := range maxRetries {
+			err := s.repo.ReleaseRefundAmount(ctx, tx.ID, refund.Amount)
+			if err == nil {
+				if attempt > 0 {
+					s.log.Info("refund amount released after retry",
+						"refund_id", refund.ID, "attempt", attempt+1)
+				}
+				break
+			}
+			s.log.Error("failed to release refund amount",
+				"refund_id", refund.ID, "attempt", attempt+1, "error", err)
+			time.Sleep(time.Duration(attempt+1) * 100 * time.Millisecond)
 		}
 	}
 

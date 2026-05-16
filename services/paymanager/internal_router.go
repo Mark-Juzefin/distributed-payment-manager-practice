@@ -1,24 +1,22 @@
 package api
 
 import (
-	"TestTaskJustPay/services/paymanager/handlers/updates"
+	"TestTaskJustPay/services/paymanager/updates"
 
 	"github.com/gin-gonic/gin"
 )
 
 // InternalRouter sets up routes for internal service-to-service communication.
-// These endpoints are used by Ingest service to forward webhooks to API service.
 type InternalRouter struct {
-	updates *updates.UpdatesHandler
+	updates *updates.Handler
 }
 
-func NewInternalRouter(updates *updates.UpdatesHandler) *InternalRouter {
+func NewInternalRouter(updates *updates.Handler) *InternalRouter {
 	return &InternalRouter{
 		updates: updates,
 	}
 }
 
-// SetUp registers internal routes on the Gin engine.
 func (r *InternalRouter) SetUp(engine *gin.Engine) {
 	internalGroup := engine.Group("/internal")
 	{

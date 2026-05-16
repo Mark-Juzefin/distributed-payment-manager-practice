@@ -1,7 +1,7 @@
 package silvergate
 
 import (
-	"TestTaskJustPay/services/paymanager/domain/gateway"
+	"TestTaskJustPay/services/paymanager/gateway"
 	"bytes"
 	"context"
 	"encoding/json"

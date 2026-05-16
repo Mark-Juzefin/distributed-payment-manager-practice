@@ -7,14 +7,14 @@ import (
 	"TestTaskJustPay/pkg/kafka"
 	"TestTaskJustPay/pkg/messaging"
 	"TestTaskJustPay/services/paymanager/config"
-	"TestTaskJustPay/services/paymanager/consumers"
-	"TestTaskJustPay/services/paymanager/domain/dispute"
-	"TestTaskJustPay/services/paymanager/domain/order"
-	"TestTaskJustPay/services/paymanager/domain/payment"
+	"TestTaskJustPay/services/paymanager/dispute"
+	disputectrl "TestTaskJustPay/services/paymanager/dispute/controller"
+	"TestTaskJustPay/services/paymanager/order"
+	orderctrl "TestTaskJustPay/services/paymanager/order/controller"
+	"TestTaskJustPay/services/paymanager/payment"
+	paymentctrl "TestTaskJustPay/services/paymanager/payment/controller"
 )
 
-// StartWorkers starts Kafka consumers for order and dispute processing.
-// It runs in a separate goroutine and will stop when ctx is cancelled.
 func StartWorkers(
 	ctx context.Context,
 	cfg config.Config,
@@ -22,14 +22,14 @@ func StartWorkers(
 	disputeService *dispute.DisputeService,
 	paymentService *payment.PaymentService,
 ) {
-	// Create DLQ publishers
 	orderDLQPub := kafka.NewDLQPublisher(cfg.KafkaBrokers, cfg.KafkaOrdersDLQTopic)
 	disputeDLQPub := kafka.NewDLQPublisher(cfg.KafkaBrokers, cfg.KafkaDisputesDLQTopic)
+	paymentDLQPub := kafka.NewDLQPublisher(cfg.KafkaBrokers, cfg.KafkaPaymentsDLQTopic)
 	defer orderDLQPub.Close()
 	defer disputeDLQPub.Close()
+	defer paymentDLQPub.Close()
 
-	// Order consumer with metrics + retry + DLQ middleware
-	orderController := consumers.NewOrderMessageController(orderService)
+	orderController := orderctrl.NewKafkaHandler(orderService)
 	orderHandler := messaging.WithMetrics(
 		cfg.KafkaOrdersTopic,
 		cfg.KafkaOrdersConsumerGroup,
@@ -38,15 +38,12 @@ func StartWorkers(
 			orderDLQPub,
 		),
 	)
-	orderConsumer := kafka.NewConsumer(
-		cfg.KafkaBrokers,
-		cfg.KafkaOrdersTopic,
-		cfg.KafkaOrdersConsumerGroup,
+	orderRunner := messaging.NewRunner(
+		[]messaging.Worker{kafka.NewConsumer(cfg.KafkaBrokers, cfg.KafkaOrdersTopic, cfg.KafkaOrdersConsumerGroup)},
+		orderHandler,
 	)
-	orderRunner := messaging.NewRunner([]messaging.Worker{orderConsumer}, orderHandler)
 
-	// Dispute consumer with metrics + retry + DLQ middleware
-	disputeController := consumers.NewDisputeMessageController(disputeService)
+	disputeController := disputectrl.NewKafkaHandler(disputeService)
 	disputeHandler := messaging.WithMetrics(
 		cfg.KafkaDisputesTopic,
 		cfg.KafkaDisputesConsumerGroup,
@@ -55,14 +52,25 @@ func StartWorkers(
 			disputeDLQPub,
 		),
 	)
-	disputeConsumer := kafka.NewConsumer(
-		cfg.KafkaBrokers,
-		cfg.KafkaDisputesTopic,
-		cfg.KafkaDisputesConsumerGroup,
+	disputeRunner := messaging.NewRunner(
+		[]messaging.Worker{kafka.NewConsumer(cfg.KafkaBrokers, cfg.KafkaDisputesTopic, cfg.KafkaDisputesConsumerGroup)},
+		disputeHandler,
 	)
-	disputeRunner := messaging.NewRunner([]messaging.Worker{disputeConsumer}, disputeHandler)
 
-	// Start order runner in background
+	paymentController := paymentctrl.NewKafkaHandler(paymentService)
+	paymentHandler := messaging.WithMetrics(
+		cfg.KafkaPaymentsTopic,
+		cfg.KafkaPaymentsConsumerGroup,
+		messaging.WithDLQ(
+			messaging.WithRetry(paymentController.HandleMessage, messaging.DefaultRetryConfig()),
+			paymentDLQPub,
+		),
+	)
+	paymentRunner := messaging.NewRunner(
+		[]messaging.Worker{kafka.NewConsumer(cfg.KafkaBrokers, cfg.KafkaPaymentsTopic, cfg.KafkaPaymentsConsumerGroup)},
+		paymentHandler,
+	)
+
 	go func() {
 		slog.Info("Starting order webhook consumer",
 			"topic", cfg.KafkaOrdersTopic,
@@ -72,7 +80,6 @@ func StartWorkers(
 		}
 	}()
 
-	// Start dispute runner in background
 	go func() {
 		slog.Info("Starting dispute webhook consumer",
 			"topic", cfg.KafkaDisputesTopic,
@@ -81,26 +88,6 @@ func StartWorkers(
 			slog.Error("Dispute runner failed", slog.Any("error", err))
 		}
 	}()
-
-	// Payment consumer with metrics + retry + DLQ middleware
-	paymentDLQPub := kafka.NewDLQPublisher(cfg.KafkaBrokers, cfg.KafkaPaymentsDLQTopic)
-	defer paymentDLQPub.Close()
-
-	paymentController := consumers.NewPaymentMessageController(paymentService)
-	paymentHandler := messaging.WithMetrics(
-		cfg.KafkaPaymentsTopic,
-		cfg.KafkaPaymentsConsumerGroup,
-		messaging.WithDLQ(
-			messaging.WithRetry(paymentController.HandleMessage, messaging.DefaultRetryConfig()),
-			paymentDLQPub,
-		),
-	)
-	paymentConsumer := kafka.NewConsumer(
-		cfg.KafkaBrokers,
-		cfg.KafkaPaymentsTopic,
-		cfg.KafkaPaymentsConsumerGroup,
-	)
-	paymentRunner := messaging.NewRunner([]messaging.Worker{paymentConsumer}, paymentHandler)
 
 	go func() {
 		slog.Info("Starting payment webhook consumer",

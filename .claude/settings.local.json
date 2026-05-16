@@ -1,0 +1,10 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(go build *)",
+      "Bash(go test *)",
+      "Bash(sed -i 's/^package handler$/package controller/' payment/controller/payment_handler_http.go dispute/controller/dispute_handler_http.go order/controller/order_handler_http.go)",
+      "Bash(sed -i 's/^package consumer$/package controller/' payment/controller/payment_handler_kafka.go dispute/controller/dispute_handler_kafka.go order/controller/order_handler_kafka.go)"
+    ]
+  }
+}

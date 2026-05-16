@@ -15,18 +15,20 @@ import (
 	"TestTaskJustPay/pkg/logger"
 	"TestTaskJustPay/pkg/postgres"
 	"TestTaskJustPay/services/paymanager/config"
-	"TestTaskJustPay/services/paymanager/domain/dispute"
-	"TestTaskJustPay/services/paymanager/domain/order"
-	"TestTaskJustPay/services/paymanager/domain/payment"
+	"TestTaskJustPay/services/paymanager/dispute"
+	disputerepo "TestTaskJustPay/services/paymanager/dispute/repo"
+	"TestTaskJustPay/services/paymanager/events"
+	eventsrepo "TestTaskJustPay/services/paymanager/events/repo"
 	"TestTaskJustPay/services/paymanager/external/silvergate"
-	"TestTaskJustPay/services/paymanager/handlers"
-	"TestTaskJustPay/services/paymanager/handlers/updates"
-	dispute_repo "TestTaskJustPay/services/paymanager/repo/dispute"
-	"TestTaskJustPay/services/paymanager/repo/dispute_eventsink"
-	events_repo "TestTaskJustPay/services/paymanager/repo/events"
-	order_repo "TestTaskJustPay/services/paymanager/repo/order"
-	"TestTaskJustPay/services/paymanager/repo/order_eventsink"
-	payment_repo "TestTaskJustPay/services/paymanager/repo/payment"
+	"TestTaskJustPay/services/paymanager/order"
+	orderrepo "TestTaskJustPay/services/paymanager/order/repo"
+	"TestTaskJustPay/services/paymanager/payment"
+	paymentrepo "TestTaskJustPay/services/paymanager/payment/repo"
+
+	disputectrl "TestTaskJustPay/services/paymanager/dispute/controller"
+	orderctrl "TestTaskJustPay/services/paymanager/order/controller"
+	paymentctrl "TestTaskJustPay/services/paymanager/payment/controller"
+	"TestTaskJustPay/services/paymanager/updates"
 )
 
 //go:embed migrations/*.sql
@@ -38,7 +40,6 @@ func Run(cfg config.Config) {
 		Console: strings.ToLower(os.Getenv("LOG_FORMAT")) == "console",
 	})
 
-	// Setup graceful shutdown
 	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer cancel()
 
@@ -51,7 +52,6 @@ func Run(cfg config.Config) {
 	}
 	defer pool.Close()
 
-	// Read pool: replica if configured, otherwise same as primary
 	var readDB postgres.Executor = pool.Pool
 	var readPG *postgres.Postgres
 	if cfg.PgReplicaURL != "" {
@@ -65,10 +65,12 @@ func Run(cfg config.Config) {
 		slog.Info("Read replica pool configured")
 	}
 
-	orderRepo := order_repo.NewPgOrderRepo(pool, readDB)
-	disputeRepo := dispute_repo.NewPgDisputeRepo(pool, readDB)
-	disputeEvents := dispute_eventsink.NewPgEventRepo(pool.Pool, readDB, pool.Builder)
-	orderEvents := order_eventsink.NewPgOrderEventRepo(pool.Pool, readDB, pool.Builder)
+	// Repositories
+	orderRepo := orderrepo.New(pool, readDB)
+	orderEvents := orderrepo.NewEventSink(pool.Pool, readDB, pool.Builder)
+	disputeRepo := disputerepo.New(pool, readDB)
+	disputeEvents := disputerepo.NewEventSink(pool.Pool, readDB, pool.Builder)
+	paymentRepo := paymentrepo.New(pool, readDB)
 
 	silvergateClient := silvergate.New(
 		cfg.SilvergateBaseURL,
@@ -79,24 +81,42 @@ func Run(cfg config.Config) {
 		&http.Client{Timeout: cfg.HTTPSilvergateClientTimeout},
 	)
 
+	// Event store factory (shared across services)
+	eventStoreFactory := eventsrepo.TxStoreFactory(pool.Builder)
+
 	// Services
-	eventStoreFactory := events_repo.TxStoreFactory(pool.Builder)
-	orderService := order.NewOrderService(pool, order_repo.TxRepoFactory(pool.Builder), eventStoreFactory, orderRepo, silvergateClient, orderEvents)
-	disputeService := dispute.NewDisputeService(pool, dispute_repo.TxRepoFactory(pool.Builder), eventStoreFactory, disputeRepo, silvergateClient, disputeEvents)
+	orderService := order.NewOrderService(
+		pool,
+		orderrepo.TxRepoFactory(pool.Builder),
+		eventStoreFactory,
+		orderRepo,
+		silvergateClient,
+		orderEvents,
+	)
+	disputeService := dispute.NewDisputeService(
+		pool,
+		disputerepo.TxRepoFactory(pool.Builder),
+		eventStoreFactory,
+		disputeRepo,
+		silvergateClient,
+		disputeEvents,
+	)
+	paymentService := payment.NewPaymentService(
+		pool,
+		paymentrepo.TxRepoFactory(pool.Builder),
+		eventStoreFactory,
+		paymentRepo,
+		silvergateClient,
+		cfg.MerchantID,
+	)
 
-	paymentRepo := payment_repo.NewPgPaymentRepo(pool, readDB)
-	paymentService := payment.NewPaymentService(pool, payment_repo.TxRepoFactory(pool.Builder), eventStoreFactory, paymentRepo, silvergateClient, cfg.MerchantID)
+	// Handlers
+	orderH := orderctrl.NewHTTPHandler(orderService)
+	disputeH := disputectrl.NewHTTPHandler(disputeService)
+	paymentH := paymentctrl.NewHTTPHandler(paymentService)
+	updatesH := updates.New(orderService, disputeService, paymentService)
 
-	// Handlers (clean - no processor dependency)
-	orderHandler := handlers.NewOrderHandler(orderService)
-	chargebackHandler := handlers.NewChargebackHandler(disputeService)
-	disputeHandler := handlers.NewDisputeHandler(disputeService)
-	paymentHandler := handlers.NewPaymentHandler(paymentService)
-
-	// Internal handlers (for service-to-service communication)
-	updatesHandler := updates.NewUpdatesHandler(orderService, disputeService, paymentService)
-
-	// Health checks registry
+	// Health checks
 	var healthCheckers []health.Checker
 	healthCheckers = append(healthCheckers, health.NewPostgresChecker(pool.Pool))
 	if readPG != nil {
@@ -107,28 +127,26 @@ func Run(cfg config.Config) {
 	}
 	healthRegistry := health.NewRegistry(healthCheckers...)
 
-	// Router (API endpoints only)
-	router := NewRouter(orderHandler, chargebackHandler, disputeHandler, paymentHandler, healthRegistry)
+	// Routers
+	router := NewRouter(orderH, disputeH, paymentH, healthRegistry)
 	router.SetUp(engine)
 
-	// Internal router (service-to-service endpoints)
-	internalRouter := NewInternalRouter(updatesHandler)
+	internalRouter := NewInternalRouter(updatesH)
 	internalRouter.SetUp(engine)
 
-	// Apply migrations
+	// Migrations
 	err = ApplyMigrations(cfg.PgURL, MIGRATION_FS)
 	if err != nil {
 		slog.Error("Failed to apply migrations", slog.Any("error", err))
 		os.Exit(1)
 	}
 
-	// Start Kafka consumers if in kafka mode
+	// Kafka consumers
 	if cfg.WebhookMode == "kafka" {
 		slog.Info("Webhook mode: kafka - starting Kafka consumers")
 		StartWorkers(ctx, cfg, orderService, disputeService, paymentService)
 	}
 
-	// Start HTTP server in a goroutine
 	go func() {
 		slog.Info("Starting API HTTP server", "port", cfg.Port)
 		if err := engine.Run(fmt.Sprintf(":%d", cfg.Port)); err != nil {
@@ -136,7 +154,14 @@ func Run(cfg config.Config) {
 		}
 	}()
 
-	// Wait for shutdown signal
 	<-ctx.Done()
 	slog.Info("Shutting down API service gracefully...")
 }
+
+// Compile-time checks: silvergate client must satisfy all domain Provider interfaces.
+var (
+	_ order.Provider   = (*silvergate.Client)(nil)
+	_ dispute.Provider = (*silvergate.Client)(nil)
+	_ payment.Provider = (*silvergate.Client)(nil)
+	_ events.Store     = nil // events.Store is satisfied by eventsrepo.PgEventStore
+)

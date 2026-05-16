@@ -75,7 +75,8 @@ Current state after Feature 007: three overlapping domains in Paymanager:
 - `domain/payment/` — newer auth/capture/void/refund that proxies Silvergate building blocks
 - `domain/dispute/` — legacy chargeback handling tied to old order model
 
-- [ ] **Subtask 1:** Audit and plan domain consolidation — decide what stays, what gets removed, what merges
+- [x] **Subtask 1:** Audit and plan domain consolidation — decide what stays, what gets removed, what merges
+  **Plan:** [plan-subtask-1.md](plan-subtask-1.md)
 - [ ] **Subtask 2:** Remove legacy order capture endpoint (`POST /orders/:order_id/capture`) and related proxy logic
 - [ ] **Subtask 3:** Consolidate payment domain — single clean domain that owns the payment lifecycle internally
 - [ ] **Subtask 4:** Decide dispute fate — keep as-is, migrate to new model, or defer to later feature
@@ -99,5 +100,26 @@ Current state after Feature 007: three overlapping domains in Paymanager:
 ## Notes
 - Created: 2026-04-17
 - Builds on top of Feature 007 (Silvergate must be solid before this starts)
-- Existing `payment/service.go` already has `captureInBackground()` and `captureWithDelay()` — reuse them
+- Existing `payment/payment_service.go` already has `captureInBackground()` and `captureWithDelay()` — reuse them
 - Silvergate stays unchanged — it's still the PSP with building-block API
+
+## Session Log
+
+### 2026-05-15 — Subtask 1 completed
+
+**Архітектурні рішення прийняті:**
+- Package-by-feature (Variant B): кожен домен самодостатній
+- ISP: кожен домен визначає свій мінімальний `Provider` interface, silvergate client задовольняє всі неявно
+- `gateway/` — тільки shared DTOs, без interface
+- `events/` — shared пакет на рівні paymanager
+
+**Структура підпакетів:**
+- `controller/` — input adapters (HTTP + Kafka в одній папці)
+  - `payment_handler_http.go` / `payment_handler_kafka.go`
+- `repo/` — output adapters (PostgreSQL)
+  - `pg_payment_repo.go`, `pg_dispute_event_sink.go` тощо
+- Описові імена файлів скрізь, `errors.go` і `entity.go` залишені без префіксу
+
+**Що видалено:** `domain/`, `handlers/`, `consumers/`, `repo/` (старі), `dto/`
+
+**Наступний крок:** Subtask 2 — прибрати legacy `POST /orders/:order_id/capture` endpoint і `order.Provider` interface

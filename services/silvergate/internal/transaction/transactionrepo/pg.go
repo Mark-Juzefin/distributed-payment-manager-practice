@@ -1,4 +1,4 @@
-package repo
+package transactionrepo
 
 import (
 	"context"
@@ -6,7 +6,7 @@ import (
 	"fmt"
 
 	"TestTaskJustPay/pkg/postgres"
-	"TestTaskJustPay/services/silvergate/domain/transaction"
+	"TestTaskJustPay/services/silvergate/internal/transaction"
 
 	sq "github.com/Masterminds/squirrel"
 	"github.com/google/uuid"

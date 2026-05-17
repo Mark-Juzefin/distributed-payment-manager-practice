@@ -1,9 +1,9 @@
-package handlers
+package transactioncontroller
 
 import (
 	"net/http"
 
-	"TestTaskJustPay/services/silvergate/domain/transaction"
+	"TestTaskJustPay/services/silvergate/internal/transaction"
 
 	"github.com/gin-gonic/gin"
 )

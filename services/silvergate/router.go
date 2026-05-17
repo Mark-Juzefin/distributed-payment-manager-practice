@@ -1,12 +1,12 @@
 package silvergate
 
 import (
-	"TestTaskJustPay/services/silvergate/handlers"
+	"TestTaskJustPay/services/silvergate/internal/transaction/transactioncontroller"
 
 	"github.com/gin-gonic/gin"
 )
 
-func setupRouter(engine *gin.Engine, authH *handlers.AuthHandler, captureH *handlers.CaptureHandler, voidH *handlers.VoidHandler, refundH *handlers.RefundHandler) {
+func setupRouter(engine *gin.Engine, authH *transactioncontroller.AuthHandler, captureH *transactioncontroller.CaptureHandler, voidH *transactioncontroller.VoidHandler, refundH *transactioncontroller.RefundHandler) {
 	api := engine.Group("/api/v1")
 	{
 		api.POST("/auth", authH.Handle)

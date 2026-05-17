@@ -6,6 +6,7 @@ import (
 	"github.com/google/uuid"
 )
 
+// Repo is the persistence contract for transactions and refunds.
 type Repo interface {
 	Create(ctx context.Context, tx *Transaction) error
 	GetByID(ctx context.Context, id uuid.UUID) (*Transaction, error)
@@ -16,4 +17,10 @@ type Repo interface {
 	CreateRefund(ctx context.Context, refund *Refund) error
 	UpdateRefundStatus(ctx context.Context, refund *Refund) error
 	ReleaseRefundAmount(ctx context.Context, txID uuid.UUID, amount int64) error
+}
+
+// WebhookSender notifies the merchant of transaction lifecycle events.
+type WebhookSender interface {
+	SendCaptureResult(ctx context.Context, tx *Transaction) error
+	SendRefundResult(ctx context.Context, tx *Transaction, refund *Refund) error
 }

@@ -1,4 +1,4 @@
-package webhook
+package webhooksender
 
 import (
 	"bytes"
@@ -9,7 +9,7 @@ import (
 	"net/http"
 	"time"
 
-	"TestTaskJustPay/services/silvergate/domain/transaction"
+	"TestTaskJustPay/services/silvergate/internal/transaction"
 )
 
 type Event struct {

@@ -1,10 +1,10 @@
-package handlers
+package transactioncontroller
 
 import (
 	"errors"
 	"net/http"
 
-	"TestTaskJustPay/services/silvergate/domain/transaction"
+	"TestTaskJustPay/services/silvergate/internal/transaction"
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"

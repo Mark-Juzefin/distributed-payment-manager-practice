@@ -1,27 +1,27 @@
-package api
+package paymanager
 
 import (
 	"TestTaskJustPay/pkg/health"
 	"TestTaskJustPay/pkg/metrics"
-	disputectrl "TestTaskJustPay/services/paymanager/dispute/controller"
-	orderctrl "TestTaskJustPay/services/paymanager/order/controller"
-	paymentctrl "TestTaskJustPay/services/paymanager/payment/controller"
+	"TestTaskJustPay/services/paymanager/internal/dispute/disputecontroller"
+	"TestTaskJustPay/services/paymanager/internal/order/ordercontroller"
+	"TestTaskJustPay/services/paymanager/internal/payment/paymentcontroller"
 
 	"github.com/gin-gonic/gin"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 )
 
 type Router struct {
-	order          *orderctrl.HTTPHandler
-	dispute        *disputectrl.HTTPHandler
-	payment        *paymentctrl.HTTPHandler
+	order          *ordercontroller.HTTPHandler
+	dispute        *disputecontroller.HTTPHandler
+	payment        *paymentcontroller.HTTPHandler
 	healthRegistry *health.Registry
 }
 
 func NewRouter(
-	order *orderctrl.HTTPHandler,
-	dispute *disputectrl.HTTPHandler,
-	payment *paymentctrl.HTTPHandler,
+	order *ordercontroller.HTTPHandler,
+	dispute *disputecontroller.HTTPHandler,
+	payment *paymentcontroller.HTTPHandler,
 	healthRegistry *health.Registry,
 ) *Router {
 	return &Router{

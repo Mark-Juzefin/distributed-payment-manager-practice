@@ -1,7 +1,7 @@
 package main
 
 import (
-	api "TestTaskJustPay/services/paymanager"
+	"TestTaskJustPay/services/paymanager"
 	"TestTaskJustPay/services/paymanager/config"
 	"log"
 )
@@ -11,5 +11,5 @@ func main() {
 	if err != nil {
 		log.Fatalf("Config error: %s", err)
 	}
-	api.Run(cfg)
+	paymanager.Run(cfg)
 }

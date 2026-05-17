@@ -1,4 +1,4 @@
-package api
+package paymanager
 
 import (
 	"context"
@@ -7,12 +7,12 @@ import (
 	"TestTaskJustPay/pkg/kafka"
 	"TestTaskJustPay/pkg/messaging"
 	"TestTaskJustPay/services/paymanager/config"
-	"TestTaskJustPay/services/paymanager/dispute"
-	disputectrl "TestTaskJustPay/services/paymanager/dispute/controller"
-	"TestTaskJustPay/services/paymanager/order"
-	orderctrl "TestTaskJustPay/services/paymanager/order/controller"
-	"TestTaskJustPay/services/paymanager/payment"
-	paymentctrl "TestTaskJustPay/services/paymanager/payment/controller"
+	"TestTaskJustPay/services/paymanager/internal/dispute"
+	"TestTaskJustPay/services/paymanager/internal/dispute/disputecontroller"
+	"TestTaskJustPay/services/paymanager/internal/order"
+	"TestTaskJustPay/services/paymanager/internal/order/ordercontroller"
+	"TestTaskJustPay/services/paymanager/internal/payment"
+	"TestTaskJustPay/services/paymanager/internal/payment/paymentcontroller"
 )
 
 func StartWorkers(
@@ -29,7 +29,7 @@ func StartWorkers(
 	defer disputeDLQPub.Close()
 	defer paymentDLQPub.Close()
 
-	orderController := orderctrl.NewKafkaHandler(orderService)
+	orderController := ordercontroller.NewKafkaHandler(orderService)
 	orderHandler := messaging.WithMetrics(
 		cfg.KafkaOrdersTopic,
 		cfg.KafkaOrdersConsumerGroup,
@@ -43,7 +43,7 @@ func StartWorkers(
 		orderHandler,
 	)
 
-	disputeController := disputectrl.NewKafkaHandler(disputeService)
+	disputeController := disputecontroller.NewKafkaHandler(disputeService)
 	disputeHandler := messaging.WithMetrics(
 		cfg.KafkaDisputesTopic,
 		cfg.KafkaDisputesConsumerGroup,
@@ -57,7 +57,7 @@ func StartWorkers(
 		disputeHandler,
 	)
 
-	paymentController := paymentctrl.NewKafkaHandler(paymentService)
+	paymentController := paymentcontroller.NewKafkaHandler(paymentService)
 	paymentHandler := messaging.WithMetrics(
 		cfg.KafkaPaymentsTopic,
 		cfg.KafkaPaymentsConsumerGroup,

@@ -1,4 +1,4 @@
-package api
+package paymanager
 
 import (
 	"context"
@@ -15,20 +15,17 @@ import (
 	"TestTaskJustPay/pkg/logger"
 	"TestTaskJustPay/pkg/postgres"
 	"TestTaskJustPay/services/paymanager/config"
-	"TestTaskJustPay/services/paymanager/dispute"
-	disputerepo "TestTaskJustPay/services/paymanager/dispute/repo"
-	"TestTaskJustPay/services/paymanager/events"
-	eventsrepo "TestTaskJustPay/services/paymanager/events/repo"
-	"TestTaskJustPay/services/paymanager/external/silvergate"
-	"TestTaskJustPay/services/paymanager/order"
-	orderrepo "TestTaskJustPay/services/paymanager/order/repo"
-	"TestTaskJustPay/services/paymanager/payment"
-	paymentrepo "TestTaskJustPay/services/paymanager/payment/repo"
-
-	disputectrl "TestTaskJustPay/services/paymanager/dispute/controller"
-	orderctrl "TestTaskJustPay/services/paymanager/order/controller"
-	paymentctrl "TestTaskJustPay/services/paymanager/payment/controller"
-	"TestTaskJustPay/services/paymanager/updates"
+	"TestTaskJustPay/services/paymanager/internal/dispute"
+	"TestTaskJustPay/services/paymanager/internal/dispute/disputecontroller"
+	"TestTaskJustPay/services/paymanager/internal/dispute/disputerepo"
+	"TestTaskJustPay/services/paymanager/internal/eventstore"
+	"TestTaskJustPay/services/paymanager/internal/order"
+	"TestTaskJustPay/services/paymanager/internal/order/ordercontroller"
+	"TestTaskJustPay/services/paymanager/internal/order/orderrepo"
+	"TestTaskJustPay/services/paymanager/internal/payment"
+	"TestTaskJustPay/services/paymanager/internal/payment/paymentcontroller"
+	"TestTaskJustPay/services/paymanager/internal/payment/paymentrepo"
+	"TestTaskJustPay/services/paymanager/internal/silvergateclient"
 )
 
 //go:embed migrations/*.sql
@@ -72,7 +69,7 @@ func Run(cfg config.Config) {
 	disputeEvents := disputerepo.NewEventSink(pool.Pool, readDB, pool.Builder)
 	paymentRepo := paymentrepo.New(pool, readDB)
 
-	silvergateClient := silvergate.New(
+	silvergateClient := silvergateclient.New(
 		cfg.SilvergateBaseURL,
 		cfg.SilvergateSubmitRepresentmentPath,
 		cfg.SilvergateCapturePath,
@@ -82,7 +79,7 @@ func Run(cfg config.Config) {
 	)
 
 	// Event store factory (shared across services)
-	eventStoreFactory := eventsrepo.TxStoreFactory(pool.Builder)
+	eventStoreFactory := eventstore.TxStoreFactory(pool.Builder)
 
 	// Services
 	orderService := order.NewOrderService(
@@ -111,10 +108,9 @@ func Run(cfg config.Config) {
 	)
 
 	// Handlers
-	orderH := orderctrl.NewHTTPHandler(orderService)
-	disputeH := disputectrl.NewHTTPHandler(disputeService)
-	paymentH := paymentctrl.NewHTTPHandler(paymentService)
-	updatesH := updates.New(orderService, disputeService, paymentService)
+	orderH := ordercontroller.NewHTTPHandler(orderService)
+	disputeH := disputecontroller.NewHTTPHandler(disputeService)
+	paymentH := paymentcontroller.NewHTTPHandler(paymentService)
 
 	// Health checks
 	var healthCheckers []health.Checker
@@ -131,7 +127,7 @@ func Run(cfg config.Config) {
 	router := NewRouter(orderH, disputeH, paymentH, healthRegistry)
 	router.SetUp(engine)
 
-	internalRouter := NewInternalRouter(updatesH)
+	internalRouter := NewInternalRouter(orderH, disputeH, paymentH)
 	internalRouter.SetUp(engine)
 
 	// Migrations
@@ -160,8 +156,7 @@ func Run(cfg config.Config) {
 
 // Compile-time checks: silvergate client must satisfy all domain Provider interfaces.
 var (
-	_ order.Provider   = (*silvergate.Client)(nil)
-	_ dispute.Provider = (*silvergate.Client)(nil)
-	_ payment.Provider = (*silvergate.Client)(nil)
-	_ events.Store     = nil // events.Store is satisfied by eventsrepo.PgEventStore
+	_ order.Provider   = (*silvergateclient.Client)(nil)
+	_ dispute.Provider = (*silvergateclient.Client)(nil)
+	_ payment.Provider = (*silvergateclient.Client)(nil)
 )

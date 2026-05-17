@@ -21,17 +21,13 @@
 ## Tasks
 
 - [ ] **Subtask 1:** CRUD для продуктів — entity, repo, міграція, HTTP handlers
+  - **Spec (вимоги):** [spec-subtask-1.md](spec-subtask-1.md)
+  - **План** (TBD): `plan-subtask-1.md`
 
 ## Notes
 - Created: 2026-04-17
-- Деталі (схема таблиці, контракти DTO, статуси продукту) — у
-  `plan-subtask-N.md` коли почнемо конкретну підзадачу
-- Архітектурні рішення для Subtask 1 (2026-05-17):
-  - Product entity мінімальний: `ID, MerchantID, Name, Price, Currency, Status, CreatedAt`
-  - Embedded price (НЕ Stripe-style окремий Price entity) — multi-currency
-    лишимо до Subscriptions feature
-  - `merchant_id` required (security boundary при auth)
-  - Idempotency-Key header для `POST /products`
+- Subtask 1 scope, data model, API surface і архрішення — у
+  [spec-subtask-1.md](spec-subtask-1.md). Цей README — high-level картина фічі.
 - Існуючі low-level endpoints (`/auth`, `/capture`, `/void`, `/refund`) НЕ
   змінюються — `/purchase` тільки композує auth+capture
 - **Передумова виконана (2026-05-17):** канонічна структура PayManager

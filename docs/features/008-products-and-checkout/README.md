@@ -22,7 +22,7 @@
 
 - [ ] **Subtask 1:** CRUD для продуктів — entity, repo, міграція, HTTP handlers
   - **Spec (вимоги):** [spec-subtask-1.md](spec-subtask-1.md)
-  - **План** (TBD): `plan-subtask-1.md`
+  - **План:** [plan-subtask-1.md](plan-subtask-1.md) — step 1/8 done (domain core), 2–8 pending
 
 ## Notes
 - Created: 2026-04-17
@@ -41,6 +41,26 @@
   поверненні до PayManager.
 
 ## Session Log
+
+### 2026-05-18 — Subtask 1: grilling → spec → domain core scaffolded
+- Прогрилили дизайн крізь дерево рішень (mutability tiers, freeze detection,
+  Update API shape, slug semantics, idempotency, lifecycle, listing). Усі
+  рішення зафіксовано у [spec-subtask-1.md](spec-subtask-1.md). **Idempotency-Key
+  для POST /products знято з scope** як premature — blast radius мінімальний,
+  справжня idempotency піде у Subtask 2 для `/purchase`.
+- Створено `services/silvergate/internal/product/`: entity, errors, interfaces,
+  service, update — 5 файлів. `go build` + `go vet` clean.
+- **Key design pattern (decisions #18, #19 у spec):** Update — validated value
+  object, конструюється тільки через `NewUpdate(req, p)` ("parse don't validate").
+  Repo приймає один `Update{Info, Locked}` замість двох tier-методів. Альтернативу
+  з callback-based update (Update carries query/setter func) відкинуто як
+  coupling domain → persistence без реального виграшу.
+- **`LockedAfterPurchase` struct + `FieldNames()`** — назва типу несе семантику,
+  метод — single source of truth для списку locked полів; `Product.LockedFields()`
+  делегує туди замість хардкодного `[]string`.
+- Створено [plan-subtask-1.md](plan-subtask-1.md) з 8 кроками; Step 1 (domain
+  core) done, Steps 2–8 pending (migration, repo, middleware, handlers, wiring,
+  tests).
 
 ### 2026-05-17 — Phase 2 архітектура + PayManager refactor як підготовка
 - Зафіксовано доменну модель Subtask 1 і форму `/purchase` endpoint

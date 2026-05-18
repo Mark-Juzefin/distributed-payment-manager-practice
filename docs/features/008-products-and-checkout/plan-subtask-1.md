@@ -11,15 +11,18 @@
   - `service.go` (Create, Get, List, Update, Archive, Unarchive, MarkPurchased)
   - `update.go` (UpdateRequest → Update validated by NewUpdate; LockedAfterPurchase as single source of truth)
   - Build clean (`go build`, `go vet`)
-- [ ] **Step 2: Migration** — `services/silvergate/migrations/YYYYMMDD_create_products_table.sql`
+- [x] **Step 2: Migration** — `services/silvergate/migrations/20260518001_create_products_table.sql`
   - Колонки і constraints за [spec Data Model](spec-subtask-1.md#data-model)
   - Partial unique index на `(merchant_id, slug) WHERE slug IS NOT NULL`
   - List index на `(merchant_id, status, created_at DESC, id DESC)`
-- [ ] **Step 3: Repo impl** — `internal/product/productrepo/pg.go`
+  - **Без `CHECK` на `status`** — business-invariant вже у Go (`Status` type), у схемі не дублюємо
+- [x] **Step 3: Repo impl** — `internal/product/productrepo/pg.go`
   - Implements `product.Repo` interface
   - `Update` будує dynamic SQL через Squirrel: SET-и тільки для non-nil pointers у `upd.Info` та `upd.Locked`
   - Conditional WHERE `status='active'` (на write methods), `first_purchased_at IS NULL` (коли `upd.Locked != nil`)
-  - Cursor encoding: base64-JSON `{created_at, id}`
+  - При 0 rows від guarded UPDATE — `disambiguateUpdateMiss` re-fetch розпізнає `ErrArchived` / `ErrFieldsLocked` / `ErrNotFound`
+  - `MarkPurchased`: idempotent. 0 rows + row existує → no-op (вже purchased); 0 rows + не існує → `ErrNotFound`
+  - Cursor encoding: base64-RawURL JSON `{c: created_at, i: id}` — `EncodeCursor` / `DecodeCursor` exported для controllers
 - [ ] **Step 4: Middleware** — `internal/merchantauth/`
   - Читає `X-Merchant-ID` header, injects у `context.Context`
   - 401 якщо header порожній
@@ -35,10 +38,12 @@
 - [ ] **Step 7: Unit tests**
   - `update_test.go` — `NewUpdate` table-driven: всі error paths + happy path
   - `service_test.go` — Service методи з mock Repo (gomock)
-- [ ] **Step 8: Integration tests** — `productrepo/pg_integration_test.go`
-  - Per `.claude/rules/migrations.md`: covers unique slug constraint, CHECK constraints (currency length, price > 0), partial unique behavior with NULL slugs
-  - Freeze flow через `MarkPurchased` → conditional UPDATE returns 0 rows
-  - testcontainers-based
+- [x] **Step 8: Integration tests** — `productrepo/{integration_test.go,pg_integration_test.go}`
+  - Per `.claude/rules/migrations.md`: unique slug + nil-slug, CHECK (price>0, currency length), CHECK violations surface as `pgconn.PgError` 23xxx
+  - Freeze flow через `MarkPurchased` → repo.Update повертає `ErrFieldsLocked`; info-only updates після purchase усе ще проходять
+  - Pagination/filter coverage: ordering DESC, cursor resume, nil/active/archived status filters
+  - Cross-merchant isolation для `GetByID`/`Update`/`SetStatus`/`MarkPurchased` → `ErrNotFound`
+  - testcontainers-based (`postgres:17`); кожен тест ізольований через unique `merchant_id`, no truncate
 
 ## Open Implementation Decisions
 

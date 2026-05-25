@@ -20,9 +20,9 @@
 
 ## Tasks
 
-- [ ] **Subtask 1:** CRUD для продуктів — entity, repo, міграція, HTTP handlers
+- [x] **Subtask 1:** CRUD для продуктів — entity, repo, міграція, HTTP handlers
   - **Spec (вимоги):** [spec-subtask-1.md](spec-subtask-1.md)
-  - **План:** [plan-subtask-1.md](plan-subtask-1.md) — step 1/8 done (domain core), 2–8 pending
+  - **План:** [plan-subtask-1.md](plan-subtask-1.md) — all 8 steps done
 
 ## Notes
 - Created: 2026-04-17

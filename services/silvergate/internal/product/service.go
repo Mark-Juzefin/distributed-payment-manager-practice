@@ -61,26 +61,26 @@ func (s *Service) List(ctx context.Context, merchantID string, filter ListFilter
 	return s.repo.List(ctx, merchantID, filter)
 }
 
-func (s *Service) Update(ctx context.Context, merchantID string, id uuid.UUID, req UpdateRequest) error {
+func (s *Service) Update(ctx context.Context, merchantID string, id uuid.UUID, req UpdateRequest) (*Product, error) {
 	p, err := s.repo.GetByID(ctx, merchantID, id)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	upd, err := NewUpdate(req, p)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	if err := s.repo.Update(ctx, merchantID, id, upd); err != nil {
-		return err
+		return nil, err
 	}
 
 	s.log.Info("product updated",
 		"product_id", id,
 		"merchant_id", merchantID,
 	)
-	return nil
+	return s.repo.GetByID(ctx, merchantID, id)
 }
 
 func (s *Service) Archive(ctx context.Context, merchantID string, id uuid.UUID) error {

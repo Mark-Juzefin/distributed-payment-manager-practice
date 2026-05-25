@@ -23,21 +23,23 @@
   - При 0 rows від guarded UPDATE — `disambiguateUpdateMiss` re-fetch розпізнає `ErrArchived` / `ErrFieldsLocked` / `ErrNotFound`
   - `MarkPurchased`: idempotent. 0 rows + row existує → no-op (вже purchased); 0 rows + не існує → `ErrNotFound`
   - Cursor encoding: base64-RawURL JSON `{c: created_at, i: id}` — `EncodeCursor` / `DecodeCursor` exported для controllers
-- [ ] **Step 4: Middleware** — `internal/merchantauth/`
-  - Читає `X-Merchant-ID` header, injects у `context.Context`
-  - 401 якщо header порожній
-  - `merchantauth.MerchantID(ctx) (string, bool)` для handlers
-- [ ] **Step 5: HTTP handlers** — `internal/product/productcontroller/`
-  - Один файл на endpoint: `create.go`, `get.go`, `list.go`, `update.go`, `archive.go`, `unarchive.go`
-  - Request/response DTOs з Gin binding tags
-  - Mapping domain errors → HTTP statuses (404, 409, 422)
-  - `productResponse` includes computed `locked_fields` через `p.LockedFields()`
-- [ ] **Step 6: Router wiring** — `app.go` + `router.go`
-  - Реєструємо product repo, service, handlers у DI
-  - Route group `/products/*` під `merchantauth.Middleware()`
-- [ ] **Step 7: Unit tests**
-  - `update_test.go` — `NewUpdate` table-driven: всі error paths + happy path
-  - `service_test.go` — Service методи з mock Repo (gomock)
+- [x] **Step 4: Middleware** — `internal/merchantauth/middleware.go`
+  - Читає `X-Merchant-ID` header, abort 401 якщо порожній
+  - `merchantauth.FromContext(ctx) (string, bool)` для handlers
+  - `WithMerchantID(ctx, id)` exported для тестів (без реального middleware)
+- [x] **Step 5: HTTP handlers** — `internal/product/productcontroller/`
+  - `update.go` — PATCH /products/:id; errors → 404/409/422; `productResponse` з computed `locked_fields`; shared `errorResponse{error,code,fields}`
+  - `create.go` — POST /products; ErrInvalidSlug → 422, ErrSlugConflict → 409
+  - `get.go` — GET /products/:id; ErrNotFound → 404
+  - `list.go` — GET /products?status=&cursor=&limit=; cursor encode/decode delegates to `productrepo.{En,De}codeCursor`
+  - `archive.go` / `unarchive.go` — POST /products/:id/{archive,unarchive}; повертає оновлений productResponse; shared `resolveProductIdentity` + `writeStatusError`
+- [x] **Step 6: Router wiring** — `app.go` + `router.go`
+  - DI bundle `productHandlers` (Create/Get/List/Update/Archive/Unarchive) у app.go
+  - `/api/v1/products` group під `merchantauth.Middleware()` з POST/GET/PATCH + POST `:id/archive`, `:id/unarchive`
+- [x] **Step 7: Unit tests**
+  - `update_test.go` — `NewUpdate` table-driven (empty/info/locked/mixed groups; archived; purchased+locked vs purchased+info-only; slug downgrade, invalid slug, valid slug) + `LockedAfterPurchase.FieldNames`, `Product.LockedFields`, `ValidateSlug` cases
+  - `service_test.go` — hand-rolled `fakeRepo`: Create (slug pre-validation, repo error pass-through, merchant id set), List (default/max limit, filter forwarding), Update (double-fetch pre+post, snapshot error, locked rejection skips repo.Update), Archive/Unarchive (status forwarded), MarkPurchased forwarded
+  - `gomock` не використано — hand-rolled fake простіше для маленького Repo interface (mirror `acquirer/mock_acquirer.go`)
 - [x] **Step 8: Integration tests** — `productrepo/{integration_test.go,pg_integration_test.go}`
   - Per `.claude/rules/migrations.md`: unique slug + nil-slug, CHECK (price>0, currency length), CHECK violations surface as `pgconn.PgError` 23xxx
   - Freeze flow через `MarkPurchased` → repo.Update повертає `ErrFieldsLocked`; info-only updates після purchase усе ще проходять

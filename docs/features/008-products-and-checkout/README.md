@@ -23,6 +23,17 @@
 - [x] **Subtask 1:** CRUD для продуктів — entity, repo, міграція, HTTP handlers
   - **Spec (вимоги):** [spec-subtask-1.md](spec-subtask-1.md)
   - **План:** [plan-subtask-1.md](plan-subtask-1.md) — all 8 steps done
+- [ ] **Subtask 2:** `/purchase` endpoint — композиція auth+capture навколо product
+  - **Spec (вимоги):** [spec-subtask-2.md](spec-subtask-2.md)
+  - **План:** [plan-subtask-2.md](plan-subtask-2.md)
+
+## Known Limitations / Future Work
+
+Свідомо прийняті костилі та архітектурні зрізані кути у scope цієї фічі. Кожен — потенційна окрема feature після завершення 008. Деталі — у [spec-subtask-2.md §Known Limitations](spec-subtask-2.md#known-limitations--future-work).
+
+- **F-α: Generic `idempotency_keys` table.** Зараз додаємо окрему колонку `transactions.purchase_idempotency_key` як костиль. Правильний pattern — Stripe-style таблиця `(merchant_id, key, endpoint, request_hash, response_body, ...)` з generic middleware. Виправляє також pre-existing capture overwrite bug.
+- **F-β: Intent-record + reconciliation worker.** Зараз `acquirer.Authorize` викликається всередині DB tx. Якщо commit fails після bank approval → lost result. Правильний pattern — INSERT intent (`status=authorizing`) → acquirer call (idempotent) → UPDATE final → reconciliation worker для stuck rows.
+- **F-γ: Compensating Void (saga).** Зараз при Capture failure після Authorize approved повертаємо `purchase_partially_persisted` 500 з tx_id, caller manually решає. Правильний pattern — outbox + worker що автоматично робить Void.
 
 ## Notes
 - Created: 2026-04-17

@@ -17,6 +17,7 @@ import (
 	"TestTaskJustPay/services/silvergate/internal/acquirer"
 	"TestTaskJustPay/services/silvergate/internal/product"
 	"TestTaskJustPay/services/silvergate/internal/product/productrepo"
+	"TestTaskJustPay/services/silvergate/internal/purchase"
 	"TestTaskJustPay/services/silvergate/internal/transaction"
 	"TestTaskJustPay/services/silvergate/internal/transaction/transactioncontroller"
 	"TestTaskJustPay/services/silvergate/internal/transaction/transactionrepo"
@@ -66,11 +67,16 @@ func NewApp(cfg config.Config) (*App, error) {
 	refundHandler := transactioncontroller.NewRefundHandler(svc)
 
 	productRepo := productrepo.NewPgProductRepo(pg.Pool)
-	productSvc := product.NewService(productRepo, log)
+	productRepoFactory := func(exec postgres.Executor) product.Repo {
+		return productrepo.NewPgProductRepo(exec)
+	}
+	productSvc := product.NewService(productRepo, log, pg, productRepoFactory)
+
+	purchaseSvc := purchase.NewService(productSvc, svc, svc, txRepo, txRepoFactory, pg, log)
 
 	engine := gin.New()
 	engine.Use(gin.Recovery())
-	setupRouter(engine, authHandler, captureHandler, voidHandler, refundHandler, productSvc)
+	setupRouter(engine, authHandler, captureHandler, voidHandler, refundHandler, productSvc, purchaseSvc)
 
 	server := &http.Server{
 		Addr:    fmt.Sprintf(":%d", cfg.Port),

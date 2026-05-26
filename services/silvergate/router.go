@@ -4,6 +4,8 @@ import (
 	"TestTaskJustPay/services/silvergate/internal/merchantauth"
 	"TestTaskJustPay/services/silvergate/internal/product"
 	"TestTaskJustPay/services/silvergate/internal/product/productcontroller"
+	"TestTaskJustPay/services/silvergate/internal/purchase"
+	"TestTaskJustPay/services/silvergate/internal/purchase/purchasecontroller"
 	"TestTaskJustPay/services/silvergate/internal/transaction/transactioncontroller"
 
 	"github.com/gin-gonic/gin"
@@ -16,6 +18,7 @@ func setupRouter(
 	voidH *transactioncontroller.VoidHandler,
 	refundH *transactioncontroller.RefundHandler,
 	productSvc *product.Service,
+	purchaseSvc *purchase.Service,
 ) {
 	api := engine.Group("/api/v1")
 	{
@@ -27,6 +30,10 @@ func setupRouter(
 		productcontroller.RegisterRoutes(
 			api.Group("/products", merchantauth.Middleware()),
 			productSvc,
+		)
+		purchasecontroller.RegisterRoutes(
+			api.Group("/purchase", merchantauth.Middleware()),
+			purchaseSvc,
 		)
 	}
 

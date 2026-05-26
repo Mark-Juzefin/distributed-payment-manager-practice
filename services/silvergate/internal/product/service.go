@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"log/slog"
 
+	"TestTaskJustPay/pkg/postgres"
+
 	"github.com/google/uuid"
 )
 
@@ -14,12 +16,24 @@ const (
 )
 
 type Service struct {
-	repo Repo
-	log  *slog.Logger
+	repo       Repo
+	log        *slog.Logger
+	transactor postgres.Transactor
+	txRepo     func(postgres.Executor) Repo
 }
 
-func NewService(repo Repo, log *slog.Logger) *Service {
-	return &Service{repo: repo, log: log}
+func NewService(
+	repo Repo,
+	log *slog.Logger,
+	transactor postgres.Transactor,
+	txRepo func(postgres.Executor) Repo,
+) *Service {
+	return &Service{
+		repo:       repo,
+		log:        log,
+		transactor: transactor,
+		txRepo:     txRepo,
+	}
 }
 
 type CreateInput struct {
@@ -94,4 +108,11 @@ func (s *Service) Unarchive(ctx context.Context, merchantID string, id uuid.UUID
 // MarkPurchased is the entry point for /purchase (Subtask 2). Idempotent.
 func (s *Service) MarkPurchased(ctx context.Context, merchantID string, id uuid.UUID) error {
 	return s.repo.MarkPurchased(ctx, merchantID, id)
+}
+
+// MarkPurchasedInTx runs MarkPurchased through the caller-supplied executor so
+// /purchase composition can atomically pair the product lock with the
+// transaction insert in one DB transaction. Idempotent on the repo side.
+func (s *Service) MarkPurchasedInTx(ctx context.Context, exec postgres.Executor, merchantID string, id uuid.UUID) error {
+	return s.txRepo(exec).MarkPurchased(ctx, merchantID, id)
 }

@@ -7,7 +7,10 @@ import (
 	"log/slog"
 	"testing"
 
+	"TestTaskJustPay/pkg/postgres"
+
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5"
 )
 
 // fakeRepo is a hand-rolled Repo stub. Each method either returns a queued
@@ -63,7 +66,18 @@ func (r *fakeRepo) MarkPurchased(_ context.Context, _ string, _ uuid.UUID) error
 }
 
 func newService(repo Repo) *Service {
-	return NewService(repo, slog.New(slog.NewTextHandler(io.Discard, nil)))
+	return NewService(
+		repo,
+		slog.New(slog.NewTextHandler(io.Discard, nil)),
+		stubTransactor{},
+		func(postgres.Executor) Repo { return repo },
+	)
+}
+
+type stubTransactor struct{}
+
+func (stubTransactor) InTransaction(ctx context.Context, _ pgx.TxIsoLevel, fn func(postgres.Executor) error) error {
+	return fn(nil)
 }
 
 func TestService_Create(t *testing.T) {

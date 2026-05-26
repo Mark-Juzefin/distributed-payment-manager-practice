@@ -105,7 +105,7 @@ func (s *Service) Unarchive(ctx context.Context, merchantID string, id uuid.UUID
 	return s.repo.SetStatus(ctx, merchantID, id, StatusActive)
 }
 
-// MarkPurchased is the entry point for /purchase (Subtask 2). Idempotent.
+// MarkPurchased records a product as purchased. Idempotent.
 func (s *Service) MarkPurchased(ctx context.Context, merchantID string, id uuid.UUID) error {
 	return s.repo.MarkPurchased(ctx, merchantID, id)
 }

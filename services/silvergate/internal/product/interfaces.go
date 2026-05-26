@@ -29,6 +29,6 @@ type Repo interface {
 	SetStatus(ctx context.Context, merchantID string, id uuid.UUID, status Status) error
 
 	// MarkPurchased sets first_purchased_at = now() iff currently NULL. Idempotent.
-	// Called by /purchase (Subtask 2). merchantID required as defense-in-depth.
+	// merchantID required as defense-in-depth.
 	MarkPurchased(ctx context.Context, merchantID string, id uuid.UUID) error
 }

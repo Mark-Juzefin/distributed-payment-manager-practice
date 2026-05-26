@@ -46,6 +46,10 @@ type AuthRequest struct {
 	Amount     int64
 	Currency   string
 	CardToken  string
+
+	// Set by /purchase composition; both zero for bare /auth.
+	PurchaseIdempotencyKey string
+	ProductID              *uuid.UUID
 }
 
 type AuthResponse struct {
@@ -55,9 +59,23 @@ type AuthResponse struct {
 }
 
 func (s *Service) Authorize(ctx context.Context, req AuthRequest) (AuthResponse, error) {
+	tx, err := s.AuthorizeInTx(ctx, s.repo, req)
+	if err != nil {
+		return AuthResponse{}, err
+	}
+	return AuthResponse{
+		TransactionID: tx.ID,
+		Status:        tx.Status,
+		DeclineReason: tx.DeclineReason,
+	}, nil
+}
+
+// AuthorizeInTx runs the acquirer call and persists the transaction via the given
+// repo. Callers inside an outer DB tx pass a tx-bound repo for atomicity.
+func (s *Service) AuthorizeInTx(ctx context.Context, repo Repo, req AuthRequest) (*Transaction, error) {
 	result, err := s.acq.Authorize(ctx, req.Amount, req.Currency, req.CardToken)
 	if err != nil {
-		return AuthResponse{}, fmt.Errorf("acquirer authorize: %w", err)
+		return nil, fmt.Errorf("acquirer authorize: %w", err)
 	}
 
 	var tx *Transaction
@@ -67,8 +85,12 @@ func (s *Service) Authorize(ctx context.Context, req AuthRequest) (AuthResponse,
 		tx = NewDeclined(req.MerchantID, req.OrderID, req.Amount, req.Currency, req.CardToken, result.DeclineReason)
 	}
 
-	if err := s.repo.Create(ctx, tx); err != nil {
-		return AuthResponse{}, fmt.Errorf("save transaction: %w", err)
+	if req.PurchaseIdempotencyKey != "" && req.ProductID != nil {
+		tx.MarkProductPurchase(req.PurchaseIdempotencyKey, *req.ProductID)
+	}
+
+	if err := repo.Create(ctx, tx); err != nil {
+		return nil, fmt.Errorf("save transaction: %w", err)
 	}
 
 	s.log.Info("authorization processed",
@@ -78,11 +100,7 @@ func (s *Service) Authorize(ctx context.Context, req AuthRequest) (AuthResponse,
 		"status", tx.Status,
 	)
 
-	return AuthResponse{
-		TransactionID: tx.ID,
-		Status:        tx.Status,
-		DeclineReason: tx.DeclineReason,
-	}, nil
+	return tx, nil
 }
 
 type CaptureRequest struct {

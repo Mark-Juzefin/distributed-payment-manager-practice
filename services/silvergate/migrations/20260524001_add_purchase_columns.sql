@@ -1,15 +1,9 @@
 -- +goose Up
 -- +goose StatementBegin
 
--- Subtask 2 (Feature 008): add purchase context columns to transactions.
--- See docs/features/008-products-and-checkout/spec-subtask-2.md
---
--- CAVEAT (F-α — known limitation): purchase_idempotency_key is a workaround
--- for the pre-existing design flaw where transactions.idempotency_key is
--- overwritten by Capture (transaction.MarkCapturePending mutates the field).
--- The real fix is a generic idempotency_keys table keyed by
--- (merchant_id, key, endpoint) shared across endpoints. Drop this column
--- when F-α lands.
+-- Add purchase context columns to transactions.
+-- purchase_idempotency_key is separate from idempotency_key because the latter
+-- is overwritten by Capture; a shared idempotency_keys table would supersede it.
 
 ALTER TABLE transactions
     ADD COLUMN purchase_idempotency_key TEXT,

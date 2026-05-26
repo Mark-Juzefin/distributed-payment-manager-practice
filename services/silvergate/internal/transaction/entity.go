@@ -30,9 +30,19 @@ type Transaction struct {
 	Status         Status
 	DeclineReason  string
 	IdempotencyKey string
-	RefundedAmount int64
-	CreatedAt      time.Time
-	UpdatedAt      time.Time
+	// PurchaseIdempotencyKey dedups product purchases; empty for bare /auth transactions.
+	PurchaseIdempotencyKey string
+	ProductID              *uuid.UUID
+	RefundedAmount         int64
+	CreatedAt              time.Time
+	UpdatedAt              time.Time
+}
+
+// MarkProductPurchase tags the transaction as a product purchase, linking the
+// product and the dedup key. Bare /auth transactions skip this.
+func (t *Transaction) MarkProductPurchase(idempotencyKey string, productID uuid.UUID) {
+	t.PurchaseIdempotencyKey = idempotencyKey
+	t.ProductID = &productID
 }
 
 func NewAuthorized(merchantID, orderRef string, amount int64, currency, cardToken string) *Transaction {

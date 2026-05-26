@@ -30,11 +30,13 @@ func (r *PgTransactionRepo) Create(ctx context.Context, tx *transaction.Transact
 		Columns(
 			"id", "merchant_id", "order_ref", "amount", "currency",
 			"card_token", "status", "decline_reason", "idempotency_key",
+			"purchase_idempotency_key", "product_id",
 			"created_at", "updated_at",
 		).
 		Values(
 			tx.ID, tx.MerchantID, tx.OrderRef, tx.Amount, tx.Currency,
 			tx.CardToken, tx.Status, nilIfEmpty(tx.DeclineReason), nilIfEmpty(tx.IdempotencyKey),
+			nilIfEmpty(tx.PurchaseIdempotencyKey), tx.ProductID,
 			tx.CreatedAt, tx.UpdatedAt,
 		).
 		ToSql()
@@ -44,36 +46,28 @@ func (r *PgTransactionRepo) Create(ctx context.Context, tx *transaction.Transact
 
 	_, err = r.db.Exec(ctx, query, args...)
 	if err != nil {
-		var pgErr *pgconn.PgError
-		if errors.As(err, &pgErr) && pgErr.Code == "23505" {
-			return transaction.ErrDuplicateIdempotency
+		if mapped := mapUniqueViolation(err); mapped != nil {
+			return mapped
 		}
 		return fmt.Errorf("exec insert: %w", err)
 	}
 	return nil
 }
 
-func (r *PgTransactionRepo) GetByID(ctx context.Context, id uuid.UUID) (*transaction.Transaction, error) {
-	query, args, err := psql.
-		Select(
-			"id", "merchant_id", "order_ref", "amount", "currency",
-			"card_token", "status", "decline_reason", "idempotency_key",
-			"refunded_amount", "created_at", "updated_at",
-		).
-		From("transactions").
-		Where(sq.Eq{"id": id}).
-		ToSql()
-	if err != nil {
-		return nil, fmt.Errorf("build select: %w", err)
-	}
+var transactionSelectColumns = []string{
+	"id", "merchant_id", "order_ref", "amount", "currency",
+	"card_token", "status", "decline_reason", "idempotency_key",
+	"purchase_idempotency_key", "product_id",
+	"refunded_amount", "created_at", "updated_at",
+}
 
-	row := r.db.QueryRow(ctx, query, args...)
-
+func scanTransaction(row pgx.Row) (*transaction.Transaction, error) {
 	var tx transaction.Transaction
-	var declineReason, idempotencyKey *string
-	err = row.Scan(
+	var declineReason, idempotencyKey, purchaseKey *string
+	err := row.Scan(
 		&tx.ID, &tx.MerchantID, &tx.OrderRef, &tx.Amount, &tx.Currency,
 		&tx.CardToken, &tx.Status, &declineReason, &idempotencyKey,
+		&purchaseKey, &tx.ProductID,
 		&tx.RefundedAmount, &tx.CreatedAt, &tx.UpdatedAt,
 	)
 	if err != nil {
@@ -82,24 +76,34 @@ func (r *PgTransactionRepo) GetByID(ctx context.Context, id uuid.UUID) (*transac
 		}
 		return nil, fmt.Errorf("scan transaction: %w", err)
 	}
-
 	if declineReason != nil {
 		tx.DeclineReason = *declineReason
 	}
 	if idempotencyKey != nil {
 		tx.IdempotencyKey = *idempotencyKey
 	}
-
+	if purchaseKey != nil {
+		tx.PurchaseIdempotencyKey = *purchaseKey
+	}
 	return &tx, nil
+}
+
+func (r *PgTransactionRepo) GetByID(ctx context.Context, id uuid.UUID) (*transaction.Transaction, error) {
+	query, args, err := psql.
+		Select(transactionSelectColumns...).
+		From("transactions").
+		Where(sq.Eq{"id": id}).
+		ToSql()
+	if err != nil {
+		return nil, fmt.Errorf("build select: %w", err)
+	}
+
+	return scanTransaction(r.db.QueryRow(ctx, query, args...))
 }
 
 func (r *PgTransactionRepo) GetByIDForUpdate(ctx context.Context, id uuid.UUID) (*transaction.Transaction, error) {
 	query, args, err := psql.
-		Select(
-			"id", "merchant_id", "order_ref", "amount", "currency",
-			"card_token", "status", "decline_reason", "idempotency_key",
-			"refunded_amount", "created_at", "updated_at",
-		).
+		Select(transactionSelectColumns...).
 		From("transactions").
 		Where(sq.Eq{"id": id}).
 		Suffix("FOR UPDATE").
@@ -108,30 +112,20 @@ func (r *PgTransactionRepo) GetByIDForUpdate(ctx context.Context, id uuid.UUID) 
 		return nil, fmt.Errorf("build select for update: %w", err)
 	}
 
-	row := r.db.QueryRow(ctx, query, args...)
+	return scanTransaction(r.db.QueryRow(ctx, query, args...))
+}
 
-	var tx transaction.Transaction
-	var declineReason, idempotencyKey *string
-	err = row.Scan(
-		&tx.ID, &tx.MerchantID, &tx.OrderRef, &tx.Amount, &tx.Currency,
-		&tx.CardToken, &tx.Status, &declineReason, &idempotencyKey,
-		&tx.RefundedAmount, &tx.CreatedAt, &tx.UpdatedAt,
-	)
+func (r *PgTransactionRepo) GetByPurchaseIdempotencyKey(ctx context.Context, merchantID, key string) (*transaction.Transaction, error) {
+	query, args, err := psql.
+		Select(transactionSelectColumns...).
+		From("transactions").
+		Where(sq.Eq{"merchant_id": merchantID, "purchase_idempotency_key": key}).
+		ToSql()
 	if err != nil {
-		if errors.Is(err, pgx.ErrNoRows) {
-			return nil, transaction.ErrNotFound
-		}
-		return nil, fmt.Errorf("scan transaction: %w", err)
+		return nil, fmt.Errorf("build select by purchase key: %w", err)
 	}
 
-	if declineReason != nil {
-		tx.DeclineReason = *declineReason
-	}
-	if idempotencyKey != nil {
-		tx.IdempotencyKey = *idempotencyKey
-	}
-
-	return &tx, nil
+	return scanTransaction(r.db.QueryRow(ctx, query, args...))
 }
 
 func (r *PgTransactionRepo) UpdateStatus(ctx context.Context, tx *transaction.Transaction) error {
@@ -148,9 +142,8 @@ func (r *PgTransactionRepo) UpdateStatus(ctx context.Context, tx *transaction.Tr
 
 	result, err := r.db.Exec(ctx, query, args...)
 	if err != nil {
-		var pgErr *pgconn.PgError
-		if errors.As(err, &pgErr) && pgErr.Code == "23505" {
-			return transaction.ErrDuplicateIdempotency
+		if mapped := mapUniqueViolation(err); mapped != nil {
+			return mapped
 		}
 		return fmt.Errorf("exec update: %w", err)
 	}
@@ -215,9 +208,8 @@ func (r *PgTransactionRepo) CreateRefund(ctx context.Context, refund *transactio
 
 	_, err = r.db.Exec(ctx, query, args...)
 	if err != nil {
-		var pgErr *pgconn.PgError
-		if errors.As(err, &pgErr) && pgErr.Code == "23505" {
-			return transaction.ErrDuplicateIdempotency
+		if mapped := mapUniqueViolation(err); mapped != nil {
+			return mapped
 		}
 		return fmt.Errorf("exec insert refund: %w", err)
 	}
@@ -260,4 +252,19 @@ func nilIfEmpty(s string) *string {
 		return nil
 	}
 	return &s
+}
+
+// mapUniqueViolation translates Postgres 23505 errors into domain sentinels based
+// on the violated constraint. Returns nil if err is not a unique violation.
+func mapUniqueViolation(err error) error {
+	var pgErr *pgconn.PgError
+	if !errors.As(err, &pgErr) || pgErr.Code != "23505" {
+		return nil
+	}
+	switch pgErr.ConstraintName {
+	case "idx_transactions_purchase_idempotency":
+		return transaction.ErrPurchaseIdempotencyConflict
+	default:
+		return transaction.ErrDuplicateIdempotency
+	}
 }

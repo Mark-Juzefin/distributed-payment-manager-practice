@@ -4,7 +4,7 @@ package integration_test
 
 import (
 	"TestTaskJustPay/pkg/testinfra"
-	api "TestTaskJustPay/services/paymanager"
+	"TestTaskJustPay/services/paymanager"
 	sg "TestTaskJustPay/services/silvergate"
 	"context"
 	"fmt"
@@ -26,7 +26,7 @@ func TestMain(m *testing.M) {
 		MappingsPath:          "mappings",
 		WithE2E:               true,
 		ProjectRoot:           "..",
-		MigrationFS:           api.MIGRATION_FS,
+		MigrationFS:           paymanager.MIGRATION_FS,
 		SilvergateMigrationFS: sg.MigrationFS(),
 	})
 	if err != nil {

@@ -1,0 +1,21 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(go build *)",
+      "Bash(go test *)",
+      "Bash(sed -i 's/^package handler$/package controller/' payment/controller/payment_handler_http.go dispute/controller/dispute_handler_http.go order/controller/order_handler_http.go)",
+      "Bash(sed -i 's/^package consumer$/package controller/' payment/controller/payment_handler_kafka.go dispute/controller/dispute_handler_kafka.go order/controller/order_handler_kafka.go)",
+      "Bash(git mv *)",
+      "Bash(git rm *)",
+      "Bash(sed -i 's/^package controller\\\\\\(\\\\r\\\\?\\\\\\)$/package paymentcontroller\\\\1/' internal/payment/paymentcontroller/http.go internal/payment/paymentcontroller/kafka.go)",
+      "Bash(sed -i 's/^package repo\\\\\\(\\\\r\\\\?\\\\\\)$/package paymentrepo\\\\1/' internal/payment/paymentrepo/pg.go)",
+      "Bash(grep -rn \"package postgres_test\\\\|package postgres$\" --include=\"*.go\" .)",
+      "Bash(go vet *)",
+      "Bash(git checkout *)",
+      "Bash(git show *)",
+      "Read(//tmp/**)",
+      "WebFetch(domain:github.com)",
+      "Bash(gh api *)"
+    ]
+  }
+}

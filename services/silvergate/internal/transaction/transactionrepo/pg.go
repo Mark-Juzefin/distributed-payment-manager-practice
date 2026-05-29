@@ -1,0 +1,270 @@
+package transactionrepo
+
+import (
+	"context"
+	"errors"
+	"fmt"
+
+	"TestTaskJustPay/pkg/postgres"
+	"TestTaskJustPay/services/silvergate/internal/transaction"
+
+	sq "github.com/Masterminds/squirrel"
+	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgconn"
+)
+
+var psql = sq.StatementBuilder.PlaceholderFormat(sq.Dollar)
+
+type PgTransactionRepo struct {
+	db postgres.Executor
+}
+
+func NewPgTransactionRepo(db postgres.Executor) *PgTransactionRepo {
+	return &PgTransactionRepo{db: db}
+}
+
+func (r *PgTransactionRepo) Create(ctx context.Context, tx *transaction.Transaction) error {
+	query, args, err := psql.
+		Insert("transactions").
+		Columns(
+			"id", "merchant_id", "order_ref", "amount", "currency",
+			"card_token", "status", "decline_reason", "idempotency_key",
+			"purchase_idempotency_key", "product_id",
+			"created_at", "updated_at",
+		).
+		Values(
+			tx.ID, tx.MerchantID, tx.OrderRef, tx.Amount, tx.Currency,
+			tx.CardToken, tx.Status, nilIfEmpty(tx.DeclineReason), nilIfEmpty(tx.IdempotencyKey),
+			nilIfEmpty(tx.PurchaseIdempotencyKey), tx.ProductID,
+			tx.CreatedAt, tx.UpdatedAt,
+		).
+		ToSql()
+	if err != nil {
+		return fmt.Errorf("build insert: %w", err)
+	}
+
+	_, err = r.db.Exec(ctx, query, args...)
+	if err != nil {
+		if mapped := mapUniqueViolation(err); mapped != nil {
+			return mapped
+		}
+		return fmt.Errorf("exec insert: %w", err)
+	}
+	return nil
+}
+
+var transactionSelectColumns = []string{
+	"id", "merchant_id", "order_ref", "amount", "currency",
+	"card_token", "status", "decline_reason", "idempotency_key",
+	"purchase_idempotency_key", "product_id",
+	"refunded_amount", "created_at", "updated_at",
+}
+
+func scanTransaction(row pgx.Row) (*transaction.Transaction, error) {
+	var tx transaction.Transaction
+	var declineReason, idempotencyKey, purchaseKey *string
+	err := row.Scan(
+		&tx.ID, &tx.MerchantID, &tx.OrderRef, &tx.Amount, &tx.Currency,
+		&tx.CardToken, &tx.Status, &declineReason, &idempotencyKey,
+		&purchaseKey, &tx.ProductID,
+		&tx.RefundedAmount, &tx.CreatedAt, &tx.UpdatedAt,
+	)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return nil, transaction.ErrNotFound
+		}
+		return nil, fmt.Errorf("scan transaction: %w", err)
+	}
+	if declineReason != nil {
+		tx.DeclineReason = *declineReason
+	}
+	if idempotencyKey != nil {
+		tx.IdempotencyKey = *idempotencyKey
+	}
+	if purchaseKey != nil {
+		tx.PurchaseIdempotencyKey = *purchaseKey
+	}
+	return &tx, nil
+}
+
+func (r *PgTransactionRepo) GetByID(ctx context.Context, id uuid.UUID) (*transaction.Transaction, error) {
+	query, args, err := psql.
+		Select(transactionSelectColumns...).
+		From("transactions").
+		Where(sq.Eq{"id": id}).
+		ToSql()
+	if err != nil {
+		return nil, fmt.Errorf("build select: %w", err)
+	}
+
+	return scanTransaction(r.db.QueryRow(ctx, query, args...))
+}
+
+func (r *PgTransactionRepo) GetByIDForUpdate(ctx context.Context, id uuid.UUID) (*transaction.Transaction, error) {
+	query, args, err := psql.
+		Select(transactionSelectColumns...).
+		From("transactions").
+		Where(sq.Eq{"id": id}).
+		Suffix("FOR UPDATE").
+		ToSql()
+	if err != nil {
+		return nil, fmt.Errorf("build select for update: %w", err)
+	}
+
+	return scanTransaction(r.db.QueryRow(ctx, query, args...))
+}
+
+func (r *PgTransactionRepo) GetByPurchaseIdempotencyKey(ctx context.Context, merchantID, key string) (*transaction.Transaction, error) {
+	query, args, err := psql.
+		Select(transactionSelectColumns...).
+		From("transactions").
+		Where(sq.Eq{"merchant_id": merchantID, "purchase_idempotency_key": key}).
+		ToSql()
+	if err != nil {
+		return nil, fmt.Errorf("build select by purchase key: %w", err)
+	}
+
+	return scanTransaction(r.db.QueryRow(ctx, query, args...))
+}
+
+func (r *PgTransactionRepo) UpdateStatus(ctx context.Context, tx *transaction.Transaction) error {
+	query, args, err := psql.
+		Update("transactions").
+		Set("status", tx.Status).
+		Set("idempotency_key", nilIfEmpty(tx.IdempotencyKey)).
+		Set("updated_at", tx.UpdatedAt).
+		Where(sq.Eq{"id": tx.ID}).
+		ToSql()
+	if err != nil {
+		return fmt.Errorf("build update: %w", err)
+	}
+
+	result, err := r.db.Exec(ctx, query, args...)
+	if err != nil {
+		if mapped := mapUniqueViolation(err); mapped != nil {
+			return mapped
+		}
+		return fmt.Errorf("exec update: %w", err)
+	}
+
+	if result.RowsAffected() == 0 {
+		return transaction.ErrNotFound
+	}
+	return nil
+}
+
+func (r *PgTransactionRepo) CompareAndUpdateStatus(ctx context.Context, id uuid.UUID, expected, next transaction.Status) error {
+	query, args, err := psql.
+		Update("transactions").
+		Set("status", next).
+		Set("updated_at", sq.Expr("now()")).
+		Where(sq.Eq{"id": id, "status": expected}).
+		ToSql()
+	if err != nil {
+		return fmt.Errorf("build compare-and-update: %w", err)
+	}
+
+	result, err := r.db.Exec(ctx, query, args...)
+	if err != nil {
+		return fmt.Errorf("exec compare-and-update: %w", err)
+	}
+
+	if result.RowsAffected() == 0 {
+		return transaction.ErrStatusChanged
+	}
+	return nil
+}
+
+func (r *PgTransactionRepo) UpdateRefund(ctx context.Context, tx *transaction.Transaction) error {
+	query, args, err := psql.
+		Update("transactions").
+		Set("status", tx.Status).
+		Set("refunded_amount", tx.RefundedAmount).
+		Set("updated_at", tx.UpdatedAt).
+		Where(sq.Eq{"id": tx.ID}).
+		ToSql()
+	if err != nil {
+		return fmt.Errorf("build update refund: %w", err)
+	}
+
+	_, err = r.db.Exec(ctx, query, args...)
+	if err != nil {
+		return fmt.Errorf("exec update refund: %w", err)
+	}
+	return nil
+}
+
+func (r *PgTransactionRepo) CreateRefund(ctx context.Context, refund *transaction.Refund) error {
+	query, args, err := psql.
+		Insert("refunds").
+		Columns("id", "transaction_id", "amount", "status", "idempotency_key", "created_at", "updated_at").
+		Values(refund.ID, refund.TransactionID, refund.Amount, refund.Status,
+			nilIfEmpty(refund.IdempotencyKey), refund.CreatedAt, refund.UpdatedAt).
+		ToSql()
+	if err != nil {
+		return fmt.Errorf("build insert refund: %w", err)
+	}
+
+	_, err = r.db.Exec(ctx, query, args...)
+	if err != nil {
+		if mapped := mapUniqueViolation(err); mapped != nil {
+			return mapped
+		}
+		return fmt.Errorf("exec insert refund: %w", err)
+	}
+	return nil
+}
+
+func (r *PgTransactionRepo) UpdateRefundStatus(ctx context.Context, refund *transaction.Refund) error {
+	query, args, err := psql.
+		Update("refunds").
+		Set("status", refund.Status).
+		Set("updated_at", refund.UpdatedAt).
+		Where(sq.Eq{"id": refund.ID}).
+		ToSql()
+	if err != nil {
+		return fmt.Errorf("build update refund status: %w", err)
+	}
+
+	_, err = r.db.Exec(ctx, query, args...)
+	if err != nil {
+		return fmt.Errorf("exec update refund status: %w", err)
+	}
+	return nil
+}
+
+func (r *PgTransactionRepo) ReleaseRefundAmount(ctx context.Context, txID uuid.UUID, amount int64) error {
+	query := `UPDATE transactions
+		SET refunded_amount = refunded_amount - $1,
+		    status = CASE WHEN refunded_amount - $1 <= 0 THEN 'captured' ELSE 'partially_refunded' END,
+		    updated_at = now()
+		WHERE id = $2`
+	_, err := r.db.Exec(ctx, query, amount, txID)
+	if err != nil {
+		return fmt.Errorf("release refund amount: %w", err)
+	}
+	return nil
+}
+
+func nilIfEmpty(s string) *string {
+	if s == "" {
+		return nil
+	}
+	return &s
+}
+
+// mapUniqueViolation translates Postgres 23505 errors into domain sentinels based
+// on the violated constraint. Returns nil if err is not a unique violation.
+func mapUniqueViolation(err error) error {
+	var pgErr *pgconn.PgError
+	if !errors.As(err, &pgErr) || pgErr.Code != "23505" {
+		return nil
+	}
+	switch pgErr.ConstraintName {
+	case "idx_transactions_purchase_idempotency":
+		return transaction.ErrPurchaseIdempotencyConflict
+	default:
+		return transaction.ErrDuplicateIdempotency
+	}
+}

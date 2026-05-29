@@ -1,29 +1,38 @@
-package api
+package paymanager
 
 import (
-	"TestTaskJustPay/services/paymanager/handlers/updates"
+	"TestTaskJustPay/services/paymanager/internal/dispute/disputecontroller"
+	"TestTaskJustPay/services/paymanager/internal/order/ordercontroller"
+	"TestTaskJustPay/services/paymanager/internal/payment/paymentcontroller"
 
 	"github.com/gin-gonic/gin"
 )
 
-// InternalRouter sets up routes for internal service-to-service communication.
-// These endpoints are used by Ingest service to forward webhooks to API service.
+// InternalRouter sets up routes for internal service-to-service communication
+// (webhook updates forwarded from the Ingest service).
 type InternalRouter struct {
-	updates *updates.UpdatesHandler
+	order   *ordercontroller.HTTPHandler
+	dispute *disputecontroller.HTTPHandler
+	payment *paymentcontroller.HTTPHandler
 }
 
-func NewInternalRouter(updates *updates.UpdatesHandler) *InternalRouter {
+func NewInternalRouter(
+	order *ordercontroller.HTTPHandler,
+	dispute *disputecontroller.HTTPHandler,
+	payment *paymentcontroller.HTTPHandler,
+) *InternalRouter {
 	return &InternalRouter{
-		updates: updates,
+		order:   order,
+		dispute: dispute,
+		payment: payment,
 	}
 }
 
-// SetUp registers internal routes on the Gin engine.
 func (r *InternalRouter) SetUp(engine *gin.Engine) {
 	internalGroup := engine.Group("/internal")
 	{
-		internalGroup.POST("/updates/orders", r.updates.HandleOrderUpdate)
-		internalGroup.POST("/updates/disputes", r.updates.HandleDisputeUpdate)
-		internalGroup.POST("/updates/payments", r.updates.HandlePaymentWebhook)
+		internalGroup.POST("/updates/orders", r.order.HandleUpdate)
+		internalGroup.POST("/updates/disputes", r.dispute.HandleUpdate)
+		internalGroup.POST("/updates/payments", r.payment.HandleWebhook)
 	}
 }

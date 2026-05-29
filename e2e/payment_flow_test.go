@@ -3,7 +3,7 @@
 package integration_test
 
 import (
-	"TestTaskJustPay/services/paymanager/domain/payment"
+	"TestTaskJustPay/services/paymanager/internal/payment"
 	"encoding/json"
 	"fmt"
 	"net/http"

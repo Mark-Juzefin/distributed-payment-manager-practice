@@ -13,12 +13,15 @@ import (
 
 	"TestTaskJustPay/pkg/migrations"
 	"TestTaskJustPay/pkg/postgres"
-	"TestTaskJustPay/services/silvergate/acquirer"
 	"TestTaskJustPay/services/silvergate/config"
-	"TestTaskJustPay/services/silvergate/domain/transaction"
-	"TestTaskJustPay/services/silvergate/handlers"
-	"TestTaskJustPay/services/silvergate/repo"
-	"TestTaskJustPay/services/silvergate/webhook"
+	"TestTaskJustPay/services/silvergate/internal/acquirer"
+	"TestTaskJustPay/services/silvergate/internal/product"
+	"TestTaskJustPay/services/silvergate/internal/product/productrepo"
+	"TestTaskJustPay/services/silvergate/internal/purchase"
+	"TestTaskJustPay/services/silvergate/internal/transaction"
+	"TestTaskJustPay/services/silvergate/internal/transaction/transactioncontroller"
+	"TestTaskJustPay/services/silvergate/internal/transaction/transactionrepo"
+	"TestTaskJustPay/services/silvergate/internal/webhooksender"
 
 	"github.com/gin-gonic/gin"
 )
@@ -50,22 +53,30 @@ func NewApp(cfg config.Config) (*App, error) {
 		return nil, fmt.Errorf("connect to postgres: %w", err)
 	}
 
-	txRepo := repo.NewPgTransactionRepo(pg.Pool)
+	txRepo := transactionrepo.NewPgTransactionRepo(pg.Pool)
 	acq := acquirer.NewMockAcquirer(cfg.AcquirerAuthApproveRate, cfg.AcquirerSettleSuccessRate, cfg.AcquirerSettleDelay)
-	webhookSender := webhook.NewSender(cfg.WebhookCallbackURL, log)
+	webhookSender := webhooksender.NewSender(cfg.WebhookCallbackURL, log)
 	txRepoFactory := func(tx postgres.Executor) transaction.Repo {
-		return repo.NewPgTransactionRepo(tx)
+		return transactionrepo.NewPgTransactionRepo(tx)
 	}
 	svc := transaction.NewService(txRepo, acq, webhookSender, log, pg, txRepoFactory)
 
-	authHandler := handlers.NewAuthHandler(svc)
-	captureHandler := handlers.NewCaptureHandler(svc)
-	voidHandler := handlers.NewVoidHandler(svc)
-	refundHandler := handlers.NewRefundHandler(svc)
+	authHandler := transactioncontroller.NewAuthHandler(svc)
+	captureHandler := transactioncontroller.NewCaptureHandler(svc)
+	voidHandler := transactioncontroller.NewVoidHandler(svc)
+	refundHandler := transactioncontroller.NewRefundHandler(svc)
+
+	productRepo := productrepo.NewPgProductRepo(pg.Pool)
+	productRepoFactory := func(exec postgres.Executor) product.Repo {
+		return productrepo.NewPgProductRepo(exec)
+	}
+	productSvc := product.NewService(productRepo, log, pg, productRepoFactory)
+
+	purchaseSvc := purchase.NewService(productSvc, svc, svc, txRepo, txRepoFactory, pg, log)
 
 	engine := gin.New()
 	engine.Use(gin.Recovery())
-	setupRouter(engine, authHandler, captureHandler, voidHandler, refundHandler)
+	setupRouter(engine, authHandler, captureHandler, voidHandler, refundHandler, productSvc, purchaseSvc)
 
 	server := &http.Server{
 		Addr:    fmt.Sprintf(":%d", cfg.Port),

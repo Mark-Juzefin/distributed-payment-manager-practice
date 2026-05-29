@@ -13,7 +13,9 @@
       "Bash(go vet *)",
       "Bash(git checkout *)",
       "Bash(git show *)",
-      "Read(//tmp/**)"
+      "Read(//tmp/**)",
+      "WebFetch(domain:github.com)",
+      "Bash(gh api *)"
     ]
   }
 }

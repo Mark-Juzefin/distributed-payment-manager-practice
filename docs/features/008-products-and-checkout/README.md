@@ -23,9 +23,9 @@
 - [x] **Subtask 1:** CRUD для продуктів — entity, repo, міграція, HTTP handlers
   - **Spec (вимоги):** [spec-subtask-1.md](spec-subtask-1.md)
   - **План:** [plan-subtask-1.md](plan-subtask-1.md) — all 8 steps done
-- [ ] **Subtask 2:** `/purchase` endpoint — композиція auth+capture навколо product
+- [x] **Subtask 2:** `/purchase` endpoint — композиція auth+capture навколо product
   - **Spec (вимоги):** [spec-subtask-2.md](spec-subtask-2.md)
-  - **План:** [plan-subtask-2.md](plan-subtask-2.md)
+  - **План:** [plan-subtask-2.md](plan-subtask-2.md) — all 10 steps done
 
 ## Known Limitations / Future Work
 
@@ -52,6 +52,29 @@
   поверненні до PayManager.
 
 ## Session Log
+
+### 2026-05-26 — Subtask 2: `/purchase` implemented + committed
+- Прогрилили дизайн крізь 11 питань → [spec-subtask-2.md](spec-subtask-2.md)
+  + [plan-subtask-2.md](plan-subtask-2.md). Усі 10 кроків done, committed.
+- **Idempotency двошарова:** `checkIdempotency` pre-check (швидкий шлях, економить
+  acquirer-виклик на очевидному replay) + UNIQUE index `idx_transactions_purchase_idempotency`
+  як справжній backstop під конкурентністю. Програш race на INSERT (23505 →
+  `ErrPurchaseIdempotencyConflict`) → `resolveRace` re-fetch'ить переможця. `sameRequest`
+  розрізняє replay від key-reuse (→ 409) в обох точках.
+- **Окрема колонка `purchase_idempotency_key`** замість generic table — костиль
+  (F-α), бо `idempotency_key` перетирається Capture. Задокументовано.
+- **F-β підтверджено як реальний баг:** `acquirer.Authorize` викликається ДО
+  claim'у ключа (всередині tx, перед INSERT). У програшному race req2 авторизує
+  картку вдруге → orphan auth hold. Терпимо лише бо mock acquirer + вузьке вікно.
+  Реальний фікс = intent-record first + idempotent acquirer + reconciliation worker.
+- **Тести:** 10 unit (hand-rolled fakes) для `purchase.Service` — green. Integration
+  на UNIQUE constraint + `GetByPurchaseIdempotencyKey` — compile clean, runtime
+  потребує docker (`make integration-test`, ще не прогнано користувачем).
+- **Code review pass:** прибрано verbose feature-ref коментарі (spec-path, F-α/β/γ,
+  "Subtask 2") з коду — деталі лишились у spec/README. `SetPurchaseContext` →
+  `MarkProductPurchase`. Додано Returns-докстрінги до `Purchase` + `checkIdempotency`.
+- **Фіча 008: обидва сабтаски done.** Кандидат на закриття — звірити з roadmap
+  при наступному старті.
 
 ### 2026-05-18 — Subtask 1: grilling → spec → domain core scaffolded
 - Прогрилили дизайн крізь дерево рішень (mutability tiers, freeze detection,
